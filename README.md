@@ -2,7 +2,7 @@
 
 Open-source conversation scene creation for the Web, MCP, and API.
 
-**Status: project initialization only. No application, API, MCP server, or rendering engine is implemented yet.**
+**Status: early development. A local evaluation/annotation tool is available; the production conversation renderer, API and MCP service are not implemented on this baseline.**
 
 [简体中文](README.zh-CN.md) · [Product brief](docs/product-brief.md) · [Design brief](design/BRIEF.md) · [Contributing](CONTRIBUTING.md)
 
@@ -26,7 +26,25 @@ The public Web experience is intended to offer free use. Hosted MCP/API access i
 | `design/` | Open Design brief and future design handoff |
 | `docs/` | Product scope, setup, and planning context |
 
-These directories are placeholders, not runnable packages. There are no install, development, build, or deployment commands yet. Frameworks and infrastructure dependencies will be selected when implementation is authorized.
+The product directories above remain reserved on this baseline. The independently runnable evaluation tool lives in `tools/eval/`.
+
+## Local evaluation lab
+
+Use Node.js 22 or later:
+
+```sh
+npm --prefix tools/eval ci
+npm --prefix tools/eval start
+```
+
+Open `http://127.0.0.1:4421` to create cases, upload inputs and actual PNG outputs, label quality, and explicitly approve golden images. Data stays in ignored `.local/eval/`. Git/CI exports are limited to explicitly synthetic, reviewed cases.
+
+```sh
+npm --prefix tools/eval test
+npm --prefix tools/eval run selftest
+```
+
+The **Eval harness** GitHub workflow checks the evaluator using positive and negative synthetic controls across Linux, macOS and Windows. It does not certify an unconnected production renderer. See [evaluation design](docs/evaluation.md) and [tool and manifest reference](tools/eval/README.md).
 
 ## Current scope
 

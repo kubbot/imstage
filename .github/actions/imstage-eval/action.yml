@@ -1,0 +1,42 @@
+name: IMStage PNG evaluation
+description: Compare newly generated actual PNG outputs against reviewed golden cases.
+inputs:
+  gold:
+    description: Path to the reviewed golden bundle in the workspace.
+    required: true
+  actual:
+    description: Path to the actual manifest produced by the current renderer run.
+    required: true
+  artifact-name:
+    description: Unique artifact name within this workflow run.
+    default: imstage-eval-report
+outputs:
+  report-directory:
+    description: Directory containing JSON, Markdown and available difference images.
+    value: ${{ steps.evaluate.outputs.report-directory }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Install the locked evaluator dependencies
+      shell: bash
+      run: npm --prefix "$GITHUB_ACTION_PATH/../../../tools/eval" ci
+    - name: Evaluate actual outputs
+      id: evaluate
+      shell: bash
+      env:
+        EVAL_GOLD: ${{ inputs.gold }}
+        EVAL_ACTUAL: ${{ inputs.actual }}
+      run: |
+        report_dir="$(mktemp -d "$RUNNER_TEMP/imstage-eval.XXXXXX")"
+        echo "report-directory=$report_dir" >> "$GITHUB_OUTPUT"
+        node "$GITHUB_ACTION_PATH/../../../tools/eval/cli.mjs" evaluate --gold "$EVAL_GOLD" --actual "$EVAL_ACTUAL" --out "$report_dir"
+    - uses: actions/upload-artifact@v4
+      if: ${{ always() && steps.evaluate.outputs.report-directory != '' }}
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.evaluate.outputs.report-directory }}/
+        if-no-files-found: error
+        retention-days: 7

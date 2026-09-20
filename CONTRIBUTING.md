@@ -1,6 +1,6 @@
 # Contributing
 
-IMStage currently contains project documentation and reserved directories only. Product implementation has not started.
+IMStage is in early development. The local Eval tool is independently runnable; production rendering and service boundaries remain under design.
 
 1. Open an issue describing the problem, intended behavior, and scope.
 2. Agree on the scope before adding runtime dependencies or major architecture.
@@ -9,6 +9,6 @@ IMStage currently contains project documentation and reserved directories only. 
 
 Use English or Simplified Chinese. Be respectful and discuss ideas rather than people. Use synthetic or authorized examples; omit credentials, personal conversations, and private screenshots.
 
-There are no build or test commands at this stage. For documentation changes, review links, formatting, and consistency with the initialization-only status. Runtime checks and CI will be introduced with the implementation they validate.
+For Eval changes, run `npm --prefix tools/eval ci`, `npm --prefix tools/eval test` and `npm --prefix tools/eval run selftest`. Follow [the evaluation design](docs/evaluation.md): use synthetic fixtures, preserve human approval provenance, and never refresh golden images automatically to make a failed comparison pass. The Eval harness workflow tests the infrastructure, not a production renderer.
 
 Contributions are provided under the repository's MIT license.

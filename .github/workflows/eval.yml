@@ -1,0 +1,71 @@
+name: Eval harness
+
+on:
+  pull_request:
+    paths:
+      - 'tools/eval/**'
+      - 'docs/evaluation.md'
+      - '.github/workflows/eval.yml'
+      - '.github/actions/imstage-eval/**'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/eval/**'
+      - 'docs/evaluation.md'
+      - '.github/workflows/eval.yml'
+      - '.github/actions/imstage-eval/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    name: Eval harness (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/eval/package-lock.json
+      - run: npm --prefix tools/eval ci
+      - run: npm --prefix tools/eval test
+      - name: Verify evaluator positive and negative controls
+        run: node tools/eval/cli.mjs selftest --out eval-harness-report
+      - name: Prepare clearly labeled fixtures for Action integration test
+        run: |
+          node --input-type=module <<'JS'
+          import { mkdir, writeFile } from 'node:fs/promises';
+          import { buildHarness } from './tools/eval/src/fixtures.mjs';
+          const harness = buildHarness();
+          await mkdir('eval-action-fixtures', { recursive: true });
+          await writeFile('eval-action-fixtures/gold.json', JSON.stringify(harness.goldBundle));
+          await writeFile('eval-action-fixtures/actual.json', JSON.stringify(harness.actual.identical));
+          JS
+      - name: Verify the reusable Action with synthetic harness fixtures
+        uses: ./.github/actions/imstage-eval
+        with:
+          gold: eval-action-fixtures/gold.json
+          actual: eval-action-fixtures/actual.json
+          artifact-name: eval-action-${{ matrix.os }}
+      - name: Explain coverage boundary
+        run: |
+          echo '### Eval harness' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This checks annotation and evaluator behavior using synthetic controls. Production renderer evaluation is not connected and is not certified by this job.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-harness-${{ matrix.os }}
+          path: eval-harness-report/
+          if-no-files-found: error
+          retention-days: 7

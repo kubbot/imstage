@@ -2,7 +2,7 @@
 
 ## Scope
 
-The repository is in its initialization stage. Do not implement product functionality, generate UI prototypes, install an application stack, deploy an application, or configure paid services until the user explicitly requests that next phase.
+The repository is in early development. The user authorized the local evaluation/annotation phase in `tools/eval/`; see `docs/evaluation.md`. Other product phases, deployment and paid services still require an explicit user request. Keep Eval harness checks distinct from production renderer acceptance.
 
 Read `docs/product-brief.md` and `design/BRIEF.md` before future implementation. Distinguish accepted requirements, proposals, and unresolved decisions. Directory placeholders do not constitute architecture approval.
 
