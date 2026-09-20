@@ -1,5 +1,8 @@
 {
-  "name": "imstage", "version": "0.1.0", "private": true, "type": "module",
+  "name": "imstage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4417 --strictPort",
     "build": "tsc --noEmit && vite build",
@@ -8,6 +11,21 @@
     "test": "node --test tests/*.test.mjs",
     "test:ui": "playwright test"
   },
-  "dependencies": {"react":"19.3.0","react-dom":"19.3.0","@tabler/icons-react":"3.47.0","html-to-image":"1.11.13"},
-  "devDependencies": {"@vitejs/plugin-react":"6.1.1","vite":"8.3.0","typescript":"7.0.2","@types/react":"19.2.14","@types/react-dom":"19.2.3","@playwright/test":"1.63.0"}
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/syne": "5.3.0",
+    "@tabler/icons-react": "3.47.0",
+    "html-to-image": "1.11.13",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  }
 }

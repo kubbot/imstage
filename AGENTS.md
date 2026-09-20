@@ -2,7 +2,7 @@
 
 ## Scope
 
-The repository is in its initialization stage. Do not implement product functionality, generate UI prototypes, install an application stack, deploy an application, or configure paid services until the user explicitly requests that next phase.
+The user authorized a runnable React frontend and website redesign on 2026-09-20. The frontend phase includes local editing/export and adaptive light/dark/system themes. Do not add backend services, deploy an application, or configure paid services until the user explicitly requests that next phase.
 
 Read `docs/product-brief.md` and `design/BRIEF.md` before future implementation. Distinguish accepted requirements, proposals, and unresolved decisions. Directory placeholders do not constitute architecture approval.
 
