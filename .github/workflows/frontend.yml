@@ -16,10 +16,13 @@ concurrency:
 jobs:
   verify:
     name: Build and browser tests
-    runs-on: ubuntu-latest
+    # A repository owner can temporarily route trusted changes to an ephemeral
+    # runner when GitHub-hosted capacity is unavailable. Forks stay on GitHub.
+    runs-on: ${{ github.repository == 'kubbot/imstage' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.FRONTEND_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
-      IMSTAGE_BROWSER: chromium
+      IMSTAGE_BROWSER: ${{ vars.FRONTEND_RUNNER_LABEL && 'chrome' || 'chromium' }}
+      IMSTAGE_TEST_PORT: '4418'
       IMSTAGE_ARTIFACT_DIR: .local/ci-artifacts
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +34,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+        if: runner.os == 'Linux'
       - run: npm run test:ui
       - uses: actions/upload-artifact@v4
         if: failure()
