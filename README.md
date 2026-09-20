@@ -43,7 +43,9 @@ npm run test:ui         # Google Chrome is the default test browser
 
 For bundled Chromium: `npx playwright install chromium`, then `IMSTAGE_BROWSER=chromium npm run test:ui`. On this development Mac, use `dev-storage-guard new-artifact imstage-ui` and set `IMSTAGE_ARTIFACT_DIR` to the returned directory before UI tests.
 
-Website: `/`; editor: `/#/studio`; scene library: `/#/templates`; usage and integration status: `/#/docs`. The default theme follows the system; light/dark overrides persist locally. See [design review](design/REVIEW.md) and [verification](design/VERIFICATION.md).
+Website: `/`; prompt-first creation: `/#/create`; editor: `/#/studio`; scene library: `/#/templates`; usage and integration status: `/#/docs`. The default theme follows the system; light/dark overrides persist locally. See [design review](design/REVIEW.md) and [verification](design/VERIFICATION.md).
+
+See [prompt-first design and generation boundary](design/PROMPT-FIRST.md) for the new streaming Mars example, asset provenance and provider limitations. The local example replays authored content; arbitrary live AI generation is not connected.
 
 ## Current scope
 

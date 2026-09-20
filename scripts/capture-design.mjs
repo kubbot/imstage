@@ -31,7 +31,8 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
   await page.screenshot({ path: path.join(output, 'home-mobile.png') });
-  await page.locator('.output-panel').scrollIntoViewIfNeeded();
+  await page.getByRole('tab', { name: '实时画面' }).click();
+  await page.locator('.creation-output-panel').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'home-mobile-preview.png') });
   await page.goto(`${base}/#/studio`);
   await page.getByRole('tab', { name: '预览', exact: true }).click();

@@ -295,7 +295,7 @@
   right: 10px;
   bottom: 62px;
   font-size: 11px;
-  color: rgba(17, 18, 20, 0.38);
+  color: #626870;
   pointer-events: none;
 }
 
@@ -1020,3 +1020,5 @@
 
 .scene-view .scene-system { color:#535961; }
 .scene-view[data-platform="xiaohongshu"] .scene-system{color:#626870}
+
+.scene-view[data-watermark='true'] .scene-messages { padding-bottom:32px; }

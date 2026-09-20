@@ -17,6 +17,7 @@ export interface SceneViewProps {
   selectedId?: string;
   onSelect?: (id: string) => void;
   exportMode?: boolean;
+  pendingAssets?: boolean;
 }
 
 const AVATAR_COLORS = ['#5b8def', '#e3874f', '#4fb286', '#b06fd6', '#d6607a', '#4aa3c7'];
@@ -55,20 +56,20 @@ function Avatar({ participant }: { participant: Participant | undefined }) {
   );
 }
 
-function MessageBody({ message }: { message: Message }) {
+function MessageBody({ message, pending = false }: { message: Message; pending?: boolean }) {
   if (message.type === 'system') {
     return <div className="scene-system">{message.text}</div>;
   }
   if (message.type === 'location') {
     return (
-      <div className="scene-location">
+      <div className="scene-location" data-world={/火星|mars/i.test(message.text) ? 'mars' : undefined}>
         <div className="scene-location-map">
           <IconMapPin size={26} stroke={1.6} aria-hidden="true" />
           <span className="scene-location-pin" />
         </div>
         <div className="scene-location-info">
           <span className="scene-location-title">{message.text || '位置'}</span>
-          <span className="scene-location-sub">示意位置</span>
+          <span className="scene-location-sub">{/火星|mars/i.test(message.text) ? '火星 · 示意定位' : '示意位置'}</span>
         </div>
       </div>
     );
@@ -79,9 +80,9 @@ function MessageBody({ message }: { message: Message }) {
         {message.asset ? (
           <img src={message.asset} alt={message.text || '对话图片'} />
         ) : (
-          <div className="scene-image-missing">
+          <div className="scene-image-missing" aria-busy={pending}>
             <IconPhoto size={22} stroke={1.6} aria-hidden="true" />
-            <span>图片未设置</span>
+            <span>{pending ? '图片素材准备中…' : '图片未设置'}</span>
           </div>
         )}
         {message.text ? <div className="scene-image-caption">{message.text}</div> : null}
@@ -104,14 +105,14 @@ function headerTitle(scene: Scene): string {
  * Reusable chat renderer. The same DOM is used for the landing preview, the
  * editor canvas and the PNG export — never a separate canvas renderer.
  */
-export function SceneView({ scene, selectedId, onSelect, exportMode = false }: SceneViewProps) {
+export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false }: SceneViewProps) {
   const selectable = typeof onSelect === 'function' && !exportMode;
   const participantMap = new Map(scene.participants.map((participant) => [participant.id, participant]));
   const title = headerTitle(scene);
   const group = scene.participants.length > 2;
 
   return (
-    <div className="scene-view" data-platform={scene.platform} data-export={exportMode ? 'true' : undefined}>
+    <div className="scene-view" data-platform={scene.platform} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
       <div className="scene-status">
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
@@ -155,7 +156,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false }: S
                   {!isSelf && message.type !== 'system' && group ? (
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
-                  <MessageBody message={message} />
+                  <MessageBody message={message} pending={pendingAssets} />
                 </div>
                 {isSelf ? <Avatar participant={participant} /> : null}
               </div>

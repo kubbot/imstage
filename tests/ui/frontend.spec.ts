@@ -16,13 +16,16 @@ test('system appearance follows changes; manual preference survives reload', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
 });
 
-test('homepage edit changes only the selected reply; platform switching retains it', async ({ page }) => {
-  await page.goto('/'); const rows = page.locator('.hero-device .scene-row'); const before = await rows.allTextContents();
-  await page.getByRole('button', { name: '让回复更有松弛感' }).click();
-  const after = await rows.allTextContents(); expect(after[0]).toBe(before[0]);expect(after[2]).toBe(before[2]);expect(after[1]).toContain('不赶路');
+test('homepage direct edit changes only selected reply; platform switching retains it', async ({ page }) => {
+  await page.goto('/'); const rows = page.locator('.creation-phone .scene-row');
+  const before = await rows.allTextContents();
+  await page.locator('.creation-phone .scene-selectable').nth(1).click();
+  await page.getByRole('textbox', { name: '当前消息内容' }).fill('火星见，给你留了靠窗的位置。');
+  const after = await rows.allTextContents();
+  expect(after[0]).toBe(before[0]); expect(after[2]).toBe(before[2]); expect(after[1]).toContain('火星见');
   await page.getByRole('button', { name:'小红书', exact:true }).click();
-  await expect(page.locator('.hero-device .scene-view')).toHaveAttribute('data-platform','xiaohongshu');
-  await expect(rows.nth(1)).toContainText('不赶路');
+  await expect(page.locator('.creation-phone .scene-view')).toHaveAttribute('data-platform','xiaohongshu');
+  await expect(rows.nth(1)).toContainText('火星见');
 });
 
 test('template filtering, empty recovery and selected scene entry', async ({ page }) => {
@@ -128,10 +131,10 @@ test('JSON dialog is keyboard reachable and Escape restores focus', async ({ pag
 });
 
 for(const width of [320,390,768,1440]) test(`responsive routes have no horizontal overflow at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:900});for(const route of ['','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
+  await page.setViewportSize({width,height:900});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
   if(width<901){await page.getByRole('tab',{name:'预览',exact:true}).click();await expect(phone(page)).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
 });
 
 for(const theme of ['light','dark'] as const)test(`WCAG A/AA automated checks across frontend in ${theme}`,async({page})=>{
-  await page.emulateMedia({colorScheme:theme});for(const route of ['','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
+  await page.emulateMedia({colorScheme:theme});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
 });

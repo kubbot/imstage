@@ -2,7 +2,7 @@
 
 面向 Web、MCP 和 API 的开源聊天场景创作工具。
 
-**已提供可运行的 React 官网、场景库与浏览器本地编辑器。AI 生成、截图识别、云端存储、MCP/API 尚未接入。**
+**已提供输入驱动的 React 官网、流式场景示例、场景库与浏览器本地编辑器。任意场景的真实 AI 生成、截图识别、云端存储、MCP/API 尚未接入。**
 
 [English](README.md) · [产品说明](docs/product-brief.md) · [设计简报](design/BRIEF.md)
 
@@ -30,6 +30,7 @@ npm run test:ui   # 默认使用本机 Google Chrome
 没有 Chrome 时：`npx playwright install chromium`，再运行 `IMSTAGE_BROWSER=chromium npm run test:ui`。本机测试先用 `dev-storage-guard new-artifact imstage-ui` 创建产物目录，再通过 `IMSTAGE_ARTIFACT_DIR` 指定输出；验收后按存储守卫流程清理。
 
 - 官网 `/`：浅色 / 深色 / 跟随系统，默认跟随系统；可试改消息与切换预览平台。
+- 一句话创作 `/#/create`：火星示例分步呈现、停止、精准修改、来源查看和导出；真实生成接口尚待连接。
 - 场景库 `/#/templates`：筛选、搜索与进入模板。
 - 工作台 `/#/studio`：消息编辑、人物、图片、撤销、草稿恢复、PNG 与 JSON 下载。
 - 接入说明 `/#/docs`：真实能力与规划边界。
@@ -40,7 +41,7 @@ npm run test:ui   # 默认使用本机 Google Chrome
 
 保留 OpenDesign 原稿，在本仓库新增 React + TypeScript + Vite 实现。微信、小红书优先，原稿中的 iMessage / WhatsApp / Slack 选项保留为风格预览。所有平台模板尚未进行具体 App 版本的像素校准；不能把这次前端交付视为真实平台一致性验收。
 
-参见 [产品与设计评审](design/REVIEW.md)、[验证记录](design/VERIFICATION.md)。AI、账户、后端、真实 API/MCP、计费和公网部署不在本轮实现范围。
+参见 [输入驱动设计与真实生成边界](design/PROMPT-FIRST.md)、[产品与设计评审](design/REVIEW.md)、[验证记录](design/VERIFICATION.md)。AI、账户、后端、真实 API/MCP、计费和公网部署不在本轮实现范围。
 
 ## 开源协作
 

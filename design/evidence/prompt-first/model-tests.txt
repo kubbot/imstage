@@ -1,0 +1,330 @@
+npm notice run imstage@0.1.0 test
+npm notice run node --test tests/*.test.mjs
+TAP version 13
+# Subtest: applyGenerationEvent validates a scene event and drops unknown fields
+ok 1 - applyGenerationEvent validates a scene event and drops unknown fields
+  ---
+  duration_ms: 2.958084
+  type: 'test'
+  ...
+# Subtest: applyGenerationEvent rejects malformed scene and event structures
+ok 2 - applyGenerationEvent rejects malformed scene and event structures
+  ---
+  duration_ms: 0.538042
+  type: 'test'
+  ...
+# Subtest: applyGenerationEvent appends messages immutably and enforces ids + senders
+ok 3 - applyGenerationEvent appends messages immutably and enforces ids + senders
+  ---
+  duration_ms: 0.816917
+  type: 'test'
+  ...
+# Subtest: message-delta appends text while preserving every other field
+ok 4 - message-delta appends text while preserving every other field
+  ---
+  duration_ms: 0.624875
+  type: 'test'
+  ...
+# Subtest: asset events set avatars and message images, rejecting unsafe data
+ok 5 - asset events set avatars and message images, rejecting unsafe data
+  ---
+  duration_ms: 0.481791
+  type: 'test'
+  ...
+# Subtest: status and done leave the scene untouched but reject corrupt scenes
+ok 6 - status and done leave the scene untouched but reject corrupt scenes
+  ---
+  duration_ms: 0.373625
+  type: 'test'
+  ...
+# Subtest: isMarsPrompt recognises only requests that name both Musk and Mars
+ok 7 - isMarsPrompt recognises only requests that name both Musk and Mars
+  ---
+  duration_ms: 0.816208
+  type: 'test'
+  ...
+# Subtest: streamDemo writes the Mars fiction incrementally and ends with done
+ok 8 - streamDemo writes the Mars fiction incrementally and ends with done
+  ---
+  duration_ms: 3.657625
+  type: 'test'
+  ...
+# Subtest: streamDemo resolves tomorrow in local time across month/year/leap boundaries
+ok 9 - streamDemo resolves tomorrow in local time across month/year/leap boundaries
+  ---
+  duration_ms: 3.601125
+  type: 'test'
+  ...
+# Subtest: streamDemo rejects unrelated prompts instead of silently producing Mars
+ok 10 - streamDemo rejects unrelated prompts instead of silently producing Mars
+  ---
+  duration_ms: 1.107125
+  type: 'test'
+  ...
+# Subtest: streamDemo abort is safe before the first yield and between yields
+ok 11 - streamDemo abort is safe before the first yield and between yields
+  ---
+  duration_ms: 1.566417
+  type: 'test'
+  ...
+# Subtest: streamRemote parses CRLF NDJSON split across UTF-8 chunk boundaries
+ok 12 - streamRemote parses CRLF NDJSON split across UTF-8 chunk boundaries
+  ---
+  duration_ms: 16.989958
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects premature EOF without a done event
+ok 13 - streamRemote rejects premature EOF without a done event
+  ---
+  duration_ms: 1.807917
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects malformed, unknown and oversized events
+ok 14 - streamRemote rejects malformed, unknown and oversized events
+  ---
+  duration_ms: 236.822084
+  type: 'test'
+  ...
+# Subtest: streamRemote surfaces provider error records and HTTP failures in Chinese
+ok 15 - streamRemote surfaces provider error records and HTTP failures in Chinese
+  ---
+  duration_ms: 7.507667
+  type: 'test'
+  ...
+# Subtest: streamRemote validates content type and never falls back to the local demo
+ok 16 - streamRemote validates content type and never falls back to the local demo
+  ---
+  duration_ms: 1.9655
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects an invalid previousScene before calling the provider
+ok 17 - streamRemote rejects an invalid previousScene before calling the provider
+  ---
+  duration_ms: 0.250375
+  type: 'test'
+  ...
+# Subtest: streamRemote honours an already-aborted signal without fetching
+ok 18 - streamRemote honours an already-aborted signal without fetching
+  ---
+  duration_ms: 0.213542
+  type: 'test'
+  ...
+# Subtest: streamRemote cancels and releases the reader when the consumer stops
+ok 19 - streamRemote cancels and releases the reader when the consumer stops
+  ---
+  duration_ms: 1.490708
+  type: 'test'
+  ...
+# Subtest: streamRemote abort cancels the reader and surfaces AbortError
+ok 20 - streamRemote abort cancels the reader and surfaces AbortError
+  ---
+  duration_ms: 13.638125
+  type: 'test'
+  ...
+# Subtest: remote image events may exceed 1MB while staying within the raster limit
+ok 21 - remote image events may exceed 1MB while staying within the raster limit
+  ---
+  duration_ms: 33.894167
+  type: 'test'
+  ...
+# Subtest: remote done must be terminal and cannot certify missing images
+ok 22 - remote done must be terminal and cannot certify missing images
+  ---
+  duration_ms: 3.208667
+  type: 'test'
+  ...
+# Subtest: createScene("weekend") matches the sample brief
+ok 23 - createScene("weekend") matches the sample brief
+  ---
+  duration_ms: 6.938
+  type: 'test'
+  ...
+# Subtest: createScene("launch") has a three-person design launch group
+ok 24 - createScene("launch") has a three-person design launch group
+  ---
+  duration_ms: 0.139875
+  type: 'test'
+  ...
+# Subtest: createScene("welcome") starts with a new-friend system message
+ok 25 - createScene("welcome") starts with a new-friend system message
+  ---
+  duration_ms: 0.058625
+  type: 'test'
+  ...
+# Subtest: createScene returns independent fresh copies with stable message ids
+ok 26 - createScene returns independent fresh copies with stable message ids
+  ---
+  duration_ms: 0.397084
+  type: 'test'
+  ...
+# Subtest: updateScene returns a new scene and leaves the original untouched
+ok 27 - updateScene returns a new scene and leaves the original untouched
+  ---
+  duration_ms: 0.360208
+  type: 'test'
+  ...
+# Subtest: updateMessage replaces only the target message
+ok 28 - updateMessage replaces only the target message
+  ---
+  duration_ms: 0.091625
+  type: 'test'
+  ...
+# Subtest: updateMessage on a missing id returns the same reference
+ok 29 - updateMessage on a missing id returns the same reference
+  ---
+  duration_ms: 0.202
+  type: 'test'
+  ...
+# Subtest: addMessage appends with a unique stable id without mutating the source
+ok 30 - addMessage appends with a unique stable id without mutating the source
+  ---
+  duration_ms: 0.325459
+  type: 'test'
+  ...
+# Subtest: addMessage defaults system messages to an empty sender
+ok 31 - addMessage defaults system messages to an empty sender
+  ---
+  duration_ms: 0.682167
+  type: 'test'
+  ...
+# Subtest: deleteMessage removes the target immutably and no-ops on unknown ids
+ok 32 - deleteMessage removes the target immutably and no-ops on unknown ids
+  ---
+  duration_ms: 1.013333
+  type: 'test'
+  ...
+# Subtest: moveMessage reorders immutably and clamps out-of-range moves
+ok 33 - moveMessage reorders immutably and clamps out-of-range moves
+  ---
+  duration_ms: 0.378208
+  type: 'test'
+  ...
+# Subtest: updateParticipant renames and clears avatars immutably
+ok 34 - updateParticipant renames and clears avatars immutably
+  ---
+  duration_ms: 0.198667
+  type: 'test'
+  ...
+# Subtest: addParticipant allocates a stable unique id
+ok 35 - addParticipant allocates a stable unique id
+  ---
+  duration_ms: 0.11
+  type: 'test'
+  ...
+# Subtest: message ids stay unique even for non-numeric ids
+ok 36 - message ids stay unique even for non-numeric ids
+  ---
+  duration_ms: 0.103333
+  type: 'test'
+  ...
+# Subtest: validateScene accepts a well-formed scene and normalises it
+ok 37 - validateScene accepts a well-formed scene and normalises it
+  ---
+  duration_ms: 0.212
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-objects and missing core fields
+ok 38 - validateScene rejects non-objects and missing core fields
+  ---
+  duration_ms: 0.16275
+  type: 'test'
+  ...
+# Subtest: validateScene rejects unknown platforms and message types
+ok 39 - validateScene rejects unknown platforms and message types
+  ---
+  duration_ms: 0.139208
+  type: 'test'
+  ...
+# Subtest: validateScene rejects broken participants and dangling senders
+ok 40 - validateScene rejects broken participants and dangling senders
+  ---
+  duration_ms: 0.071875
+  type: 'test'
+  ...
+# Subtest: validateScene rejects a selfId that is not a participant
+ok 41 - validateScene rejects a selfId that is not a participant
+  ---
+  duration_ms: 0.344125
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-array messages and bad field types
+ok 42 - validateScene rejects non-array messages and bad field types
+  ---
+  duration_ms: 0.2235
+  type: 'test'
+  ...
+# Subtest: parseSceneJson handles corrupt JSON and valid JSON
+ok 43 - parseSceneJson handles corrupt JSON and valid JSON
+  ---
+  duration_ms: 0.12975
+  type: 'test'
+  ...
+# Subtest: draft round-trips through serializeDraft and parseDraft
+ok 44 - draft round-trips through serializeDraft and parseDraft
+  ---
+  duration_ms: 0.243208
+  type: 'test'
+  ...
+# Subtest: parseDraft rejects corrupt, mis-versioned and malformed drafts
+ok 45 - parseDraft rejects corrupt, mis-versioned and malformed drafts
+  ---
+  duration_ms: 0.426417
+  type: 'test'
+  ...
+# Subtest: history supports commit, undo and redo
+ok 46 - history supports commit, undo and redo
+  ---
+  duration_ms: 0.133333
+  type: 'test'
+  ...
+# Subtest: a new commit clears the redo branch
+ok 47 - a new commit clears the redo branch
+  ---
+  duration_ms: 0.173333
+  type: 'test'
+  ...
+# Subtest: committing the same reference is a no-op
+ok 48 - committing the same reference is a no-op
+  ---
+  duration_ms: 0.093875
+  type: 'test'
+  ...
+# Subtest: undo isolation: histories and scenes never leak into each other
+ok 49 - undo isolation: histories and scenes never leak into each other
+  ---
+  duration_ms: 0.079209
+  type: 'test'
+  ...
+# Subtest: resetHistory drops the past and future
+ok 50 - resetHistory drops the past and future
+  ---
+  duration_ms: 0.108834
+  type: 'test'
+  ...
+# Subtest: validation failure never mutates the input object
+ok 51 - validation failure never mutates the input object
+  ---
+  duration_ms: 0.55275
+  type: 'test'
+  ...
+# Subtest: untrusted drafts cannot request external images or unsupported data content
+ok 52 - untrusted drafts cannot request external images or unsupported data content
+  ---
+  duration_ms: 0.474417
+  type: 'test'
+  ...
+# Subtest: scene date and device time survive draft round trip independently
+ok 53 - scene date and device time survive draft round trip independently
+  ---
+  duration_ms: 1.287125
+  type: 'test'
+  ...
+1..53
+# tests 53
+# suites 0
+# pass 53
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 563.944084
