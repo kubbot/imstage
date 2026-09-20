@@ -36,4 +36,10 @@ IMSTAGE_BASE_URL=https://YOUR_VERIFIED_HOST npm run test:ui
 
 浏览器测试仅修改隔离浏览器里的合成场景和本地草稿。部分测试会拦截真实模式请求以验证协议/错误处理；它们不能证明 AI 供应商接入成功。公网缺失 API 的状态应另外核验。测试截图、下载和 trace 应存入本次任务的 `IMSTAGE_ARTIFACT_DIR`，验收后清理。
 
+## 临时 runner
+
+首次发布时，GitHub-hosted Actions 因账户账单问题无法启动。工作流保留默认 Ubuntu 执行路径；维护者可临时设置仓库变量 `FRONTEND_RUNNER_LABEL`，将同仓库的已审查变更交给具有该标签的一次性 runner。来自 fork 的 PR 不走此路径。Linux 使用 Playwright Chromium，macOS 使用已安装的 Chrome；都执行相同的模型测试、构建及浏览器用例，并通过 `preview` 验证生产产物。CI 使用 4418 端口以避免影响 4417 的开发预览。
+
+仅在确认待执行提交可信后注册 `--ephemeral` runner；每个 runner 完成一个 job 后自动注销。验证后移除本轮 runner 文件和仓库变量，不留下常驻 runner。该方式不解决 GitHub 账户账单问题；后续默认托管 CI 仍需账户恢复才能运行。
+
 构建不需要任何供应商密钥。`.local/`、`.vercel/`、私有素材和环境文件不得提交或上传。

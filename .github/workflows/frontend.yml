@@ -21,7 +21,6 @@ jobs:
     runs-on: ${{ github.repository == 'kubbot/imstage' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.FRONTEND_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
-      IMSTAGE_BROWSER: ${{ vars.FRONTEND_RUNNER_LABEL && 'chrome' || 'chromium' }}
       IMSTAGE_TEST_PORT: '4418'
       IMSTAGE_ARTIFACT_DIR: .local/ci-artifacts
     steps:
@@ -36,6 +35,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
         if: runner.os == 'Linux'
       - run: npm run test:ui
+        env:
+          IMSTAGE_BROWSER: ${{ runner.os == 'macOS' && 'chrome' || 'chromium' }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
