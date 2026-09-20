@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ github.repository == 'kubbot/imstage' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.FRONTEND_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
-      NPM_CONFIG_CACHE: ${{ runner.temp }}/imstage-npm-cache
+      NPM_CONFIG_CACHE: .local/npm-cache
       IMSTAGE_TEST_PORT: '4418'
       IMSTAGE_ARTIFACT_DIR: .local/ci-artifacts
     steps:
