@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": { "node": "22.x" },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4417 --strictPort",
     "build": "tsc --noEmit && vite build",

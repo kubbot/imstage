@@ -30,7 +30,7 @@ The public Web experience is intended to offer free use. Hosted MCP/API access i
 
 ## Run and verify
 
-Requires Node.js 22.23 or later. Run from the repository root:
+Requires Node.js 22.x (verified with 22.23.2). Run from the repository root:
 
 ```sh
 npm ci
@@ -51,7 +51,7 @@ See [prompt-first design and generation boundary](design/PROMPT-FIRST.md) for th
 
 The browser editor supports synthetic templates, per-message editing, participants and local images, undo/redo, versioned local drafts, and PNG/JSON downloads. Normal PNG export is 360×640 logical pixels at 2× resolution; long export includes all content. The scene data drives both preview and export.
 
-UI templates are **visual approximations**, not certified replicas of a specific platform version. Natural-language generation, screenshot recognition, accounts, hosted persistence, charging and live MCP/API are future work. No application deployment is included in this change.
+UI templates are **visual approximations**, not certified replicas of a specific platform version. Natural-language generation, screenshot recognition, accounts, hosted persistence, charging and live MCP/API are future work. The static frontend is deployable to Vercel; see [deployment and verification](docs/deployment.md).
 
 ## Responsible use
 

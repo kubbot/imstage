@@ -16,7 +16,7 @@ Web 端计划提供免费使用；托管 MCP/API 计划使用账号绑定的 key
 
 ## 运行与验证
 
-在仓库根目录运行，要求 Node.js 22.23 或更新版本。
+在仓库根目录运行，要求 Node.js 22.x（已验证 22.23.2）。
 
 ```sh
 npm ci
@@ -41,7 +41,7 @@ npm run test:ui   # 默认使用本机 Google Chrome
 
 保留 OpenDesign 原稿，在本仓库新增 React + TypeScript + Vite 实现。微信、小红书优先，原稿中的 iMessage / WhatsApp / Slack 选项保留为风格预览。所有平台模板尚未进行具体 App 版本的像素校准；不能把这次前端交付视为真实平台一致性验收。
 
-参见 [输入驱动设计与真实生成边界](design/PROMPT-FIRST.md)、[产品与设计评审](design/REVIEW.md)、[验证记录](design/VERIFICATION.md)。AI、账户、后端、真实 API/MCP、计费和公网部署不在本轮实现范围。
+参见 [输入驱动设计与真实生成边界](design/PROMPT-FIRST.md)、[产品与设计评审](design/REVIEW.md)、[验证记录](design/VERIFICATION.md) 和 [前端发布说明](docs/deployment.md)。本轮发布静态前端；AI、账户、后端、真实 API/MCP 和计费仍待实现。
 
 ## 开源协作
 
