@@ -1,254 +1,52 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
-    <title>IMStage 标注实验室</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <h1>IMStage 标注实验室</h1>
-          <p class="brand-sub">本地优先 · 中文标注 · PNG 金标评测</p>
-        </div>
-      </div>
-      <div class="topbar-actions">
-        <span id="store-status" class="status-chip" data-state="idle">未连接</span>
-        <button id="btn-refresh" type="button" class="btn btn-ghost">刷新</button>
-        <button id="btn-starter" type="button" class="btn btn-ghost">加载合成示例</button>
-        <button id="btn-export" type="button" class="btn btn-ghost">导出金标集</button>
-        <button id="btn-import" type="button" class="btn btn-ghost">导入</button>
-        <input id="import-file" type="file" accept="application/json,.json" hidden />
-      </div>
-    </header>
-
-    <div id="banner" class="banner" role="alert" hidden>
-      <span id="banner-text"></span>
-      <button id="banner-action" type="button" class="btn btn-small" hidden></button>
-      <button id="banner-close" type="button" class="btn btn-small btn-ghost">关闭</button>
-    </div>
-
-    <main class="layout">
-      <section class="pane list-pane" aria-label="用例列表">
-        <div class="pane-head">
-          <div class="pane-title-row">
-            <h2>用例</h2>
-            <button id="btn-new-case" type="button" class="btn btn-primary btn-small">新建</button>
-          </div>
-          <div class="filters">
-            <label class="field compact">
-              <span>搜索</span>
-              <input id="filter-q" type="search" placeholder="问题 / 备注" />
-            </label>
-            <div class="filter-row">
-              <label class="field compact">
-                <span>目标 IM</span>
-                <select id="filter-im"><option value="">全部</option></select>
-              </label>
-              <label class="field compact">
-                <span>平台</span>
-                <select id="filter-surface"><option value="">全部</option></select>
-              </label>
-            </div>
-            <div class="filter-row">
-              <label class="field compact">
-                <span>状态</span>
-                <select id="filter-status">
-                  <option value="">全部</option>
-                  <option value="unreviewed">未评审</option>
-                  <option value="reviewed">已评审</option>
-                  <option value="golden">已设金标</option>
-                  <option value="stale">候选过期</option>
-                </select>
-              </label>
-              <label class="field compact">
-                <span>输出</span>
-                <select id="filter-kind"><option value="">全部</option></select>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div id="list-body" class="list-body">
-          <p id="list-loading" class="empty">正在加载…</p>
-          <ul id="case-list" class="case-list" hidden></ul>
-          <p id="list-empty" class="empty" hidden>还没有用例。点击「新建」或「加载合成示例」开始。</p>
-        </div>
-      </section>
-
-      <section class="pane input-pane" aria-label="输入与期望">
-        <div class="pane-head">
-          <div class="pane-title-row">
-            <h2>输入与期望</h2>
-            <span id="input-dirty" class="status-chip" data-state="warn" hidden>未保存</span>
-          </div>
-          <p class="pane-hint">
-            原始输入、目标平台与期望行为。修改这些字段会撤销已有的评审与金标绑定，并让旧候选 PNG 过期。
-          </p>
-        </div>
-        <p id="input-placeholder" class="empty">选择左侧用例，或新建一个。</p>
-        <form id="case-form" class="form" hidden>
-          <label class="field">
-            <span>问题 / 场景描述 <b class="req">*</b></span>
-            <textarea id="f-question" rows="4" required placeholder="例如：生成微信 iOS 单聊截图…"></textarea>
-          </label>
-          <div class="field-grid">
-            <label class="field">
-              <span>输入语言 <b class="req">*</b></span>
-              <select id="f-language" required></select>
-            </label>
-            <label class="field">
-              <span>目标 IM <b class="req">*</b></span>
-              <select id="f-im" required></select>
-            </label>
-            <label class="field">
-              <span>平台 <b class="req">*</b></span>
-              <select id="f-surface" required></select>
-            </label>
-            <label class="field">
-              <span>输出类型 <b class="req">*</b></span>
-              <select id="f-kind" required></select>
-            </label>
-            <label class="field">
-              <span>宽 (px) <b class="req">*</b></span>
-              <input id="f-width" type="number" min="1" max="20000" required />
-            </label>
-            <label class="field">
-              <span>高 (px) <b class="req">*</b></span>
-              <input id="f-height" type="number" min="1" max="20000" required />
-            </label>
-          </div>
-          <label class="field">
-            <span>期望行为 / 备注</span>
-            <textarea id="f-notes" rows="3" placeholder="期望看到哪些消息、语言、气泡方向等"></textarea>
-          </label>
-
-          <details class="advanced">
-            <summary>高级设置</summary>
-            <label class="field">
-              <span>单例像素差异容差 maxDiffRatio（0–0.05，默认 0.005）</span>
-              <input id="f-maxdiff" type="number" min="0" max="0.05" step="0.001" />
-            </label>
-            <label class="checkbox">
-              <input id="f-synthetic" type="checkbox" />
-              <span>标记为合成数据（仅合成用例可导出到 Git/CI）</span>
-            </label>
-          </details>
-
-          <section class="sub-section">
-            <div class="sub-head">
-              <h3>原始附件</h3>
-              <label class="btn btn-ghost btn-small">
-                添加附件
-                <input id="attachment-file" type="file" hidden multiple />
-              </label>
-            </div>
-            <p id="attachment-hint" class="pane-hint">仅接受受限的图片/视频/音频/PDF/文本类型。图片、视频、音频可内联预览，其余仅下载。可点右上角「添加附件」上传，超出上限会被拒绝。</p>
-            <ul id="attachment-list" class="attachment-list"></ul>
-            <p id="attachment-empty" class="empty small">暂无附件</p>
-          </section>
-
-          <div class="form-actions">
-            <button id="btn-save-case" type="submit" class="btn btn-primary">保存用例</button>
-            <button id="btn-revert" type="button" class="btn btn-ghost">放弃修改</button>
-            <button id="btn-delete-case" type="button" class="btn btn-danger">删除用例</button>
-          </div>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>IMStage · 场景笔记</title><link rel="stylesheet" href="/styles.css"></head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="场景记录">
+    <a class="brand" href="/" aria-label="IMStage 首页"><span class="brand-icon">im<span>.</span></span><span>IMStage <small>Eval workspace</small></span></a>
+    <button id="new-note" class="new-note"><span aria-hidden="true">＋</span> 新建场景 <kbd>⌘ N</kbd></button>
+    <div class="history-head"><span>我的记录</span><span id="case-count">0</span></div>
+    <label class="search"><span class="sr-only">搜索场景</span><input id="search" type="search" placeholder="搜索记录…"></label>
+    <nav class="history-tabs" aria-label="记录筛选"><button data-filter="all" aria-pressed="true">全部</button><button data-filter="unreviewed" aria-pressed="false">待标注</button><button data-filter="golden" aria-pressed="false">金标</button></nav>
+    <div id="history" class="history" aria-live="polite"></div>
+    <p id="history-empty" class="history-empty">第一条场景，从一句话开始。</p>
+    <div class="sidebar-bottom"><button id="collection-tools" class="quiet">数据与导出 <span aria-hidden="true">↗</span></button><span class="local-note"><i></i> 记录保存在本机</span></div>
+  </aside>
+  <main>
+    <header class="topbar"><span class="breadcrumb">工作台 <span>/</span> <b id="page-label">新场景</b></span><span id="connection" class="connection">连接中</span></header>
+    <div id="notice" class="notice" role="alert" hidden><span id="notice-text"></span><button id="notice-new-generation" hidden>重新生成一版</button><button id="notice-retry" hidden>重新连接</button><button id="notice-close" aria-label="关闭提示">×</button></div>
+    <div class="workspace">
+      <section id="composer-view" class="composer-view" aria-labelledby="compose-title">
+        <div class="intro"><span class="eyebrow">CAPTURE AN IDEA</span><h1 id="compose-title">先记下一个聊天场景。</h1><p>写一句话，或贴一张截图。让 AI 把它变成聊天图片。</p></div>
+        <form id="compose-form" class="note-card">
+          <label for="note-text" class="sr-only">场景描述</label><textarea id="note-text" maxlength="4000" placeholder="比如：周五下班前，同事问我周末要不要去露营，我说想带上小狗…" rows="5"></textarea>
+          <div id="input-images" class="input-images"></div>
+          <div class="note-toolbar"><button id="add-images" type="button" class="attach-button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg> 添加图片</button><span id="draft-status">支持粘贴、拖入图片</span><input id="image-files" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
+          <div class="generation-bar"><div class="options"><label><span class="sr-only">目标 IM</span><select id="target-im"><option value="wechat">微信</option><option value="telegram">Telegram</option><option value="whatsapp">WhatsApp</option></select></label><span class="option-dot">·</span><label><span class="sr-only">运行平台</span><select id="surface"><option value="ios">iOS</option><option value="android">Android</option><option value="desktop">桌面端</option><option value="web">Web</option></select></label><span class="option-dot">·</span><label><span class="sr-only">截图类型</span><select id="output-kind"><option value="screenshot">普通截图</option><option value="long-screenshot">长截图</option></select></label></div><button id="generate" type="submit" class="primary">生成聊天图 <span aria-hidden="true">↗</span></button></div>
         </form>
+        <div class="composer-meta"><span id="generation-hint">文字与图片会交给 AI 理解，语言自动识别。</span><label class="synthetic-label"><input id="synthetic" type="checkbox"> 这是虚构素材，可用于公开金标</label></div>
+        <div id="suggestions" class="suggestions"><span>没有灵感？试试</span><button data-prompt="生成一段自然的微信单聊：周五下班前，同事约我周末去露营，我想带小狗，他说营地可以带宠物。6条简短消息。">周末露营 <span>↗</span></button><button data-prompt="一段工作群聊：三位同事商量把周三下午的产品评审改到周四上午十点，最后确认时间。6条消息。">会议改期 <span>↗</span></button><button data-prompt="两位朋友用英文讨论周六去海边，一位担心天气，另一位查到会放晴。6条简短消息。">海边计划 <span>↗</span></button></div>
       </section>
-
-      <section class="pane result-pane" aria-label="候选输出与评审">
-        <div class="pane-head">
-          <div class="pane-title-row">
-            <h2>实际输出与评审</h2>
-            <span id="result-gate" class="status-chip" data-state="idle" hidden></span>
+      <section id="generating-view" class="generating-view" aria-live="polite" hidden><span class="spinner"></span><h2>正在把想法变成聊天图</h2><p>理解输入、整理对话，再生成你选择的平台样式。</p><p id="generating-input"></p><button id="cancel-generation" class="quiet">停止生成</button></section>
+      <section id="result-view" class="result-view" hidden>
+        <div class="result-heading"><div><span class="eyebrow">SCENE REVIEW</span><h1 id="result-title">这一版，符合你的想法吗？</h1><p id="result-subtitle"></p></div><button id="remix" class="secondary">修改输入，再生成 <span>↗</span></button></div>
+        <div class="result-grid"><div class="preview-column"><div class="preview-stage"><img id="result-image" alt="生成的聊天截图" hidden><p id="no-result" hidden>这条旧记录还没有输出图片。<br>可以用原输入重新生成。</p></div><div class="preview-footer"><span id="image-spec"></span><a id="download-image" class="quiet" download>下载 PNG <span>↓</span></a></div></div>
+        <div class="review-column"><div class="source-note"><span class="section-label">最初的想法</span><p id="source-text"></p><div id="source-images" class="source-images"></div><div id="source-chips" class="source-chips"></div></div>
+          <div id="review-panel" class="review-panel"><div class="review-title"><h2>你的判断</h2><span id="review-status"></span></div><p class="review-hint">内容对、平台像、排版完整，就算一个好结果。</p><div class="verdict-buttons"><button id="judge-good" class="verdict" aria-pressed="false"><span aria-hidden="true">✓</span> 好，符合预期</button><button id="judge-bad" class="verdict" aria-pressed="false"><span aria-hidden="true">×</span> 不好，需要改进</button></div>
+          <div id="feedback" hidden><p class="field-caption">哪里需要改进？</p><div class="issue-tags"><button data-issue="content" aria-pressed="false">内容不对</button><button data-issue="imFidelity" aria-pressed="false">平台不像</button><button data-issue="layout" aria-pressed="false">排版有问题</button><button data-issue="completeness" aria-pressed="false">内容不完整</button></div></div>
+          <label class="feedback-label" for="review-reason">留一句评价 <span>好结果可选，坏结果请说明原因</span></label><textarea id="review-reason" rows="3" maxlength="4000" placeholder="哪一点做得好，或者哪里与你想的不一样？"></textarea>
+          <details class="fine-scores"><summary>细分评分 <span>可选调整</span></summary><div id="score-fields"></div><p>快捷选择“好”将四项记为 2；“不好”记为 1，可逐项调整。</p></details>
+          <button id="save-review" class="primary wide" disabled>保存标注</button><div id="golden-area" class="golden-area" hidden><p id="golden-explainer">这个结果值得保留。确认后，将作为后续回归的参考。</p><button id="promote" class="secondary wide">确认为金标</button><button id="revoke" class="quiet" hidden>撤销金标</button></div>
           </div>
-          <p class="pane-hint">上传真实渲染器或人工导出的 PNG。旧的候选在输入变更后自动过期，不能评审或设为金标。</p>
-        </div>
-        <p id="result-placeholder" class="empty">先保存用例，再上传候选 PNG。</p>
-        <div id="result-body" class="result-body" hidden>
-          <section class="sub-section">
-            <div class="sub-head">
-              <h3>候选 PNG</h3>
-              <div class="row-actions">
-                <label class="btn btn-ghost btn-small">
-                  上传/替换
-                  <input id="candidate-file" type="file" accept="image/png" hidden />
-                </label>
-                <button id="btn-remove-candidate" type="button" class="btn btn-ghost btn-small">移除</button>
-              </div>
-            </div>
-            <div id="candidate-preview" class="preview-box">
-              <p class="empty small">尚未上传候选 PNG。</p>
-            </div>
-            <p id="candidate-hint" class="pane-hint"></p>
-          </section>
-
-          <section class="sub-section">
-            <div class="sub-head">
-              <h3>评分（0 / 1 / 2）</h3>
-              <span id="review-dirty" class="status-chip" data-state="warn" hidden>评审未保存</span>
-            </div>
-            <div id="score-groups" class="score-groups"></div>
-            <label class="field">
-              <span>结论</span>
-              <select id="r-verdict">
-                <option value="unreviewed">unreviewed（未评审）</option>
-                <option value="good">good（可作金标）</option>
-                <option value="bad">bad（坏例，保留为标注样本）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>原因 / 说明</span>
-              <textarea id="r-reason" rows="3" placeholder="bad 必填"></textarea>
-            </label>
-            <div class="form-actions">
-              <button id="btn-save-review" type="button" class="btn btn-primary">保存评审</button>
-              <button id="btn-promote" type="button" class="btn">设为金标</button>
-              <button id="btn-revoke-golden" type="button" class="btn btn-ghost">撤销金标</button>
-            </div>
-          </section>
-        </div>
+          <details class="record-details"><summary>记录详情</summary><p id="record-meta"></p><label class="synthetic-label"><input id="record-synthetic" type="checkbox"> 合成素材，可用于公开金标</label><button id="save-record-policy" class="quiet">保存素材标记</button><button id="delete-record" class="danger">删除这条记录</button></details>
+        </div></div>
       </section>
-    </main>
-
-    <dialog id="confirm-dialog" class="dialog">
-      <form method="dialog">
-        <h3 id="confirm-title">确认</h3>
-        <p id="confirm-text"></p>
-        <menu>
-          <button value="cancel" class="btn btn-ghost">取消</button>
-          <button id="confirm-ok" value="ok" class="btn btn-primary">确定</button>
-        </menu>
-      </form>
-    </dialog>
-
-    <dialog id="export-dialog" class="dialog">
-      <form method="dialog">
-        <h3>导出金标集</h3>
-        <p>
-          导出为自包含的版本化 JSON（含 PNG base64、sha256、输入指纹与像素容差）。
-          <b>请勿把包含真实/私有素材的导出提交到 Git 或 CI。</b>
-        </p>
-        <label class="checkbox">
-          <input type="radio" name="export-scope" value="synthetic" checked />
-          <span>仅合成（synthetic）— 只包含明确标记为合成的已批准金标，可提交 Git/CI</span>
-        </label>
-        <label class="checkbox">
-          <input type="radio" name="export-scope" value="private" />
-          <span>私有完整（private）— 包含全部已批准金标，仅限本地/私密保存</span>
-        </label>
-        <menu>
-          <button value="cancel" class="btn btn-ghost">取消</button>
-          <button id="export-confirm" value="ok" class="btn btn-primary">导出</button>
-        </menu>
-      </form>
-    </dialog>
-
-    <div id="toast" class="toast" role="status" hidden></div>
-
-    <script type="module" src="/app.js"></script>
-  </body>
-</html>
+    </div>
+  </main>
+</div>
+<dialog id="confirm-dialog"><form method="dialog"><h2 id="confirm-title">确认操作</h2><p id="confirm-text"></p><div class="dialog-actions"><button value="cancel" class="secondary">取消</button><button id="confirm-ok" value="ok" class="primary">确认</button></div></form></dialog>
+<dialog id="tools-dialog"><h2>数据与导出</h2><p>金标用于自动回归；只有你确认过的结果会被导出。</p><div class="tool-row"><div><h3>导出公开金标</h3><p>仅包含明确标为合成的已确认记录，可纳入 Git。</p></div><button id="export-synthetic" class="secondary">导出</button></div><div class="tool-row"><div><h3>本地金标备份</h3><p>包含已确认的私有素材，请妥善保管，不要提交到 Git。</p></div><button id="export-private" class="secondary">备份</button></div><div class="tool-row"><div><h3>恢复金标</h3><p>从备份新增记录，保留已有内容。</p></div><button id="import-open" class="secondary">选择文件</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><button id="tools-close" class="quiet">完成</button></dialog>
+<div id="toast" role="status" hidden></div>
+<script type="module" src="/app.js"></script>
+</body></html>

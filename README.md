@@ -2,7 +2,7 @@
 
 Open-source conversation scene creation for the Web, MCP, and API.
 
-**Status: early development. A local evaluation/annotation tool is available; the production conversation renderer, API and MCP service are not implemented on this baseline.**
+**Status: early development. The local note-first Eval workspace supports AI text/image input, rendered chat PNGs and human-approved goldens. Shared website integration, hosted API and MCP remain unconnected.**
 
 [简体中文](README.zh-CN.md) · [Product brief](docs/product-brief.md) · [Design brief](design/BRIEF.md) · [Contributing](CONTRIBUTING.md)
 
@@ -26,7 +26,7 @@ The public Web experience is intended to offer free use. Hosted MCP/API access i
 | `design/` | Open Design brief and future design handoff |
 | `docs/` | Product scope, setup, and planning context |
 
-The product directories above remain reserved on this baseline. The independently runnable evaluation tool lives in `tools/eval/`.
+The shared schema and deterministic renderer are implemented for the Eval path; other product integrations remain separate. The independently runnable evaluation tool lives in `tools/eval/`.
 
 ## Local evaluation lab
 
@@ -37,7 +37,7 @@ npm --prefix tools/eval ci
 npm --prefix tools/eval start
 ```
 
-Open `http://127.0.0.1:4421` to create cases, upload inputs and actual PNG outputs, label quality, and explicitly approve golden images. Data stays in ignored `.local/eval/`. Git/CI exports are limited to explicitly synthetic, reviewed cases.
+Configure a server-side `DEEPSEEK_API_KEY` (see the tool reference), then open `http://127.0.0.1:4421`. Write a sentence or paste an image to generate a chat PNG, judge the result, and explicitly approve a golden. WeChat / iOS / normal screenshot are defaults; target options remain optional. Data stays in ignored `.local/eval/`. Git/CI exports are limited to explicitly synthetic, reviewed cases.
 
 ```sh
 npm --prefix tools/eval test
@@ -46,7 +46,7 @@ npm --prefix tools/eval run selftest
 
 The **Eval harness** GitHub workflow checks the evaluator using positive and negative synthetic controls across Linux, macOS and Windows. It does not certify an unconnected production renderer. See [evaluation design](docs/evaluation.md) and [tool and manifest reference](tools/eval/README.md).
 
-## Current scope
+## Initialization background
 
 - Establish the open-source repository and contribution conventions.
 - Initialize a Vercel project without publishing an application.

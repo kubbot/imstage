@@ -46,12 +46,13 @@ function createElement(tag = 'div') {
       }
     },
     dispatch(type, event = {}) {
-      for (const fn of this._listeners[type] ?? []) fn(event);
+      return Promise.all((this._listeners[type] ?? []).map((fn) => fn(event)));
     },
     _listeners: {},
     setAttribute(key, value) {
       this.attributes[key] = value;
     },
+    removeAttribute(key) { delete this.attributes[key]; },
     getAttribute(key) {
       return this.attributes[key];
     },
@@ -89,7 +90,11 @@ function installDom() {
   const byId = new Map();
   const document = {
     getElementById(id) {
-      if (!byId.has(id)) byId.set(id, createElement('div'));
+      if (!byId.has(id)) {
+        const element = createElement('div');
+        element.value = ({ 'target-im': 'wechat', surface: 'ios', 'output-kind': 'screenshot' })[id] || '';
+        byId.set(id, element);
+      }
       return byId.get(id);
     },
     createElement(tag) {
@@ -104,6 +109,7 @@ function installDom() {
     body: createElement('body'),
   };
   const window = { addEventListener() {}, location: { href: 'http://127.0.0.1:4421/' } };
+  globalThis.localStorage = { getItem() { return null; }, setItem() {} };
   globalThis.document = document;
   globalThis.window = window;
   return { document, window, byId };
@@ -119,31 +125,6 @@ function jsonResponse(body) {
   };
 }
 
-const META = {
-  version: '0.1.0',
-  rubricVersion: 'v1',
-  threshold: 0.1,
-  defaultMaxDiffRatio: 0.005,
-  maxDiffRatioLimit: 0.05,
-  maxAttachments: 8,
-  maxAttachmentBytes: 2 * 1024 * 1024,
-  maxCandidateBytes: 8 * 1024 * 1024,
-  maxPixels: 8_000_000,
-  targetIMs: ['wechat', 'telegram', 'whatsapp', 'custom'],
-  surfaces: ['ios', 'android', 'desktop', 'web'],
-  inputLanguages: ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'other'],
-  outputKinds: ['screenshot', 'long-screenshot'],
-  scoreFields: ['content', 'imFidelity', 'layout', 'completeness'],
-  scoreValues: [0, 1, 2],
-  verdicts: ['good', 'bad', 'unreviewed'],
-  rubric: {
-    content: { 0: 'a', 1: 'b', 2: 'c' },
-    imFidelity: { 0: 'a', 1: 'b', 2: 'c' },
-    layout: { 0: 'a', 1: 'b', 2: 'c' },
-    completeness: { 0: 'a', 1: 'b', 2: 'c' },
-  },
-};
-
 async function waitFor(predicate, timeoutMs = 3000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -153,51 +134,24 @@ async function waitFor(predicate, timeoutMs = 3000) {
   return false;
 }
 
-test('app.js boots through its real init flow with a stubbed DOM and API', async () => {
+test('note composer boots with generation defaults and restores no required form fields', async () => {
   const { document, byId } = installDom();
-  const calls = [];
   globalThis.fetch = async (url) => {
-    calls.push(String(url));
-    if (String(url).endsWith('/api/meta')) return jsonResponse(META);
-    if (String(url).endsWith('/api/store')) {
-      return jsonResponse({ schemaVersion: 1, revision: 0, updatedAt: 'x', cases: [] });
-    }
+    if (url === '/api/store') return jsonResponse({ revision: 0, cases: [] });
+    if (url === '/api/generation') return jsonResponse({ configured: true, model: 'test' });
     throw new Error(`unexpected fetch ${url}`);
   };
-
-  const appUrl = `${pathToFileURL(path.join(PACKAGE_DIR, 'public', 'app.js')).href}?smoke=${Date.now()}`;
-  await import(appUrl);
-
-  const settled = await waitFor(() => byId.get('store-status')?.dataset.state === 'ok');
-  const status = document.getElementById('store-status');
-  const bannerText = document.getElementById('banner-text').textContent;
-  assert.equal(
-    settled,
-    true,
-    `UI did not finish init: state=${status.dataset.state} banner=${bannerText}`,
-  );
-  assert.equal(status.dataset.state, 'ok');
-  assert.match(status.textContent, /rev 0/);
-  assert.ok(calls.some((c) => c.endsWith('/api/meta')));
-  assert.ok(calls.some((c) => c.endsWith('/api/store')));
-
-  // Filter selects must keep the 全部 placeholder and show labelled options.
-  const filterIm = document.getElementById('filter-im');
-  assert.equal(filterIm.children[0].value, '');
-  assert.equal(filterIm.children[0].textContent, '全部');
-  const wechatOption = filterIm.children.find((c) => c.value === 'wechat');
-  assert.ok(wechatOption, 'wechat option missing');
-  assert.notEqual(wechatOption.textContent, 'wechat', 'option should have a human label');
-  assert.match(wechatOption.textContent, /微信/);
-
-  // Form selects default to a real value, not a blank.
-  assert.equal(document.getElementById('f-language').value, 'zh-CN');
-  assert.equal(document.getElementById('f-im').value, 'wechat');
-
-  // Dynamic, human-readable limits are rendered.
-  assert.match(document.getElementById('attachment-hint').textContent, /最多 8 个附件/);
-  assert.match(document.getElementById('attachment-hint').textContent, /2 MB/);
-  assert.match(document.getElementById('candidate-hint').textContent, /8 MB/);
+  await import(`${pathToFileURL(path.join(PACKAGE_DIR, 'public', 'app.js')).href}?boot=${Date.now()}`);
+  assert.equal(await waitFor(() => byId.get('generation-hint')?.textContent.includes('自动识别')), true);
+  assert.equal(document.getElementById('connection').dataset.state, 'ok');
+  assert.equal(document.getElementById('target-im').value, 'wechat');
+  assert.equal(document.getElementById('surface').value, 'ios');
+  assert.equal(document.getElementById('generate').disabled, true, 'empty note cannot invoke a paid call');
+  const note = document.getElementById('note-text');
+  note.value = '两位同事商量周末露营';
+  await note.dispatch('input');
+  assert.equal(document.getElementById('generate').disabled, false);
+  assert.equal(document.getElementById('result-view').hidden, true);
 });
 
 test('selecting a case renders the result/review panes without runtime errors', async () => {
@@ -250,7 +204,7 @@ test('selecting a case renders the result/review panes without runtime errors', 
     },
   };
   globalThis.fetch = async (url) => {
-    if (String(url).endsWith('/api/meta')) return jsonResponse(META);
+    if (String(url).endsWith('/api/generation')) return jsonResponse({ configured: true });
     if (String(url).endsWith('/api/store')) {
       return jsonResponse({ schemaVersion: 1, revision: 3, updatedAt: 'x', cases: [caseObj] });
     }
@@ -258,24 +212,23 @@ test('selecting a case renders the result/review panes without runtime errors', 
   };
   const appUrl = `${pathToFileURL(path.join(PACKAGE_DIR, 'public', 'app.js')).href}?smoke-case=${Date.now()}`;
   await import(appUrl);
-  const settled = await waitFor(() => byId.get('store-status')?.dataset.state === 'ok');
-  assert.equal(settled, true, 'UI did not finish init');
-
-  const list = document.getElementById('case-list');
-  assert.equal(list.children.length, 1);
-  // Clicking the list item runs the real selection flow synchronously.
-  list.children[0].dispatch('click', {});
-
-  assert.equal(document.getElementById('input-placeholder').hidden, true);
-  assert.equal(document.getElementById('case-form').hidden, false);
-  assert.equal(document.getElementById('result-body').hidden, false);
-  assert.equal(document.getElementById('f-question').value, 'smoke case');
-  assert.match(
-    document.getElementById('candidate-preview').innerHTML,
-    /c_smoke\/candidate\.png/,
-  );
-  assert.equal(document.getElementById('result-gate').textContent, '可设金标');
-  assert.equal(document.getElementById('btn-promote').disabled, false);
+  assert.equal(await waitFor(() => byId.get('connection')?.dataset.state === 'ok'), true);
+  const list = document.getElementById('history');
+  assert.match(list.innerHTML, /smoke case/);
+  await list.dispatch('click', { target: { closest() { return { dataset: { id: 'c_smoke' } }; } } });
+  assert.equal(document.getElementById('composer-view').hidden, true);
+  assert.equal(document.getElementById('result-view').hidden, false);
+  assert.equal(document.getElementById('source-text').textContent, 'smoke case');
+  assert.match(document.getElementById('result-image').src, /c_smoke\/candidate\.png/);
+  assert.equal(document.getElementById('golden-area').hidden, false);
+  assert.equal(document.getElementById('promote').disabled, false);
+  // A new bad judgement immediately withdraws promotion and needs an explanation.
+  await document.getElementById('judge-bad').dispatch('click');
+  assert.equal(document.getElementById('golden-area').hidden, true);
+  assert.equal(document.getElementById('save-review').disabled, true);
+  document.getElementById('review-reason').value = '关键消息遗漏';
+  await document.getElementById('review-reason').dispatch('input');
+  assert.equal(document.getElementById('save-review').disabled, false);
 });
 
 test('every DOM id referenced by app.js exists in index.html', () => {

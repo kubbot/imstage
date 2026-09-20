@@ -1,11 +1,12 @@
 # tools/eval — IMStage 标注实验室与 PNG 金标评测器
 
 本地优先、中文界面的标注工具，加上一个确定性的 PNG 金标（golden）像素评测器。
-全部运行在本机 `127.0.0.1`，不依赖外部服务、模型或渲染器。
+全部运行在本机 `127.0.0.1`。像素评测与 CLI 不依赖外部服务、模型或浏览器。
 
-> 边界说明：这里**没有**真实的 IM 渲染器、OCR 或 AI 适配器。候选 PNG 必须来自真实的
-> 外部渲染器或人工导出。工具只负责保存输入、评审、绑定指纹和做像素级对比。
-> 合成起始用例是几何占位图，**不是**真实 IM UI，也**不是**已批准的产品 golden。
+> 边界说明：AI 辅助生成是**可选**能力，需要用户自己的服务端 API Key。AI 输出只会被当作
+> 未评审的候选：通过共享 conversation schema 校验后，由 `packages/renderer` 的确定性模板渲染，
+> **不会**自动标为 good，也**不会**自动成为 golden。合成起始用例仍是几何占位图，
+> **不是**真实 IM UI，也**不是**已批准的产品 golden。外部渲染器上传候选 PNG 的 API 保持兼容，新界面以直接生成作为主路径。
 
 ## 快速开始
 
@@ -22,6 +23,21 @@ npm --prefix tools/eval test
 # 运行端到端自检（生成 harness 夹具并验证评测器行为）
 npm --prefix tools/eval run selftest
 ```
+
+启用 AI 生成时，在服务端进程环境中提供 Key（也可用 `node --env-file .local/eval.env server.mjs` 加载被
+忽略的本地文件）。**Key 只存在于服务端，浏览器无法读取或设置。**
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `IMSTAGE_AI_API_KEY` | 无 | 首选 API Key；未设置时回退 `DEEPSEEK_API_KEY` |
+| `DEEPSEEK_API_KEY` | 无 | 备选 API Key |
+| `IMSTAGE_AI_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容 Base URL |
+| `IMSTAGE_AI_MODEL` | `deepseek-flash` | 模型名 |
+| `IMSTAGE_AI_THINKING_DISABLED` | DeepSeek 时 `true` | 设为 `0`/`false` 可保留思考输出（默认关闭） |
+| `IMSTAGE_CHROMIUM_EXECUTABLE` | 自动探测 | 截图用 Chromium/Chrome 可执行文件 |
+
+未配置 Key 时 `GET /api/generation` 返回 `configured:false`，`POST /api/generate` 返回 `503 ai_not_configured`，
+不会返回伪造的对话或假成功。
 
 评测 CLI：
 
@@ -46,6 +62,58 @@ node tools/eval/cli.mjs starter --out DIR   # 写出可选的合成起始用例
 若 `store.json` 损坏、schemaVersion 不支持，或基本 case 形状不合法，服务会拒绝读写并**保留原文件**，绝不会静默覆盖。
 数据目录与 `store.json`、blob 文件以 `0700` / `0600` 权限创建（POSIX；Windows 上按平台行为）。
 `GET /api/health` 在存储损坏时返回 HTTP 503 且 `ok:false`，UI 会显示实际错误。
+
+## AI 生成：一句话或截图 → 目标 IM 结果
+
+生成流程面向「用户只给一句话或一张/几张截图」的场景，不需要手工填写用例、上传候选。
+
+- `GET /api/generation` 返回 `{configured, model, images:true, defaults:{targetIM:'wechat',surface:'ios',outputKind:'screenshot'}}`，
+  不含 Key、Base URL 或其他服务端配置。
+- `POST /api/generate` 接受同源 JSON：
+  `{revision, requestId, input:{text, images:[{name,mime,dataBase64}], targetIM?, surface?, outputKind?, synthetic?}}`。
+
+行为与限制：
+
+- 必须提供非空 `text` 或 1–3 张图片；`targetIM` 仅 `wechat` / `telegram` / `whatsapp`，
+  `surface` 为 `ios` / `android` / `desktop` / `web`，`outputKind` 为 `screenshot` / `long-screenshot`。
+- 默认 `targetIM:'wechat'`、`surface:'ios'`、`outputKind:'screenshot'`；显式选项优先于截图来源平台。
+- 图片在调用模型**之前**完成字节、尺寸、数量与总大小校验：单张 ≤ 2 MB、最多 3 张、总计 ≤ 6 MB、
+  单边 ≤ 20000 px、总像素 ≤ 8,000,000。模型收到的是真实图片 `data:` 块，不是文件名或空说明；
+  只有截图时会自动推断「复现截图中对话」的指令。
+- 默认视口：`ios` / `android` 为 390×844，`desktop` / `web` 为 720×900。
+- 语言自动识别并记录为 `zh-CN` / `en` / `other`，用户无需选择。
+- 每次最多 1 个生成任务；`requestId` 幂等：相同输入重复请求直接返回已有结果，不重复调用模型；
+  同一 `requestId` 换输入、或重复的在途请求会以 409 冲突拒绝。
+- 先做生成前 revision 校验（不为过期请求付费），渲染后再在串行化写入中复核 revision，
+  不会覆盖并发编辑。
+- **持久化恢复账本（无法保证 exact-once）**：`<dataDir>/generation-ledger.json`（0600，原子写入）
+  在调用模型前记录 `requestId`/`inputHash`（`started`），拿到模型结果后先缓存（`model_ready`），
+  提交用例后再标记 `completed`。因此：渲染失败或生成后 revision 冲突的同一 `requestId` 重试会
+  **复用缓存结果、不再付费**；进程在 `started` 后中断/超时等无法确认结果时，同 ID 重试返回
+  `generation_outcome_unknown`，不会再次调用付费模型（UI 应提供显式的新 `requestId`）。
+  已完成的用例被删除后重复该 ID 返回 `generation_not_found`，不会复活；账本损坏或超出条目上限
+  一律 fail-closed，不会静默清除未完成记录。
+- 客户端断开会尽量中止模型/渲染调用；在提交前会再次检查取消信号，因此不会写入未完成的用例。
+  已经完成原子写入的提交**无法回滚**（这是有意的限制，不做虚假承诺）。
+- 图片必须能真正解码：PNG 在调用模型前做完整解码（拒绝只有 33 字节头部、CRC/IDAT 损坏的文件）；
+  JPEG/WebP 先做有界头部校验，截图时由浏览器在有界超时内执行 `image.decode()`，损坏的引用图片会
+  以 `asset_decode_failed` 失败，而不是渲染出破图。
+- 普通截图内容超出视口时返回 `output_too_tall` 并提示改选长截图，**不会静默裁切**；
+  长截图按真实内容高度输出，且受 8,000,000 像素上限保护。
+- 成功返回 `{revision, case:<与手工用例相同的 decorateCase 结构>, warnings:[string]}`。新用例包含：
+  原始输入图片（作为 attachments）、校验后的 scene、候选 PNG 及 `{kind:'ai-generated',model,promptVersion,rendererVersion,generatedAt}` 溯源，
+  `review:null`、`golden:null`。`synthetic` 默认 `false`，仅在显式传入时生效；
+  AI 生成**绝不**自动标 good 或批准 golden。
+
+错误是稳定且可操作的，且不泄露 Key 或供应商原始响应体：`ai_not_configured`、`ai_auth_failed`、
+`ai_quota_exceeded`、`ai_timeout`、`ai_unreachable`、`ai_invalid_json`、`ai_invalid_scene`、
+`generation_outcome_unknown`、`generation_not_found`、`generation_ledger_corrupt`、
+`asset_decode_failed`、`output_too_tall` 等。
+
+共享约定：`packages/schema/conversation.mjs` 校验 AI 输出的结构化对话；`packages/renderer` 提供
+纯函数 `renderSceneHtml(scene,{surface,width,outputKind,assets})`；`tools/eval/src/render.mjs` 用锁定
+`playwright@1.63.0` 截图并中止所有非 `data:` 网络请求。测试通过注入 `generateScene` / `renderScene`
+运行，不需要外部模型或下载浏览器。独立官网编辑器尚未接入该模块，属于后续工作。
 
 ## 用例模型
 
@@ -182,7 +250,7 @@ actual 中存在而金标未引用的 `caseId` 会在报告中列为 `extraActua
 - `scope: "synthetic"`：只导出用户**显式标记**为合成的已批准 golden，可提交 Git/CI。
 - `scope: "private"`：包含全部已批准 golden（含真实/私有素材），仅限本地或私密保存。
 
-UI 的导出对话框默认勾选「仅合成」并显示不可提交私有素材的提醒。
+UI 将「导出公开金标」和「本地金标备份」分为两个明确按钮，后者提示不要提交到 Git。
 bad / 未评审 / 未绑定 golden 的用例永远不会被导出。
 
 ## 评测行为
@@ -214,7 +282,7 @@ bad / 未评审 / 未绑定 golden 的用例永远不会被导出。
 - 严格校验 `Host`：只接受 `127.0.0.1` / `localhost` / `::1` 且端口一致。
 - 变更请求必须同源 `Origin`（http），拒绝跨站；若存在 `Sec-Fetch-Site` 必须为 `same-origin`/`none`。
 - JSON 变更必须 `Content-Type: application/json`，请求体上限 24 MB。
-- 不接受任何凭据，不读取环境中的 secret。
+- 不接受任何浏览器提供的凭据；AI 的 Key/模型/Base URL 只从服务端进程环境读取，浏览器无法读取或设置。
 - 静态资源带 `nosniff`、CSP、`Referrer-Policy`；路径穿越被拒绝。
 
 ## 合成起始用例
@@ -225,16 +293,18 @@ bad / 未评审 / 未绑定 golden 的用例永远不会被导出。
 
 ## UI 行为
 
-- 三栏布局：用例列表 / 输入与期望 / 实际输出与评审；在 390px 宽度下单列堆叠。
-- 输入表单与评审评分分别跟踪未保存状态；切换用例、新建、刷新、导入、加载示例、上传候选时
-  都会先确认，避免静默丢失未保存的评分/结论/原因。
-- 导出与导入提供显式下载/上传控件；导出对话框默认仅合成并提醒不要把私有素材提交到 Git/CI。
-- 附件上限、候选 PNG 体积与像素上限以可读文本展示（例如「最多 8 个附件，单个不超过 2 MB」）。
-- 存储损坏时状态栏与顶部提示会显示实际错误，不会继续显示 ok。
+1. 在便签中输入一句话，或粘贴、拖入、选择 PNG/JPEG/WebP 图片（最多 3 张、单张 2 MB）。无需填写语言、尺寸和用例表单。
+2. 默认微信 / iOS / 普通截图，可直接切换平台、IM 或长截图。点击「生成聊天图」后自动保存原始输入、结构化对话与候选图片。
+3. 点击「好」或「不好」，可选问题标签与细分评分；坏例必须写原因。保存标注后，好例另行「确认为金标」。
+4. 左侧查看历史或筛选金标；「修改输入，再生成」创建新记录，保留原记录。数据与导出集中在左下角。
+
+草稿保存在浏览器本地，包含图片和失败重试的 requestId；空间不足会明确提示。生成完成后清空便签，记录留在历史。未保存的评价在离开前确认；全局 revision 冲突时，若当前输出及已有评审未变，重连后保留未保存评价。输出变化后必须重新确认。数据导入只新增，JSON 请求上限 24 MiB。
+
+界面适配桌面和 390px 手机宽度；已确认旧记录仍可浏览、评审、导出。AI 没有配置时禁用生成，旧记录照常可用。生成失败保留输入，取消会尝试中止后端；网络中断后可能已经提交的完整结果以历史记录为准。
 
 ## 测试覆盖
 
-`npm --prefix tools/eval test` 运行 86 个 node:test 用例（`node --test`，跨平台可移植），覆盖：
+`npm --prefix tools/eval test` 运行 `node:test` 用例（`node --test`，跨平台可移植），覆盖：
 
 - 损坏 / 截断 / 越界 PNG 拒绝
 - 候选过期、输入变更、评审改写（含 good→good 改分/改原因）导致金标失效
@@ -245,14 +315,36 @@ bad / 未评审 / 未绑定 golden 的用例永远不会被导出。
 - 持久化与重启、损坏 store / 畸形 case 元数据不被覆盖、0700/0600 权限
 - 导出 → 导入 → 再导出 roundtrip 与 bundle 严格校验（伪造哈希、分数、rubric、维度、重复/不安全 ID、threshold、scope）
 - CLI 通过 / 失败 / 缺失 / 尺寸不符 / 过期 / 空集 / 畸形输入 / 超大 pngPath 等负向控制
-- UI 真实 init 流程冒烟（DOM 隐身后执行 `public/app.js`，验证无运行时错误、筛选项保留「全部」并显示可读标签）
+- UI 模块初始化与好坏评分门禁（轻量 DOM stub），加上单独的真实浏览器集成验收
+- AI 生成：文本 / 仅图片、默认值与覆盖、provider payload 含真实图片 `data:` 块、
+  malformed 模型输出、缺少凭据、provider HTTP/超时错误、生成前后 revision 冲突、requestId 幂等与
+  在途冲突、并发上限、客户端断开、PNG 尺寸与「不自动批准」、图片在网络请求前完成校验
+- 持久化恢复账本：渲染失败/生成后 revision 冲突后同 ID 复用缓存（不再付费）、跨 app 实例复用、
+  不确定结果返回 `generation_outcome_unknown`、变更输入冲突、已删除结果不复活、损坏 fail-closed、
+  账本权限 0600；取消发生在 blob 写入期间不提交；截断 33 字节 PNG 输入/输出拒绝；
+  hostile platform 不会进入 CSS/DOM
+- 共享 conversation schema 的边界与安全拒绝、`renderSceneHtml` 的确定性 / 转义 /
+  平台模板差异 / 无远程资源
 
-测试自行在 `.local/eval-test/` 下创建并在 `finally` 中清理临时目录，不使用 `/tmp`。
+测试临时目录可通过 `IMSTAGE_EVAL_TEST_DIR` 指定（默认 `.local/eval-test/`），并在 `finally` 中清理。
+
+## 真实浏览器验收
+
+```bash
+# macOS 默认复用本机 Chrome；其他环境先安装 Playwright Chromium：
+cd tools/eval
+npx playwright install --with-deps chromium
+npm run test:browser
+```
+
+`browser-smoke.mjs` 只注入 AI 边界，不调用付费模型；通过真实 Chromium 检查便签、草稿恢复、PNG 渲染、好坏评判、未保存确认、金标、导出导入、图片粘贴、长图、手机宽度、取消与失败后的同 requestId 重试。GitHub 的独立浏览器 job 使用同一命令。它不代表模型语义质量已通过。
 
 ## 已知限制
 
-- 没有真实 IM 渲染器适配器，也不声称有。
-- 没有 OCR / AI / 图像生成能力；原始输入按原样保存。
+- 共享渲染器提供的是真实 IM 风格模板（微信 / Telegram / WhatsApp 与四种设备表面），
+  但仍是复现近似，不声称与各平台真实客户端逐像素一致。
+- 没有 OCR；图片内容理解完全依赖所配置的多模态模型。
+- AI 输出只作为未评审候选，必须人工评审后才能成为 golden。
 - 合成占位图不代表任何平台的真实 UI。
 - 单进程本地使用；未实现鉴权、多用户、远程部署。
 - golden 的 `inputFingerprint` 覆盖附件元数据与哈希；附件内容更换即视为新输入。
@@ -262,3 +354,5 @@ bad / 未评审 / 未绑定 golden 的用例永远不会被导出。
 - Node.js 22 `fs.promises.rename`：<https://nodejs.org/docs/latest-v22.x/api/fs.html#fspromisesrenameoldpath-newpath>
 - pngjs 7.0.0：<https://github.com/pngjs/pngjs>
 - pixelmatch 7.2.0：<https://github.com/mapbox/pixelmatch>
+- DeepSeek 视觉（image_url 格式与当前模型支持）：<https://api-docs.deepseek.com/guides/vision/>
+- Playwright 1.63.0：<https://playwright.dev/>

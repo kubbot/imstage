@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'tools/eval/**'
+      - 'packages/schema/**'
+      - 'packages/renderer/**'
       - 'docs/evaluation.md'
       - '.github/workflows/eval.yml'
       - '.github/actions/imstage-eval/**'
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - 'tools/eval/**'
+      - 'packages/schema/**'
+      - 'packages/renderer/**'
       - 'docs/evaluation.md'
       - '.github/workflows/eval.yml'
       - '.github/actions/imstage-eval/**'
@@ -69,3 +73,21 @@ jobs:
           path: eval-harness-report/
           if-no-files-found: error
           retention-days: 7
+
+  browser:
+    name: Note workflow (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/eval/package-lock.json
+      - run: npm --prefix tools/eval ci
+      - name: Install the pinned Chromium runtime
+        working-directory: tools/eval
+        run: npx playwright install --with-deps chromium
+      - name: Exercise the note and review flow with a real renderer
+        run: npm --prefix tools/eval run test:browser

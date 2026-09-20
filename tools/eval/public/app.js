@@ -1,1059 +1,397 @@
-// IMStage eval lab UI — vanilla ES module, no build step.
-
 const $ = (id) => document.getElementById(id);
+const labels = { wechat: '微信', telegram: 'Telegram', whatsapp: 'WhatsApp', custom: '自定义', ios: 'iOS', android: 'Android', desktop: '桌面端', web: 'Web', screenshot: '普通截图', 'long-screenshot': '长截图' };
+const fields = { content: '内容准确', imFidelity: '平台还原', layout: '排版质量', completeness: '内容完整' };
+const draftKey = 'imstage.scene-note.v1';
+let store = { revision: 0, cases: [] }, config = {}, selected = null, filter = 'all', images = [], generation = null, busy = false, reviewDirty = false, draftSafe = true, verdict = null, scores = {}, requestId = null, toastTimer;
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const active = () => store.cases.find((c) => c.id === selected);
+const newId = () => crypto.randomUUID();
+const imageUrl = (item) => `data:${item.mime};base64,${item.dataBase64}`;
+const endpoint = (c, suffix = '') => `/api/cases/${encodeURIComponent(c.id)}${suffix}`;
 
-const state = {
-  meta: null,
-  revision: 0,
-  cases: [],
-  selectedId: null,
-  draft: null,
-  dirty: false,
-  reviewDirty: false,
-  busy: false,
-  filters: { q: '', targetIM: '', surface: '', status: '', outputKind: '' },
-};
-
-// Human-readable option labels (raw enum values stay as the option value).
-const OPTION_LABELS = {
-  wechat: '微信 wechat',
-  telegram: 'Telegram',
-  whatsapp: 'WhatsApp',
-  custom: '自定义 custom',
-  ios: 'iOS',
-  android: 'Android',
-  desktop: 'Desktop',
-  web: 'Web',
-  'zh-CN': '简体中文 zh-CN',
-  'zh-TW': '繁体中文 zh-TW',
-  en: 'English en',
-  ja: '日本語 ja',
-  ko: '한국어 ko',
-  other: '其他 other',
-  screenshot: '普通截图 screenshot',
-  'long-screenshot': '长截图 long-screenshot',
-};
-
-// ---------------------------------------------------------------------------
-// Small utilities
-// ---------------------------------------------------------------------------
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function notify(message, retry = false) {
+  $('notice-new-generation').hidden = true;
+  $('notice-text').textContent = message;
+  $('notice-retry').hidden = !retry;
+  $('notice').hidden = false;
 }
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return '-';
-  if (bytes >= 1024 * 1024) {
-    const mb = bytes / (1024 * 1024);
-    return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
+function toast(message) {
+  clearTimeout(toastTimer);
+  $('toast').textContent = message;
+  $('toast').hidden = false;
+  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3800);
+}
+async function api(url, body, method = 'POST', signal) {
+  const response = await fetch(url, { method: body === undefined ? 'GET' : method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), signal });
+  const text = await response.text();
+  let result;
+  try { result = JSON.parse(text); } catch { throw new Error('服务返回异常，请重新连接后重试。'); }
+  if (!response.ok) {
+    const error = new Error(result.error || '操作失败，请重试。');
+    error.code = result.code;
+    error.status = response.status;
+    throw error;
   }
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
+  return result;
 }
-
-function setStatusChip(el, stateName, text) {
-  if (!el) return;
-  el.hidden = false;
-  el.dataset.state = stateName;
-  el.textContent = text;
+function report(error) {
+  if (error.code === 'generation_outcome_unknown') {
+    notify('上一次 AI 请求的结果未能确认。输入仍在；点击“重新生成一版”会发起一次新的生成。');
+    $('notice-new-generation').hidden = false;
+  } else if (['generation_not_found', 'ai_invalid_json', 'ai_invalid_scene', 'ai_empty_response', 'ai_invalid_response'].includes(error.code)) {
+    notify(`${error.message}。输入已保留，可以重新生成一版。`);
+    $('notice-new-generation').hidden = false;
+  } else if (error.code === 'revision_conflict') notify('记录已在其他窗口更新。你的输入仍在，请重新连接后再操作。', true);
+  else notify(error.message || '暂时无法连接服务，请重试。', true);
 }
-
-function showToast(message, kind = 'info') {
-  const el = $('toast');
-  el.textContent = message;
-  el.dataset.kind = kind;
-  el.hidden = false;
-  clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => {
-    el.hidden = true;
-  }, 2600);
+function mode(name) {
+  for (const item of ['composer', 'generating', 'result']) $(`${item}-view`).hidden = item !== name;
+  $('page-label').textContent = name === 'composer' ? '新场景' : name === 'generating' ? '正在生成' : '标注记录';
+  $('new-note').disabled = name === 'generating' || busy;
+  $('collection-tools').disabled = name === 'generating' || busy;
 }
-
-function showBanner(message, { kind = 'warn', actionLabel, action } = {}) {
-  const banner = $('banner');
-  banner.dataset.kind = kind;
-  $('banner-text').textContent = message;
-  const btn = $('banner-action');
-  if (actionLabel && action) {
-    btn.hidden = false;
-    btn.textContent = actionLabel;
-    btn.onclick = () => action();
-  } else {
-    btn.hidden = true;
-    btn.onclick = null;
-  }
-  banner.hidden = false;
+function composerValue() {
+  return { text: $('note-text').value, images, targetIM: $('target-im').value, surface: $('surface').value, outputKind: $('output-kind').value, synthetic: $('synthetic').checked };
 }
-
-function hideBanner() {
-  $('banner').hidden = true;
-}
-
-function confirmDialog(title, text) {
-  return new Promise((resolve) => {
-    const dlg = $('confirm-dialog');
-    $('confirm-title').textContent = title;
-    $('confirm-text').textContent = text;
-    const onClose = () => {
-      dlg.removeEventListener('close', onClose);
-      resolve(dlg.returnValue === 'ok');
-    };
-    dlg.addEventListener('close', onClose);
-    dlg.returnValue = 'cancel';
-    dlg.showModal();
-  });
-}
-
-async function fileToBase64(file) {
-  const buffer = await file.arrayBuffer();
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
-// ---------------------------------------------------------------------------
-// API
-// ---------------------------------------------------------------------------
-
-class ApiError extends Error {
-  constructor(message, status, code, payload) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.payload = payload;
-  }
-}
-
-async function api(method, path, body) {
-  const options = { method, headers: {} };
-  if (body !== undefined) {
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
-  const res = await fetch(path, options);
-  const text = await res.text();
-  let payload = null;
+function persistDraft(changed = true) {
+  if (changed) requestId = null;
   try {
-    payload = text ? JSON.parse(text) : null;
+    localStorage.setItem(draftKey, JSON.stringify({ ...composerValue(), requestId }));
+    draftSafe = true;
+    $('draft-status').textContent = '草稿已保存在本机';
   } catch {
-    payload = { error: text };
+    draftSafe = false;
+    $('draft-status').textContent = '草稿空间不足，关闭前请保留输入';
   }
-  if (!res.ok) {
-    throw new ApiError(payload?.error ?? `请求失败 (${res.status})`, res.status, payload?.code, payload);
-  }
-  return payload;
+  updateGenerate();
 }
-
-function handleMutationError(err) {
-  if (err instanceof ApiError && err.status === 409) {
-    showBanner('数据已被其他操作修改（revision 冲突）。请重新加载后重试。', {
-      kind: 'error',
-      actionLabel: '重新加载',
-      action: () => withDiscardGuard(() => reloadStore()),
-    });
-    setStatusChip($('store-status'), 'warn', '冲突');
-    return;
-  }
-  if (err instanceof ApiError && err.payload?.corrupt) {
-    showBanner(`存储损坏，已保留原文件，不会覆盖：${err.message}`, { kind: 'error' });
-    setStatusChip($('store-status'), 'error', '存储损坏');
-    return;
-  }
-  showBanner(err.message ?? String(err), { kind: 'error' });
-  showToast('操作失败', 'error');
+function updateGenerate() {
+  $('generate').disabled = !config.configured || busy || !!generation || (!$('note-text').value.trim() && !images.length);
 }
-
-// ---------------------------------------------------------------------------
-// Store loading + list
-// ---------------------------------------------------------------------------
-
-function fillSelect(select, values, { placeholder } = {}) {
-  if (!select) return;
-  const current = select.value;
-  select.innerHTML = '';
-  if (placeholder !== undefined) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = placeholder;
-    select.appendChild(opt);
-  }
-  for (const value of values) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = OPTION_LABELS[value] ?? value;
-    select.appendChild(opt);
-  }
-  if (values.includes(current)) {
-    select.value = current;
-  } else if (placeholder !== undefined) {
-    select.value = '';
-  } else {
-    select.value = values[0] ?? '';
-  }
+function restoreDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(draftKey) || 'null');
+    if (!draft) return;
+    $('note-text').value = typeof draft.text === 'string' ? draft.text.slice(0, 4000) : '';
+    for (const [id, key, fallback] of [['target-im', 'targetIM', 'wechat'], ['surface', 'surface', 'ios'], ['output-kind', 'outputKind', 'screenshot']]) {
+      $(id).value = labels[draft[key]] ? draft[key] : fallback;
+      if (!$(id).value) $(id).value = fallback;
+    }
+    $('synthetic').checked = draft.synthetic === true;
+    images = (Array.isArray(draft.images) ? draft.images : []).filter((i) => i && ['image/png', 'image/jpeg', 'image/webp'].includes(i.mime) && typeof i.dataBase64 === 'string' && i.dataBase64.length <= 2.8e6 && /^[A-Za-z0-9+/]*={0,2}$/.test(i.dataBase64)).slice(0, 3);
+    requestId = typeof draft.requestId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(draft.requestId) ? draft.requestId : null;
+    renderImages();
+    $('draft-status').textContent = '已恢复本机草稿';
+  } catch { /* An invalid local draft must not prevent opening saved records. */ }
 }
-
-function updateLimitHints() {
-  const meta = state.meta;
-  const hint = $('attachment-hint');
-  if (hint) {
-    hint.textContent = `每个用例最多 ${meta.maxAttachments} 个附件，单个不超过 ${formatBytes(
-      meta.maxAttachmentBytes,
-    )}。支持图片（PNG/JPEG/WebP/GIF）、视频（MP4/WebM/MOV）、音频（MP3/WAV/OGG）以及 PDF/文本；图片、视频、音频可内联预览，其余仅下载。`;
-  }
-  const candidateHint = $('candidate-hint');
-  if (candidateHint) {
-    candidateHint.textContent = `候选必须是 PNG，单个不超过 ${formatBytes(
-      meta.maxCandidateBytes,
-    )}，总像素不超过 ${Number(meta.maxPixels ?? 8000000).toLocaleString('en-US')}。像素尺寸会与用例设定的宽高比对，不一致的候选不能设为金标。`;
-  }
+function renderImages() {
+  $('input-images').innerHTML = images.map((item, i) => `<div class="input-image"><img src="${imageUrl(item)}" alt="${esc(item.name)}"><button type="button" data-remove="${i}" aria-label="移除 ${esc(item.name)}">×</button></div>`).join('');
 }
-
-async function loadMeta() {
-  state.meta = await api('GET', '/api/meta');
-  fillSelect($('f-language'), state.meta.inputLanguages);
-  fillSelect($('f-im'), state.meta.targetIMs);
-  fillSelect($('f-surface'), state.meta.surfaces);
-  fillSelect($('f-kind'), state.meta.outputKinds);
-  fillSelect($('filter-im'), state.meta.targetIMs, { placeholder: '全部' });
-  fillSelect($('filter-surface'), state.meta.surfaces, { placeholder: '全部' });
-  fillSelect($('filter-kind'), state.meta.outputKinds, { placeholder: '全部' });
-  updateLimitHints();
-  renderScoreGroups();
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name || '粘贴图片.png', mime: file.type, dataBase64: String(reader.result).split(',')[1] });
+    reader.onerror = () => reject(new Error('图片读取失败，请重新选择。'));
+    reader.readAsDataURL(file);
+  });
 }
-
+async function addImages(files) {
+  if (generation || busy) return;
+  const incoming = Array.from(files);
+  if (images.length + incoming.length > 3) return notify('一次最多添加 3 张图片。');
+  if (incoming.some((file) => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) return notify('请选择 PNG、JPEG 或 WebP 图片。');
+  if (incoming.some((file) => file.size > 2 * 1024 * 1024)) return notify('每张图片不能超过 2 MB，请压缩后重试。');
+  try {
+    busy = true; updateGenerate();
+    const added = await Promise.all(incoming.map(readFile));
+    images.push(...added); renderImages(); persistDraft();
+  } catch (error) { report(error); }
+  finally { busy = false; updateGenerate(); }
+}
+function renderHistory() {
+  const query = $('search').value.trim().toLowerCase();
+  const list = [...store.cases].reverse().filter((c) => (!query || `${c.question} ${c.notes || ''}`.toLowerCase().includes(query)) && (filter !== 'golden' || c.computed?.goldenCurrent) && (filter !== 'unreviewed' || !c.computed?.reviewCurrent));
+  $('case-count').textContent = String(store.cases.length);
+  $('history').innerHTML = list.map((c) => `<button class="history-item" data-id="${esc(c.id)}" aria-current="${selected === c.id}"><strong>${esc(c.question || '图片场景')}</strong><small><span>${esc(labels[c.targetIM] || c.targetIM)} · ${esc(labels[c.surface] || c.surface)}</span><em>${c.computed?.goldenCurrent ? '金标' : c.computed?.reviewCurrent ? c.review.verdict === 'good' ? '好结果' : '待改进' : '待标注'}</em></small></button>`).join('');
+  $('history-empty').hidden = list.length > 0;
+  $('history-empty').textContent = store.cases.length ? '还没有符合条件的记录。' : '第一条场景，从一句话开始。';
+  for (const button of document.querySelectorAll('[data-filter]')) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
+}
+function renderScoreFields() {
+  $('score-fields').innerHTML = Object.entries(fields).map(([key, label]) => `<label class="score-field">${label}<select data-score="${key}" aria-label="${label}"><option value="">未评分</option>${[0, 1, 2].map((v) => `<option value="${v}" ${scores[key] === v ? 'selected' : ''}>${v} · ${['不符合', '部分符合', '符合'][v]}</option>`).join('')}</select></label>`).join('');
+}
+function updateReview() {
+  const c = active();
+  const current = c?.computed?.candidateCurrent;
+  $('new-note').disabled = $('collection-tools').disabled = busy || !!generation;
+  $('review-reason').disabled = busy || !current;
+  $('record-synthetic').disabled = busy;
+  for (const element of document.querySelectorAll('[data-score], [data-issue]')) element.disabled = busy || !current;
+  $('judge-good').setAttribute('aria-pressed', String(verdict === 'good'));
+  $('judge-bad').setAttribute('aria-pressed', String(verdict === 'bad'));
+  $('judge-good').disabled = $('judge-bad').disabled = !current || busy;
+  $('feedback').hidden = verdict !== 'bad';
+  for (const button of document.querySelectorAll('[data-issue]')) button.setAttribute('aria-pressed', String(scores[button.dataset.issue] === 0));
+  $('save-review').disabled = !current || busy || !reviewDirty || !verdict || Object.keys(fields).some((key) => !Number.isInteger(scores[key])) || (verdict === 'bad' && !$('review-reason').value.trim());
+  $('save-review').textContent = reviewDirty ? '保存标注' : c?.computed?.reviewCurrent ? '标注已保存' : '保存标注';
+  $('review-status').textContent = reviewDirty ? '尚未保存' : c?.computed?.goldenCurrent ? '已确认为金标' : c?.computed?.reviewCurrent ? '已标注' : '待标注';
+  const eligible = c?.computed?.reviewCurrent && c.review?.verdict === 'good';
+  $('golden-area').hidden = !eligible || reviewDirty;
+  $('promote').hidden = !!c?.computed?.goldenCurrent;
+  $('revoke').hidden = !c?.computed?.goldenCurrent;
+  $('golden-explainer').textContent = c?.computed?.goldenCurrent ? '已保留为金标，可用于后续回归比较。' : '这个结果值得保留。确认后，将作为后续回归的参考。';
+  for (const id of ['promote', 'revoke', 'remix', 'save-record-policy', 'delete-record']) $(id).disabled = busy;
+}
+function showCase(id) {
+  selected = id;
+  const c = active();
+  if (!c) return showComposer();
+  reviewDirty = false;
+  const review = c.computed?.reviewCurrent ? c.review : null;
+  verdict = review?.verdict === 'unreviewed' ? null : review?.verdict || null;
+  scores = { ...(review?.scores || {}) };
+  $('review-reason').value = review?.reason || '';
+  $('result-title').textContent = '这一版，符合你的想法吗？';
+  $('result-subtitle').textContent = `${labels[c.targetIM] || c.targetIM} · ${labels[c.surface] || c.surface} · ${labels[c.outputKind] || c.outputKind}`;
+  $('source-text').textContent = (c.generation ? c.generation.input.text : c.question) || '用图片作为输入';
+  $('source-images').innerHTML = (c.attachments || []).filter((a) => a.mime?.startsWith('image/')).map((a) => `<a href="${endpoint(c, `/attachments/${encodeURIComponent(a.id)}/raw`)}" target="_blank" rel="noopener"><img src="${endpoint(c, `/attachments/${encodeURIComponent(a.id)}/raw`)}" alt="${esc(a.name)}"></a>`).join('');
+  $('source-chips').innerHTML = [labels[c.targetIM], labels[c.surface], labels[c.outputKind], c.synthetic ? '合成素材' : '私有素材'].map((label) => `<span>${esc(label)}</span>`).join('');
+  $('result-image').hidden = !c.candidate;
+  $('no-result').hidden = !!c.candidate;
+  if (c.candidate) $('result-image').src = `${endpoint(c, '/candidate.png')}?v=${encodeURIComponent(c.candidate.sha256)}`;
+  else $('result-image').removeAttribute('src');
+  $('download-image').hidden = !c.candidate;
+  $('download-image').href = endpoint(c, '/candidate.png');
+  $('download-image').download = `${c.id}.png`;
+  $('image-spec').textContent = c.candidate ? `${c.candidate.width} × ${c.candidate.height} · PNG${c.computed?.candidateCurrent ? '' : ' · 输入已变化，需重新生成'}` : '暂无输出';
+  $('record-meta').textContent = `${c.id}\n${c.candidate?.provenance?.model || c.provenance?.model || ''}${c.notes ? `\n${c.notes}` : ''}`;
+  $('record-synthetic').checked = c.synthetic === true;
+  renderScoreFields(); updateReview(); renderHistory(); mode('result');
+}
+async function confirmAction(title, message, label = '确认') {
+  const dialog = $('confirm-dialog');
+  if (dialog.open) return false;
+  $('confirm-title').textContent = title; $('confirm-text').textContent = message; $('confirm-ok').textContent = label;
+  dialog.returnValue = 'cancel';
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true });
+    dialog.showModal();
+  });
+}
+async function leaveReview() {
+  if (busy || generation) return false;
+  return !reviewDirty || await confirmAction('标注尚未保存', '离开将放弃这次未保存的评价，生成的图片仍会保留。', '放弃评价');
+}
+function showComposer() {
+  selected = null; reviewDirty = false; mode('composer'); renderHistory(); updateGenerate(); $('note-text').focus();
+}
 async function reloadStore() {
-  setStatusChip($('store-status'), 'idle', '加载中…');
+  store = await api('/api/store');
+  $('connection').textContent = '本机已连接';
+  $('connection').dataset.state = 'ok';
+  renderHistory();
+}
+async function mutate(suffix, body, method = 'POST') {
+  if (busy || generation || !active()) return;
+  const id = selected;
+  busy = true; updateReview();
   try {
-    const data = await api('GET', '/api/store');
-    state.revision = data.revision;
-    state.cases = data.cases;
-    hideBanner();
-    setStatusChip($('store-status'), 'ok', `rev ${data.revision} · ${data.cases.length} 用例`);
-    if (state.selectedId && !state.cases.some((c) => c.id === state.selectedId)) {
-      state.selectedId = null;
-    }
-    renderAll();
-  } catch (err) {
-    setStatusChip($('store-status'), 'error', '加载失败');
-    if (err instanceof ApiError && err.payload?.corrupt) {
-      showBanner(`store.json 损坏，已保留原文件，不会静默覆盖：${err.message}`, { kind: 'error' });
-    } else {
-      showBanner(`加载失败：${err.message}`, { kind: 'error' });
-    }
-    // Never leave a stale "ok" view on screen after a failed reload.
-    state.cases = [];
-    renderList();
-  }
-}
-
-function caseStatus(c) {
-  if (c.computed?.goldenCurrent) return { key: 'golden', label: '金标', tone: 'golden' };
-  if (c.computed?.candidateCurrent === false && c.candidate) return { key: 'stale', label: '候选过期', tone: 'warn' };
-  if (c.review?.verdict === 'bad') return { key: 'bad', label: '坏例', tone: 'bad' };
-  if (c.review?.status === 'reviewed') return { key: 'reviewed', label: '已评审', tone: 'reviewed' };
-  return { key: 'unreviewed', label: '未评审', tone: 'default' };
-}
-
-function filterCases() {
-  const { q, targetIM, surface, status, outputKind } = state.filters;
-  const needle = q.trim().toLowerCase();
-  return state.cases.filter((c) => {
-    if (targetIM && c.targetIM !== targetIM) return false;
-    if (surface && c.surface !== surface) return false;
-    if (outputKind && c.outputKind !== outputKind) return false;
-    if (status) {
-      const s = caseStatus(c).key;
-      if (status === 'stale' && s !== 'stale') return false;
-      if (status !== 'stale' && s !== status) return false;
-    }
-    if (needle) {
-      const hay = `${c.question} ${c.notes ?? ''} ${c.targetIM} ${c.surface}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
-    }
+    await api(endpoint(active(), suffix), { revision: store.revision, ...body }, method);
+    await reloadStore();
+    showCase(id);
     return true;
-  });
+  } catch (error) { report(error); return false; }
+  finally { busy = false; updateReview(); }
 }
-
-function renderList() {
-  const list = $('case-list');
-  const items = filterCases();
-  $('list-loading').hidden = true;
-  list.innerHTML = '';
-  const empty = $('list-empty');
-  if (state.cases.length === 0) {
-    empty.hidden = false;
-    empty.textContent = '还没有用例。点击「新建」或「加载合成示例」开始。';
-    list.hidden = true;
-    return;
-  }
-  if (items.length === 0) {
-    empty.hidden = false;
-    empty.textContent = '没有符合筛选条件的用例。';
-    list.hidden = true;
-    return;
-  }
-  empty.hidden = true;
-  list.hidden = false;
-  for (const c of items) {
-    const st = caseStatus(c);
-    const li = document.createElement('li');
-    li.className = 'case-item';
-    li.setAttribute('role', 'option');
-    li.setAttribute('aria-selected', String(c.id === state.selectedId));
-    li.tabIndex = 0;
-    li.innerHTML = `
-      <div class="case-q">${escapeHtml(c.question)}</div>
-      <div class="case-meta">
-        <span class="chip">${escapeHtml(c.targetIM)}</span>
-        <span class="chip">${escapeHtml(c.surface)}</span>
-        <span class="chip">${escapeHtml(c.inputLanguage)}</span>
-        <span class="chip" data-tone="${st.tone}">${st.label}</span>
-        ${c.synthetic ? '<span class="chip">合成</span>' : ''}
-      </div>`;
-    const select = () => withDiscardGuard(() => selectCase(c.id));
-    li.addEventListener('click', select);
-    li.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        select();
-      }
-    });
-    list.appendChild(li);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Editor
-// ---------------------------------------------------------------------------
-
-function selectedCase() {
-  return state.cases.find((c) => c.id === state.selectedId) ?? null;
-}
-
-function markDirty() {
-  state.dirty = true;
-  $('input-dirty').hidden = false;
-  updateActionGates();
-}
-
-function clearDirty() {
-  state.dirty = false;
-  $('input-dirty').hidden = true;
-  updateActionGates();
-}
-
-function markReviewDirty() {
-  state.reviewDirty = true;
-  $('review-dirty').hidden = false;
-  updateActionGates();
-}
-
-function clearReviewDirty() {
-  state.reviewDirty = false;
-  $('review-dirty').hidden = true;
-  updateActionGates();
-}
-
-function applyCaseToForm(c) {
-  $('f-question').value = c.question ?? '';
-  $('f-language').value = c.inputLanguage;
-  $('f-im').value = c.targetIM;
-  $('f-surface').value = c.surface;
-  $('f-kind').value = c.outputKind;
-  $('f-width').value = c.width;
-  $('f-height').value = c.height;
-  $('f-notes').value = c.notes ?? '';
-  $('f-maxdiff').value = c.maxDiffRatio ?? 0.005;
-  $('f-synthetic').checked = c.synthetic === true;
-  state.draft = collectDraft();
-  clearDirty();
-}
-
-function collectDraft() {
-  return {
-    question: $('f-question').value,
-    inputLanguage: $('f-language').value,
-    targetIM: $('f-im').value,
-    surface: $('f-surface').value,
-    outputKind: $('f-kind').value,
-    width: Number($('f-width').value),
-    height: Number($('f-height').value),
-    notes: $('f-notes').value,
-    maxDiffRatio: Number($('f-maxdiff').value),
-    synthetic: $('f-synthetic').checked,
-  };
-}
-
-function renderAll() {
-  renderList();
-  renderEditor();
-}
-
-function renderEditor() {
-  const c = selectedCase();
-  const placeholder = $('input-placeholder');
-  const form = $('case-form');
-  if (!c) {
-    placeholder.hidden = false;
-    placeholder.textContent = '选择左侧用例，或新建一个。';
-    form.hidden = true;
-    clearReviewDirty();
-    return;
-  }
-  placeholder.hidden = true;
-  form.hidden = false;
-  applyCaseToForm(c);
-  renderAttachments();
-  renderResult();
-  updateActionGates();
-}
-
-function renderAttachments() {
-  const c = selectedCase();
-  const list = $('attachment-list');
-  const empty = $('attachment-empty');
-  list.innerHTML = '';
-  const atts = c?.attachments ?? [];
-  empty.hidden = atts.length > 0;
-  for (const att of atts) {
-    const li = document.createElement('li');
-    li.className = 'attachment-item';
-    const src = `/api/cases/${encodeURIComponent(c.id)}/attachments/${encodeURIComponent(att.id)}/raw`;
-    let thumb = '<span class="chip">文件</span>';
-    if (att.kind === 'image') {
-      thumb = `<img class="attachment-thumb" src="${src}" alt="${escapeHtml(att.name)}" loading="lazy" />`;
-    } else if (att.kind === 'video') {
-      thumb = `<video class="attachment-thumb" src="${src}" muted preload="metadata"></video>`;
-    } else if (att.kind === 'audio') {
-      thumb = '<span class="chip">音频</span>';
-    }
-    li.innerHTML = `
-      ${thumb}
-      <div class="att-body">
-        <div class="att-name">${escapeHtml(att.name)}</div>
-        <div class="att-meta">${escapeHtml(att.kind)} · ${escapeHtml(att.mime)} · ${(att.size / 1024).toFixed(1)} KB</div>
-        <audio controls preload="none" src="${src}" hidden></audio>
-      </div>
-      <a class="btn btn-ghost btn-small" href="${src}" download="${escapeHtml(att.name)}">下载</a>
-      <button type="button" class="btn btn-ghost btn-small" data-remove-att="${escapeHtml(att.id)}">移除</button>
-    `;
-    if (att.kind === 'audio') {
-      const audio = li.querySelector('audio');
-      audio.hidden = false;
-    }
-    li.querySelector('[data-remove-att]').addEventListener('click', () => removeAttachment(att.id));
-    list.appendChild(li);
-  }
-}
-
-async function withDiscardGuard(action, { message } = {}) {
-  if (state.dirty || state.reviewDirty) {
-    const ok = await confirmDialog(
-      '放弃未保存的修改？',
-      message ?? '当前有未保存的输入或评审变更，继续将丢失这些修改。',
-    );
-    if (!ok) return;
-  }
-  return action();
-}
-
-async function selectCase(id) {
-  state.selectedId = id;
-  renderList();
-  renderEditor();
-}
-
-function newCase() {
-  if (!state.meta) {
-    showToast('元数据尚未加载，请先刷新', 'error');
-    return;
-  }
-  return withDiscardGuard(() => {
-    state.selectedId = null;
-    state.draft = null;
-    clearDirty();
-    clearReviewDirty();
-    $('input-placeholder').hidden = true;
-    $('case-form').hidden = false;
-    $('case-form').reset();
-    $('f-language').value = state.meta.inputLanguages[0];
-    $('f-im').value = state.meta.targetIMs[0];
-    $('f-surface').value = state.meta.surfaces[0];
-    $('f-kind').value = state.meta.outputKinds[0];
-    $('f-width').value = 390;
-    $('f-height').value = 844;
-    $('f-maxdiff').value = state.meta.defaultMaxDiffRatio;
-    $('f-synthetic').checked = false;
-    $('attachment-list').innerHTML = '';
-    $('attachment-empty').hidden = false;
-    $('result-placeholder').hidden = false;
-    $('result-body').hidden = true;
-    state.dirty = true;
-    $('input-dirty').hidden = false;
-    $('input-placeholder').textContent = '新建用例：填写后点击「保存用例」。';
-    renderList();
-    updateActionGates();
-    $('f-question').focus();
-  });
-}
-
-function applyCaseUpdate(updated) {
-  const idx = state.cases.findIndex((c) => c.id === updated.id);
-  if (idx >= 0) state.cases[idx] = updated;
-  else state.cases.push(updated);
-  state.selectedId = updated.id;
-}
-
-async function saveCase(event) {
-  event.preventDefault();
-  if (state.busy) return;
-  if (state.reviewDirty) {
-    const ok = await confirmDialog(
-      '保存用例会丢弃未保存的评审修改？',
-      '输入变更会撤销现有评审；未保存的评分/结论修改将丢失。',
-    );
-    if (!ok) return;
-  }
-  const draft = collectDraft();
-  if (!draft.question || draft.question.trim().length === 0) {
-    showToast('请填写问题 / 场景描述', 'error');
-    return;
-  }
-  state.busy = true;
-  $('btn-save-case').disabled = true;
+async function generate(event) {
+  event?.preventDefault();
+  if (busy || generation || $('generate').disabled) return;
+  $('notice').hidden = true;
+  const input = composerValue();
+  requestId ||= newId(); persistDraft(false);
+  const controller = new AbortController();
+  generation = controller; mode('generating'); updateGenerate();
+  $('generating-input').textContent = input.text.trim() || `${images.length} 张图片`;
   try {
-    let payload;
-    if (state.selectedId) {
-      payload = await api('PUT', `/api/cases/${encodeURIComponent(state.selectedId)}`, {
-        revision: state.revision,
-        case: draft,
-      });
-    } else {
-      payload = await api('POST', '/api/cases', { revision: state.revision, case: draft });
-    }
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    applyCaseToForm(payload.case);
-    hideBanner();
-    setStatusChip($('store-status'), 'ok', `rev ${state.revision} · ${state.cases.length} 用例`);
-    showToast('用例已保存');
-    renderList();
-    renderAttachments();
-    renderResult();
-    updateActionGates();
-  } catch (err) {
-    handleMutationError(err);
+    const result = await api('/api/generate', { revision: store.revision, requestId, input }, 'POST', controller.signal);
+    if (controller.signal.aborted) return;
+    await reloadStore();
+    requestId = null;
+    $('note-text').value = ''; $('synthetic').checked = false; images = []; renderImages(); persistDraft(false);
+    showCase(result.case.id);
+    if (result.warnings?.length) notify(result.warnings.join('；'));
+    else toast('聊天图已生成，原始输入也已保留。');
+  } catch (error) {
+    mode('composer');
+    if (error.name === 'AbortError') notify('已停止等待，输入仍保留。如果服务已完成，结果会出现在左侧记录中。');
+    else report(error);
+    try { await reloadStore(); } catch { /* Keep the original error and the draft. */ }
   } finally {
-    state.busy = false;
-    $('btn-save-case').disabled = false;
+    generation = null; $('new-note').disabled = false; $('collection-tools').disabled = false; updateGenerate();
   }
 }
-
-async function deleteCase() {
-  const c = selectedCase();
-  if (!c) return;
-  const ok = await confirmDialog('删除用例？', `将永久删除「${c.question.slice(0, 40)}…」。此操作不可撤销。`);
-  if (!ok) return;
+async function remix() {
+  if (!(await leaveReview())) return;
+  const c = active();
+  const hasDraft = $('note-text').value.trim() || images.length;
+  if (hasDraft && !(await confirmAction('用这条记录继续创作？', '当前便签草稿将替换为这条记录的输入，原记录与标注会保留。', '使用这条输入'))) return;
+  busy = true; updateReview();
   try {
-    const payload = await api('DELETE', `/api/cases/${encodeURIComponent(c.id)}`, {
-      revision: state.revision,
-    });
-    state.revision = payload.revision;
-    state.cases = state.cases.filter((x) => x.id !== c.id);
-    state.selectedId = null;
-    clearDirty();
-    clearReviewDirty();
-    showToast('用例已删除');
-    renderAll();
-  } catch (err) {
-    handleMutationError(err);
-  }
+    const source = (c.attachments || []).filter((a) => ['image/png', 'image/jpeg', 'image/webp'].includes(a.mime));
+    if (source.length > 3) throw new Error('这条旧记录超过 3 张图片，请新建场景并选择需要的图片。');
+    const loaded = await Promise.all(source.map(async (a) => {
+      const response = await fetch(endpoint(c, `/attachments/${encodeURIComponent(a.id)}/raw`));
+      if (!response.ok) throw new Error('原始图片读取失败，请重试。');
+      const blob = await response.blob();
+      if (blob.size > 2 * 1024 * 1024) throw new Error('原始图片超过 2 MB，请新建场景并压缩图片后再试。');
+      return readFile(new File([blob], a.name, { type: a.mime }));
+    }));
+    $('note-text').value = c.generation ? c.generation.input.text : c.question;
+    $('target-im').value = ['wechat', 'telegram', 'whatsapp'].includes(c.targetIM) ? c.targetIM : 'wechat';
+    $('surface').value = c.surface; $('output-kind').value = c.outputKind; $('synthetic').checked = c.synthetic;
+    images = loaded; renderImages(); persistDraft(); showComposer();
+    if (c.targetIM === 'custom') notify('这条旧记录使用自定义 IM，已先选为微信，你可以重新选择。');
+  } catch (error) { report(error); }
+  finally { busy = false; updateGenerate(); updateReview(); $('new-note').disabled = false; $('collection-tools').disabled = false; }
+}
+async function exportGoldens(scope) {
+  try {
+    const bundle = await api('/api/export', { scope });
+    if (!bundle.cases?.length) { $('tools-dialog').close(); return notify('还没有符合条件的金标。先保存“好”的标注，再确认为金标。'); }
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob), link = document.createElement('a');
+    link.href = url; link.download = `imstage-${scope}-goldens.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast(`已导出 ${bundle.cases.length} 条金标。`);
+  } catch (error) { $('tools-dialog').close(); report(error); }
 }
 
-async function addAttachments(files) {
-  const c = selectedCase();
-  if (!c) {
-    showToast('请先保存用例，再添加附件', 'error');
-    return;
-  }
-  for (const file of files) {
-    try {
-      const dataBase64 = await fileToBase64(file);
-      const payload = await api('POST', `/api/cases/${encodeURIComponent(c.id)}/attachments`, {
-        revision: state.revision,
-        name: file.name,
-        mime: file.type || 'application/octet-stream',
-        dataBase64,
-      });
-      state.revision = payload.revision;
-      applyCaseUpdate(payload.case);
-      clearReviewDirty();
-      renderAttachments();
-      renderResult();
-      renderList();
-      showToast(`已添加附件 ${file.name}`);
-    } catch (err) {
-      handleMutationError(err);
+$('compose-form').addEventListener('submit', generate);
+for (const id of ['note-text', 'target-im', 'surface', 'output-kind', 'synthetic']) $(id).addEventListener(id === 'note-text' ? 'input' : 'change', () => persistDraft());
+$('add-images').addEventListener('click', () => $('image-files').click());
+$('image-files').addEventListener('change', async () => { await addImages($('image-files').files); $('image-files').value = ''; });
+$('input-images').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-remove]');
+  if (!button || busy || generation) return;
+  images.splice(Number(button.dataset.remove), 1); renderImages(); persistDraft();
+});
+$('compose-form').addEventListener('paste', (event) => {
+  const files = Array.from(event.clipboardData?.files || []);
+  if (files.length) { event.preventDefault(); addImages(files); }
+});
+$('compose-form').addEventListener('dragover', (event) => { event.preventDefault(); $('compose-form').classList.add('dragging'); });
+$('compose-form').addEventListener('dragleave', () => $('compose-form').classList.remove('dragging'));
+$('compose-form').addEventListener('drop', (event) => { event.preventDefault(); $('compose-form').classList.remove('dragging'); addImages(event.dataTransfer?.files || []); });
+$('suggestions').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-prompt]');
+  if (!button) return;
+  $('note-text').value = button.dataset.prompt; persistDraft(); $('note-text').focus();
+});
+$('new-note').addEventListener('click', async () => { if (await leaveReview()) showComposer(); });
+$('search').addEventListener('input', renderHistory);
+for (const button of document.querySelectorAll('[data-filter]')) button.addEventListener('click', () => { filter = button.dataset.filter; renderHistory(); });
+$('history').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-id]');
+  if (button && await leaveReview()) showCase(button.dataset.id);
+});
+$('cancel-generation').addEventListener('click', () => generation?.abort());
+$('remix').addEventListener('click', remix);
+for (const choice of ['good', 'bad']) $(`judge-${choice}`).addEventListener('click', () => {
+  if (busy || !active()?.computed?.candidateCurrent) return;
+  verdict = choice; scores = Object.fromEntries(Object.keys(fields).map((key) => [key, choice === 'good' ? 2 : 1]));
+  reviewDirty = true; renderScoreFields(); updateReview();
+});
+for (const button of document.querySelectorAll('[data-issue]')) button.addEventListener('click', () => {
+  if (busy) return;
+  scores[button.dataset.issue] = scores[button.dataset.issue] === 0 ? 1 : 0;
+  reviewDirty = true; renderScoreFields(); updateReview();
+});
+$('score-fields').addEventListener('change', (event) => {
+  const key = event.target.dataset.score;
+  if (!fields[key]) return;
+  scores[key] = event.target.value === '' ? null : Number(event.target.value); reviewDirty = true; updateReview();
+});
+$('review-reason').addEventListener('input', () => { reviewDirty = true; updateReview(); });
+$('save-review').addEventListener('click', async () => {
+  if ($('save-review').disabled) return;
+  if (await mutate('/review', { review: { verdict, scores, reason: $('review-reason').value } }, 'PUT')) toast('标注已保存。');
+});
+$('promote').addEventListener('click', async () => { if (await mutate('/golden', {})) toast('已确认为金标。'); });
+$('revoke').addEventListener('click', async () => { if (await mutate('/golden', {}, 'DELETE')) toast('已撤销金标，图片和标注仍保留。'); });
+$('save-record-policy').addEventListener('click', async () => {
+  if (!active() || active().synthetic === $('record-synthetic').checked || !(await leaveReview())) return;
+  if (!(await confirmAction('修改素材标记？', '修改会撤销现有评审和金标，需重新确认。只有虚构、合成素材才应标为公开。', '保存标记'))) return;
+  if (await mutate('', { case: { synthetic: $('record-synthetic').checked } }, 'PUT')) toast('素材标记已更新。');
+});
+$('delete-record').addEventListener('click', async () => {
+  if (!(await leaveReview()) || !(await confirmAction('删除这条记录？', '原始输入、图片、标注和金标都会删除，无法恢复。', '删除记录'))) return;
+  if (await mutate('', {}, 'DELETE')) { showComposer(); toast('记录已删除。'); }
+});
+$('collection-tools').addEventListener('click', () => $('tools-dialog').showModal());
+$('tools-close').addEventListener('click', () => $('tools-dialog').close());
+$('export-synthetic').addEventListener('click', () => exportGoldens('synthetic'));
+$('export-private').addEventListener('click', () => exportGoldens('private'));
+$('import-open').addEventListener('click', () => $('import-file').click());
+$('import-file').addEventListener('change', async () => {
+  const file = $('import-file').files[0]; $('import-file').value = '';
+  if (!file) return;
+  $('tools-dialog').close();
+  if (!(await leaveReview())) return;
+  try {
+    busy = true; updateGenerate(); updateReview();
+    if (file.size > 24 * 1024 * 1024) throw new Error('备份文件超过 24 MB 请求上限。');
+    const bundle = JSON.parse(await file.text());
+    if (new TextEncoder().encode(JSON.stringify({ revision: store.revision, bundle })).length > 24 * 1024 * 1024) throw new Error('备份内容超过 24 MB 请求上限。');
+    await api('/api/import', { revision: store.revision, bundle });
+    await reloadStore(); if (selected) showCase(selected);
+    toast('金标已恢复，原有记录已保留。');
+  } catch (error) { report(error); }
+  finally { busy = false; updateGenerate(); updateReview(); }
+});
+$('notice-new-generation').addEventListener('click', () => {
+  if (generation || busy || $('composer-view').hidden) return;
+  requestId = null; persistDraft(false); generate();
+});
+$('notice-close').addEventListener('click', () => { $('notice').hidden = true; });
+$('notice-retry').addEventListener('click', async () => {
+  if (busy || generation) return;
+  const before = active();
+  const pendingReview = reviewDirty ? { verdict, scores: { ...scores }, reason: $('review-reason').value } : null;
+  busy = true; updateGenerate(); updateReview();
+  try {
+    const nextStore = await api('/api/store');
+    const after = nextStore.cases.find((c) => c.id === selected);
+    const sameBasis = before && after && before.computed?.inputFingerprint === after.computed?.inputFingerprint && before.candidate?.sha256 === after.candidate?.sha256 && before.review?.fingerprint === after.review?.fingerprint;
+    if (pendingReview && !sameBasis && !(await confirmAction('这条记录已经变化', '当前输出或已有标注已被其他窗口修改。放弃未保存的评价后，可查看最新记录。', '查看最新记录'))) return;
+    store = nextStore;
+    config = await api('/api/generation');
+    $('connection').textContent = '本机已连接'; $('connection').dataset.state = 'ok';
+    $('generation-hint').textContent = config.configured ? '文字与图片会交给 AI 理解，语言自动识别。' : 'AI 尚未配置。已有记录仍可查看和标注。';
+    if (selected) showCase(selected); else renderHistory();
+    if (pendingReview && sameBasis) {
+      verdict = pendingReview.verdict; scores = pendingReview.scores; $('review-reason').value = pendingReview.reason;
+      reviewDirty = true; renderScoreFields(); toast('已同步记录，你未保存的评价已保留。');
     }
-  }
-}
-
-async function removeAttachment(attId) {
-  const c = selectedCase();
-  if (!c) return;
-  const ok = await confirmDialog('移除附件？', '移除后将撤销已有的评审与金标绑定。');
-  if (!ok) return;
-  try {
-    const payload = await api(
-      'DELETE',
-      `/api/cases/${encodeURIComponent(c.id)}/attachments/${encodeURIComponent(attId)}`,
-      { revision: state.revision },
-    );
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    applyCaseToForm(payload.case);
-    renderAttachments();
-    renderResult();
-    renderList();
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Result + review
-// ---------------------------------------------------------------------------
-
-async function uploadCandidate(file) {
-  return withDiscardGuard(
-    async () => {
-      const c = selectedCase();
-      if (!c) {
-        showToast('请先保存用例，再上传候选 PNG', 'error');
-        return;
-      }
-      try {
-        const dataBase64 = await fileToBase64(file);
-        const payload = await api('POST', `/api/cases/${encodeURIComponent(c.id)}/candidate`, {
-          revision: state.revision,
-          name: file.name,
-          mime: 'image/png',
-          dataBase64,
-        });
-        state.revision = payload.revision;
-        applyCaseUpdate(payload.case);
-        clearReviewDirty();
-        renderResult();
-        renderList();
-        if (!payload.dimensionsMatchCase) {
-          showBanner('候选 PNG 尺寸与用例设定的宽高不一致，不能设为金标；可在评审中标记为坏例。', {
-            kind: 'warn',
-          });
-        } else {
-          hideBanner();
-          showToast('候选 PNG 已上传');
-        }
-      } catch (err) {
-        handleMutationError(err);
-      }
-    },
-    { message: '上传候选会重置当前评审状态，未保存的评审修改将丢失。' },
-  );
-}
-
-async function removeCandidate() {
-  const c = selectedCase();
-  if (!c) return;
-  const ok = await confirmDialog('移除候选 PNG？', '移除后将同时撤销评审与金标绑定。');
-  if (!ok) return;
-  try {
-    const payload = await api('DELETE', `/api/cases/${encodeURIComponent(c.id)}/candidate`, {
-      revision: state.revision,
-    });
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    clearReviewDirty();
-    renderResult();
-    renderList();
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-function renderScoreGroups() {
-  const container = $('score-groups');
-  if (!state.meta) return;
-  container.innerHTML = '';
-  const labels = {
-    content: '内容正确性',
-    imFidelity: 'IM 风格还原',
-    layout: '布局',
-    completeness: '完整性',
-  };
-  for (const field of state.meta.scoreFields) {
-    const rubric = state.meta.rubric[field];
-    const group = document.createElement('div');
-    group.className = 'score-group';
-    group.innerHTML = `
-      <div class="score-label">${escapeHtml(labels[field] ?? field)}</div>
-      <div class="score-rubric">0 ${escapeHtml(rubric['0'])} · 1 ${escapeHtml(rubric['1'])} · 2 ${escapeHtml(rubric['2'])}</div>
-      <div class="score-options">
-        ${state.meta.scoreValues
-          .map(
-            (v) => `<label><input type="radio" name="score-${field}" value="${v}" /> ${v}</label>`,
-          )
-          .join('')}
-      </div>`;
-    container.appendChild(group);
-  }
-}
-
-function applyReviewToForm(c) {
-  const review = c?.review;
-  for (const field of state.meta.scoreFields) {
-    const inputs = document.querySelectorAll(`input[name="score-${field}"]`);
-    for (const input of inputs) {
-      input.checked = review?.scores?.[field] === Number(input.value);
-    }
-  }
-  $('r-verdict').value = review?.verdict ?? 'unreviewed';
-  $('r-reason').value = review?.reason ?? '';
-  clearReviewDirty();
-}
-
-function renderResult() {
-  const c = selectedCase();
-  const placeholder = $('result-placeholder');
-  const body = $('result-body');
-  const gate = $('result-gate');
-  if (!c || !c.id || !state.cases.some((x) => x.id === c.id)) {
-    placeholder.hidden = false;
-    body.hidden = true;
-    gate.hidden = true;
-    return;
-  }
-  placeholder.hidden = true;
-  body.hidden = false;
-
-  // Candidate preview
-  const preview = $('candidate-preview');
-  if (c.candidate) {
-    const src = `/api/cases/${encodeURIComponent(c.id)}/candidate.png?v=${encodeURIComponent(c.candidate.sha256).slice(0, 12)}`;
-    const staleNote = c.computed?.candidateCurrent
-      ? ''
-      : '<p class="preview-caption" style="color:#9a6a00">⚠ 候选已过期：输入/目标已变更，必须重新上传后才能评审或设为金标。</p>';
-    preview.innerHTML = `
-      <img src="${src}" alt="候选输出预览" />
-      <p class="preview-caption">${c.candidate.width}×${c.candidate.height} px · ${(c.candidate.size / 1024).toFixed(1)} KB · sha256 ${escapeHtml(c.candidate.sha256).slice(0, 12)}…</p>
-      <p><a class="btn btn-ghost btn-small" href="${src}" download="${escapeHtml(c.candidate.name || 'candidate.png')}">下载候选 PNG</a></p>
-      ${staleNote}`;
-  } else {
-    preview.innerHTML = '<p class="empty small">尚未上传候选 PNG。</p>';
-  }
-
-  applyReviewToForm(c);
-
-  const goldenCurrent = c.computed?.goldenCurrent;
-  if (goldenCurrent) setStatusChip(gate, 'ok', '已绑定金标');
-  else if (!c.candidate) setStatusChip(gate, 'idle', '无候选');
-  else if (!c.computed?.candidateCurrent) setStatusChip(gate, 'warn', '候选过期');
-  else if (c.review?.verdict === 'good') setStatusChip(gate, 'ok', '可设金标');
-  else if (c.review?.verdict === 'bad') setStatusChip(gate, 'error', '坏例');
-  else setStatusChip(gate, 'idle', '未评审');
-  updateActionGates();
-}
-
-function updateActionGates() {
-  const c = selectedCase();
-  const canReview =
-    !!c && !!c.candidate && c.computed?.candidateCurrent === true && !state.dirty && !state.busy;
-  $('btn-save-review').disabled = !canReview;
-  $('btn-promote').disabled = !(
-    canReview &&
-    c.review?.verdict === 'good' &&
-    !state.reviewDirty
-  );
-  $('btn-revoke-golden').disabled = !(c?.golden?.approved);
-  $('btn-remove-candidate').disabled = !c?.candidate;
-}
-
-async function saveReview() {
-  const c = selectedCase();
-  if (!c) return;
-  const scores = {};
-  for (const field of state.meta.scoreFields) {
-    const checked = document.querySelector(`input[name="score-${field}"]:checked`);
-    scores[field] = checked ? Number(checked.value) : null;
-  }
-  const verdict = $('r-verdict').value;
-  const reason = $('r-reason').value;
-  try {
-    const payload = await api('PUT', `/api/cases/${encodeURIComponent(c.id)}/review`, {
-      revision: state.revision,
-      review: { scores, verdict, reason },
-    });
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    renderResult();
-    renderList();
-    showToast('评审已保存');
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-async function promoteGolden() {
-  const c = selectedCase();
-  if (!c) return;
-  if (state.reviewDirty) {
-    showToast('请先保存评审，再设为金标', 'error');
-    return;
-  }
-  const ok = await confirmDialog(
-    '设为金标？',
-    '这将把当前已评审为 good 的候选 PNG 绑定为金标基线，导出时的指纹与容差会一并固定。任何后续评审修改都会撤销该绑定。',
-  );
-  if (!ok) return;
-  try {
-    const payload = await api('POST', `/api/cases/${encodeURIComponent(c.id)}/golden`, {
-      revision: state.revision,
-    });
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    renderResult();
-    renderList();
-    showToast('已设为金标');
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-async function revokeGolden() {
-  const c = selectedCase();
-  if (!c) return;
-  const ok = await confirmDialog('撤销金标？', '撤销后该用例不再属于可导出的金标集合。');
-  if (!ok) return;
-  try {
-    const payload = await api('DELETE', `/api/cases/${encodeURIComponent(c.id)}/golden`, {
-      revision: state.revision,
-    });
-    state.revision = payload.revision;
-    applyCaseUpdate(payload.case);
-    renderResult();
-    renderList();
-    showToast('已撤销金标');
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Export / import / starters
-// ---------------------------------------------------------------------------
-
-function openExportDialog() {
-  const dlg = $('export-dialog');
-  dlg.returnValue = 'cancel';
-  dlg.showModal();
-}
-
-async function runExport() {
-  const scope = document.querySelector('input[name="export-scope"]:checked')?.value ?? 'private';
-  try {
-    const bundle = await api('POST', '/api/export', { scope });
-    const blob = new Blob([`${JSON.stringify(bundle, null, 2)}\n`], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `imstage-golden-${scope}-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    if (bundle.cases.length === 0) {
-      showBanner(
-        scope === 'synthetic'
-          ? '没有明确标记为合成的已批准金标用例，未导出任何内容。'
-          : '没有已批准的金标用例，未导出任何内容。',
-        { kind: 'warn' },
-      );
-    } else {
-      showToast(`已导出 ${bundle.cases.length} 条金标用例`);
-      hideBanner();
-    }
-  } catch (err) {
-    handleMutationError(err);
-  }
-}
-
-async function importBundle(file) {
-  return withDiscardGuard(async () => {
-    try {
-      const text = await file.text();
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        throw new Error('选择的文件不是合法 JSON');
-      }
-      const payload = await api('POST', '/api/import', {
-        bundle: parsed,
-        revision: state.revision,
-      });
-      state.revision = payload.revision;
-      showToast(`已导入 ${payload.imported.length} 条用例（新 ID）`);
-      hideBanner();
-      await reloadStore();
-    } catch (err) {
-      handleMutationError(err);
-    }
-  });
-}
-
-async function loadStarters() {
-  return withDiscardGuard(async () => {
-    const ok = await confirmDialog(
-      '加载合成起始用例？',
-      '将添加 3 条明确标记为合成的几何占位用例（未评审，不是真实 UI，也不是已批准的金标）。不会自动写入你的私有数据。',
-    );
-    if (!ok) return;
-    try {
-      const payload = await api('POST', '/api/starter', { revision: state.revision });
-      state.revision = payload.revision;
-      showToast(`已加载 ${payload.imported.length} 条合成用例`);
-      await reloadStore();
-    } catch (err) {
-      handleMutationError(err);
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Wiring
-// ---------------------------------------------------------------------------
-
-function bindFormDirtyTracking() {
-  const form = $('case-form');
-  form.addEventListener('input', (e) => {
-    if (e.target.type === 'file') return;
-    if (e.target.closest('#case-form')) markDirty();
-  });
-  form.addEventListener('change', (e) => {
-    if (e.target.type === 'file') return;
-    markDirty();
-  });
-  form.addEventListener('submit', saveCase);
-}
-
-function isReviewControl(el) {
-  if (!el) return false;
-  if (el.id === 'r-verdict' || el.id === 'r-reason') return true;
-  return typeof el.name === 'string' && el.name.startsWith('score-');
-}
-
-function bindResultDirtyTracking() {
-  const body = $('result-body');
-  const handler = (e) => {
-    if (isReviewControl(e.target)) markReviewDirty();
-  };
-  body.addEventListener('input', handler);
-  body.addEventListener('change', handler);
-}
-
-function bindFilters() {
-  $('filter-q').addEventListener('input', (e) => {
-    state.filters.q = e.target.value;
-    renderList();
-  });
-  $('filter-im').addEventListener('change', (e) => {
-    state.filters.targetIM = e.target.value;
-    renderList();
-  });
-  $('filter-surface').addEventListener('change', (e) => {
-    state.filters.surface = e.target.value;
-    renderList();
-  });
-  $('filter-status').addEventListener('change', (e) => {
-    state.filters.status = e.target.value;
-    renderList();
-  });
-  $('filter-kind').addEventListener('change', (e) => {
-    state.filters.outputKind = e.target.value;
-    renderList();
-  });
-}
-
-function bindActions() {
-  $('btn-refresh').addEventListener('click', () => withDiscardGuard(() => reloadStore()));
-  $('btn-new-case').addEventListener('click', newCase);
-  $('btn-revert').addEventListener('click', () => {
-    const c = selectedCase();
-    if (!c) return;
-    applyCaseToForm(c);
-    applyReviewToForm(c);
-    showToast('已放弃修改');
-  });
-  $('btn-delete-case').addEventListener('click', deleteCase);
-  $('btn-save-review').addEventListener('click', saveReview);
-  $('btn-promote').addEventListener('click', promoteGolden);
-  $('btn-revoke-golden').addEventListener('click', revokeGolden);
-  $('btn-remove-candidate').addEventListener('click', removeCandidate);
-  $('btn-starter').addEventListener('click', loadStarters);
-  $('btn-export').addEventListener('click', openExportDialog);
-  $('btn-import').addEventListener('click', async () => {
-    if (state.dirty || state.reviewDirty) {
-      const ok = await confirmDialog('放弃未保存的修改？', '导入前需要放弃未保存的输入或评审修改。');
-      if (!ok) return;
-    }
-    $('import-file').value = '';
-    $('import-file').click();
-  });
-  $('import-file').addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) importBundle(file);
-  });
-  $('attachment-file').addEventListener('change', (e) => {
-    if (e.target.files?.length) addAttachments([...e.target.files]);
-    e.target.value = '';
-  });
-  $('candidate-file').addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) uploadCandidate(file);
-    e.target.value = '';
-  });
-  $('banner-close').addEventListener('click', hideBanner);
-  $('export-confirm').addEventListener('click', runExport);
-  window.addEventListener('beforeunload', (e) => {
-    if (state.dirty || state.reviewDirty) {
-      e.preventDefault();
-      e.returnValue = '';
-    }
-  });
-}
-
-async function init() {
-  bindFormDirtyTracking();
-  bindResultDirtyTracking();
-  bindFilters();
-  bindActions();
-  try {
-    await loadMeta();
-  } catch (err) {
-    showBanner(`初始化失败：${err.message}`, { kind: 'error' });
-    setStatusChip($('store-status'), 'error', '初始化失败');
-    return;
-  }
+    $('notice').hidden = true;
+  } catch (error) { report(error); }
+  finally { busy = false; updateGenerate(); updateReview(); }
+});
+$('result-image').addEventListener('error', () => notify('输出图片暂时无法读取，请重新连接后重试。', true));
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !$('composer-view').hidden) { event.preventDefault(); generate(); }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); $('new-note').click(); }
+});
+window.addEventListener('beforeunload', (event) => {
+  if (generation || reviewDirty || !draftSafe) { event.preventDefault(); event.returnValue = ''; }
+});
+async function load() {
   await reloadStore();
+  config = await api('/api/generation');
+  $('generation-hint').textContent = config.configured ? '文字与图片会交给 AI 理解，语言自动识别。' : 'AI 尚未配置。已有记录仍可查看和标注。';
+  updateGenerate();
 }
-
+async function init() {
+  restoreDraft(); renderImages(); mode('composer'); updateGenerate();
+  try { await load(); }
+  catch (error) { $('connection').textContent = '连接异常'; $('connection').dataset.state = 'error'; report(error); }
+}
 init();

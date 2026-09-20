@@ -493,6 +493,34 @@ test('toggling the synthetic flag revokes golden and requires re-approval', asyn
   assert.equal(syntheticExport.json.cases.length, 0);
 });
 
+test('GET /api/generation exposes defaults without secrets', async (t) => {
+  const env = await launch();
+  t.after(() => env.close());
+  const res = await env.request('GET', '/api/generation');
+  assert.equal(res.status, 200);
+  assert.equal(typeof res.json.configured, 'boolean');
+  assert.equal(typeof res.json.model, 'string');
+  assert.equal(res.json.images, true);
+  assert.deepEqual(res.json.defaults, {
+    targetIM: 'wechat',
+    surface: 'ios',
+    outputKind: 'screenshot',
+  });
+  assert.equal(res.text.includes('apiKey'), false);
+  assert.equal(res.text.includes('baseUrl'), false);
+});
+
+test('generation meta limits are advertised', async (t) => {
+  const env = await launch();
+  t.after(() => env.close());
+  const meta = await env.request('GET', '/api/meta');
+  assert.equal(meta.status, 200);
+  assert.equal(meta.json.maxGenerationImages, 3);
+  assert.equal(meta.json.maxGenerationImageBytes, 2 * 1024 * 1024);
+  assert.deepEqual(meta.json.surfaceDimensions.ios, { width: 390, height: 844 });
+  assert.deepEqual(meta.json.surfaceDimensions.desktop, { width: 720, height: 900 });
+});
+
 test('serves the UI and blocks path traversal', async (t) => {
   const env = await launch();
   t.after(() => env.close());

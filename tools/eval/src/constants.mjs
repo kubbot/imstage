@@ -81,3 +81,37 @@ export const PREVIEWABLE_AUDIO_MIME = new Set([
 ]);
 
 export const CASE_FILTER_KEYS = ['q', 'targetIM', 'surface', 'inputLanguage', 'outputKind', 'status'];
+
+// ---------------------------------------------------------------------------
+// AI-assisted generation (sentence/screenshot -> target IM result).
+// ---------------------------------------------------------------------------
+
+// Explicit generation defaults (used when the caller omits them).
+// ios/android default to a phone viewport, desktop/web to a wider one.
+export const SURFACE_DIMENSIONS = Object.freeze({
+  ios: Object.freeze({ width: 390, height: 844 }),
+  android: Object.freeze({ width: 390, height: 844 }),
+  desktop: Object.freeze({ width: 720, height: 900 }),
+  web: Object.freeze({ width: 720, height: 900 }),
+});
+
+export const GENERATION_DEFAULTS = Object.freeze({
+  targetIM: 'wechat',
+  surface: 'ios',
+  outputKind: 'screenshot',
+});
+export const GENERATION_TARGET_IMS = Object.freeze(['wechat', 'telegram', 'whatsapp']);
+export const GENERATION_SURFACES = SURFACES;
+export const GENERATION_OUTPUT_KINDS = OUTPUT_KINDS;
+
+// Generation input bounds. Images are validated (bytes/dimensions/count/total)
+// before any provider network call is made.
+export const MAX_GENERATION_IMAGES = 3;
+export const MAX_GENERATION_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_GENERATION_TOTAL_IMAGE_BYTES = 3 * MAX_GENERATION_IMAGE_BYTES;
+
+export const AI_DEFAULT_BASE_URL = 'https://api.deepseek.com';
+export const AI_DEFAULT_MODEL = 'deepseek-flash';
+export const AI_MAX_TOKENS = 4500;
+export const AI_TIMEOUT_MS = 60_000;
+export const AI_PROMPT_VERSION = 'v1';

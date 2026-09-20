@@ -6,7 +6,7 @@ import { PACKAGE_DIR } from './src/util.mjs';
 import { Store, defaultDataDir } from './src/store.mjs';
 import { createApp } from './src/api.mjs';
 
-export function createEvalServer({ dataDir, publicDir, host = HOST, port = PORT } = {}) {
+export function createEvalServer({ dataDir, publicDir, host = HOST, port = PORT, aiConfig, generateScene, renderScene } = {}) {
   const store = new Store({ dataDir: dataDir ?? defaultDataDir() });
   let actualPort = port;
   const app = createApp({
@@ -14,6 +14,9 @@ export function createEvalServer({ dataDir, publicDir, host = HOST, port = PORT 
     publicDir: publicDir ?? path.join(PACKAGE_DIR, 'public'),
     host,
     getPort: () => actualPort,
+    aiConfig,
+    generateScene,
+    renderScene,
   });
   const server = http.createServer((req, res) => {
     app.handle(req, res);
@@ -26,8 +29,8 @@ export function createEvalServer({ dataDir, publicDir, host = HOST, port = PORT 
   return server;
 }
 
-export function startServer({ dataDir, host = HOST, port = PORT } = {}) {
-  const server = createEvalServer({ dataDir, host, port });
+export function startServer({ dataDir, host = HOST, port = PORT, aiConfig, generateScene, renderScene } = {}) {
+  const server = createEvalServer({ dataDir, host, port, aiConfig, generateScene, renderScene });
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, async () => {

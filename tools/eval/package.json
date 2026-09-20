@@ -10,10 +10,12 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test",
-    "selftest": "node cli.mjs selftest"
+    "selftest": "node cli.mjs selftest",
+    "test:browser": "node browser-smoke.mjs"
   },
   "dependencies": {
     "pixelmatch": "7.2.0",
+    "playwright": "1.63.0",
     "pngjs": "7.0.0"
   }
 }

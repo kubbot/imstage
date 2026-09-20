@@ -2,7 +2,7 @@
 
 面向 Web、MCP 和 API 的开源聊天场景创作工具。
 
-**当前处于早期开发阶段：本地 Eval 标注工具可用；此基线尚无生产聊天渲染器、MCP 或 API 服务。**
+**当前处于早期开发阶段：本地便签式 Eval 工作台已支持 AI 文字/图片输入、聊天 PNG 生成和人工金标；官网共用渲染链路、MCP 与托管 API 尚未接通。**
 
 [English](README.md) · [产品说明](docs/product-brief.md) · [设计简报](design/BRIEF.md)
 
@@ -23,7 +23,7 @@ npm --prefix tools/eval ci
 npm --prefix tools/eval start
 ```
 
-打开 `http://127.0.0.1:4421`，录入问题与素材、导入实际输出 PNG、标注好坏、确认金标，再导出用于 Git/CI 的数据。普通截图和长截图分别记录规格。个人数据保存在忽略目录 `.local/eval/`；Git/CI 导出仅包含明确标为合成且经人工审核的金标。
+在服务端配置 `DEEPSEEK_API_KEY`（详见工具说明），打开 `http://127.0.0.1:4421`，写一句话或粘贴图片，即可生成聊天 PNG。默认微信 / iOS，可切换 IM 与平台，然后判断好坏、确认金标，再导出用于 Git/CI 的数据。普通截图和长截图分别记录规格。个人数据保存在忽略目录 `.local/eval/`；Git/CI 导出仅包含明确标为合成且经人工审核的金标。
 
 验证命令：`npm --prefix tools/eval test` 和 `npm --prefix tools/eval run selftest`。GitHub 的 **Eval harness** 检查评测器正反例；尚未接通的生产渲染器不属于此绿灯的证明范围。
 
@@ -31,7 +31,7 @@ npm --prefix tools/eval start
 
 ## 初始化边界
 
-初始化阶段建立了本地项目、GitHub、Vercel、Open Design、ChatGPT 项目及相关文档。本阶段按用户请求增加 Eval，不扩大模型调用、登录、支付、生产渲染器、API 或 MCP 的实现范围。
+初始化阶段建立了本地项目、GitHub、Vercel、Open Design、ChatGPT 项目及相关文档。本阶段按用户请求增加 Eval，并已明确授权便签输入与真实 AI 生成；登录、支付、托管 API 和 MCP 仍不在当前实现范围。
 
 目录用途见 [README](README.md)。Eval 独立于产品目录启动。
 

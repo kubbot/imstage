@@ -9,6 +9,8 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_CANDIDATE_BYTES,
   MAX_DIFF_RATIO_LIMIT,
+  MAX_GENERATION_IMAGES,
+  MAX_GENERATION_IMAGE_BYTES,
   MAX_JSON_BODY_BYTES,
   MAX_CASES,
   MAX_PIXELS,
@@ -23,6 +25,7 @@ import {
   VERDICTS,
   SCORE_FIELDS,
   SCORE_VALUES,
+  SURFACE_DIMENSIONS,
 } from './constants.mjs';
 import {
   AppError,
@@ -47,6 +50,19 @@ import {
 import { candidateIsCurrent, computeInputFingerprint, goldenIsCurrent, isExportableGolden, reviewIsCurrent } from './fingerprint.mjs';
 import { exportBundle, importBundle } from './bundle.mjs';
 import { buildStarterCases } from './fixtures.mjs';
+import {
+  AI_PROMPT_VERSION,
+  callDeepSeekScene,
+  detectLanguage,
+  normalizeGenerationInput,
+  parseSceneResponse,
+  publicGenerationStatus,
+  resolveAiConfig,
+  scenePlainText,
+} from './generation.mjs';
+import { renderScenePng } from './render.mjs';
+import { GenerationLedger } from './generation-ledger.mjs';
+import { RENDERER_VERSION } from '../../../packages/renderer/renderSceneHtml.mjs';
 
 const ALLOWED_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -63,6 +79,10 @@ function sendJson(res, status, payload) {
 }
 
 function sendError(res, err) {
+  if (res.writableEnded || res.destroyed) {
+    res.destroy();
+    return;
+  }
   const status = err instanceof AppError ? err.status : err instanceof CorruptStoreError ? 500 : 500;
   const code = err.code ?? 'internal_error';
   const message = toErrorMessage(err);
@@ -276,7 +296,277 @@ async function serveBlob(res, store, sha256, { mime, filename, inline }) {
   res.end(buffer);
 }
 
-export function createApp({ store, publicDir, host = HOST, getPort }) {
+export function createApp({
+  store,
+  publicDir,
+  host = HOST,
+  getPort,
+  aiConfig,
+  generateScene,
+  renderScene,
+} = {}) {
+  // One concurrent generation at a time; requestId is also idempotent.
+  const generationState = { active: false, inFlight: new Set() };
+  const generationLedger = new GenerationLedger({ dataDir: store.dataDir });
+  const callGenerate = generateScene ?? callDeepSeekScene;
+  const callRender = renderScene ?? renderScenePng;
+
+  function currentAiConfig() {
+    return aiConfig ?? resolveAiConfig();
+  }
+
+  async function handleGeneration(req, res, body) {
+    const requestId = body?.requestId;
+    if (typeof requestId !== 'string' || !isSafeId(requestId)) {
+      fail('invalid_request_id', 'requestId 必须是 1-80 位安全字符串（字母、数字、下划线、连字符）', 422);
+    }
+    const expectedRevision = body?.revision;
+    if (!Number.isInteger(expectedRevision)) {
+      fail('invalid_revision', 'revision 必须是整数', 422);
+    }
+    // All image bytes/dimensions/count/total are validated here, before any
+    // provider network call can be made.
+    const request = normalizeGenerationInput(body?.input);
+
+    await store.load();
+
+    // A duplicate in this process is an in-flight conflict, not an unknown
+    // durable outcome; check it before consulting the ledger.
+    if (generationState.inFlight.has(requestId)) {
+      fail('request_in_progress', '相同 requestId 的生成正在进行中', 409);
+    }
+
+    // Recover the commit -> ledger-complete crash window, including cases
+    // generated before the recovery ledger existed. Never replay a saved case.
+    const existing = store.listCases().find((c) => c.generation?.requestId === requestId);
+    if (existing) {
+      if (existing.generation.inputHash !== request.inputHash) fail('request_id_conflict', 'requestId 已用于不同的输入，请使用新的 requestId', 409);
+      // Complete recovery before returning, so deleting this case cannot later
+      // resurrect it from a model_ready entry after a commit-window crash.
+      const recovery = await generationLedger.read(requestId);
+      if (recovery?.status !== 'completed' || recovery.caseId !== existing.id) {
+        await generationLedger.begin(requestId, request.inputHash);
+        await generationLedger.complete(requestId, request.inputHash, existing.id);
+      }
+      return sendJson(res, 200, { revision: store.revision, case: decorateCase(existing), warnings: existing.generation.warnings || [] });
+    }
+    const config = currentAiConfig();
+    // Durable ledger: exact-once provider calls are impossible across crashes,
+    // so a begun but unconfirmed attempt is refused instead of re-paid.
+    const entry = await generationLedger.read(requestId);
+    if (entry && entry.inputHash !== request.inputHash) {
+      fail('request_id_conflict', 'requestId 已用于不同的输入，请使用新的 requestId', 409);
+    }
+    if (entry?.status === 'completed') {
+      const committed = store.getCase(entry.caseId);
+      if (!committed) {
+        fail('generation_not_found', '该 requestId 的生成结果已被删除，请使用新的 requestId 重新生成', 404);
+      }
+      return sendJson(res, 200, {
+        revision: store.revision,
+        case: decorateCase(committed),
+        warnings: Array.isArray(committed.generation?.warnings) ? committed.generation.warnings : [],
+      });
+    }
+    if (entry?.status === 'started') {
+      fail(
+        'generation_outcome_unknown',
+        '上一次生成已开始但未确认结果，为避免重复付费不会自动重试；请使用新的 requestId 重新生成',
+        409,
+      );
+    }
+    // A brand-new attempt must have usable provider configuration before we
+    // mark the attempt in the ledger (injected generators are always usable).
+    if (!entry && !generateScene && config.configured !== true) {
+      fail('ai_not_configured', '未配置 AI（需要 IMSTAGE_AI_API_KEY 或 DEEPSEEK_API_KEY）', 503);
+    }
+    // Pre-generation revision check: never pay for a stale request. A cached
+    // model_ready retry still requires the caller's current revision.
+    if (expectedRevision !== store.revision) {
+      const err = new AppError(
+        'revision_conflict',
+        `revision 冲突：期望 ${expectedRevision}，当前 ${store.revision}`,
+        409,
+      );
+      err.details = { expected: expectedRevision, actual: store.revision };
+      throw err;
+    }
+    if (generationState.inFlight.has(requestId)) {
+      fail('request_in_progress', '相同 requestId 的生成正在进行中', 409);
+    }
+    if (generationState.active) {
+      fail('generation_busy', '已有生成任务在进行中，请稍后重试', 409);
+    }
+
+    if (store.listCases().length >= MAX_CASES) fail('too_many_cases', '用例数量超过上限，请先整理已有记录', 422);
+    generationState.active = true;
+    generationState.inFlight.add(requestId);
+    const controller = new AbortController();
+    const onClientClose = () => {
+      if (!res.writableEnded) controller.abort(new Error('client_disconnect'));
+    };
+    res.on('close', onClientClose);
+
+    try {
+      let rawContent;
+      let model;
+      if (entry?.status === 'model_ready') {
+        // Reuse the cached provider result: no second paid model call.
+        rawContent = entry.rawContent;
+        model = entry.model || config.model;
+      } else {
+        // Persist attempt-start BEFORE the provider call so an interrupted run
+        // is never silently re-paid.
+        await generationLedger.begin(requestId, request.inputHash);
+        const generated = await callGenerate({ config, request, signal: controller.signal });
+        rawContent = generated?.rawContent;
+        model = generated?.model ?? config.model;
+        if (typeof rawContent !== 'string' || rawContent.length === 0) {
+          fail('ai_empty_response', 'AI 未返回可用内容', 502);
+        }
+        // Cache the provider result BEFORE rendering/commit so a renderer or
+        // revision failure can be retried without another model call.
+        await generationLedger.recordModel(requestId, request.inputHash, { rawContent, model });
+      }
+      if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
+      const { scene, warnings } = parseSceneResponse(rawContent, {
+        assetCount: request.images.length,
+        expectedPlatform: request.targetIM,
+      });
+      if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
+
+      const dims = SURFACE_DIMENSIONS[request.surface] ?? SURFACE_DIMENSIONS.ios;
+      const assets = request.images.map((img) => ({ mime: img.mime, dataBase64: img.dataBase64 }));
+      const rendered = await callRender(scene, {
+        surface: request.surface,
+        width: dims.width,
+        height: dims.height,
+        outputKind: request.outputKind,
+        assets,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
+
+      // Validate the rendered PNG truthfully before persisting anything.
+      const buffer = rendered?.buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+        fail('render_failed', '渲染器未返回 PNG 数据', 502);
+      }
+      // Fully decode the rendered PNG (CRC/IDAT/IEND) before persisting it.
+      let header;
+      try {
+        header = decodePng(buffer);
+      } catch (err) {
+        fail('render_invalid_png', `渲染输出不是完整合法 PNG: ${err.message}`, 502);
+      }
+      if (header.width !== dims.width) {
+        fail('render_dimension_mismatch', `渲染宽度 ${header.width} 与期望 ${dims.width} 不一致`, 502);
+      }
+      if (request.outputKind === 'screenshot' && header.height !== dims.height) {
+        fail('render_dimension_mismatch', `普通截图高度 ${header.height} 与期望 ${dims.height} 不一致`, 502);
+      }
+      if (header.width * header.height > MAX_PIXELS) {
+        fail('output_too_large', `输出 PNG 像素超过 ${MAX_PIXELS} 上限`, 422);
+      }
+
+      for (const image of request.images) await store.putBlob(image.buffer);
+      await store.putBlob(buffer);
+      // Cancellation is honoured before the serialized commit; a commit that
+      // already reached disk cannot be rolled back (documented limitation).
+      if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
+
+      const timestamp = nowIso();
+      const language = detectLanguage(request.text || scenePlainText(scene));
+      const notesBase = `AI 生成 (${model})`;
+      const notes = (warnings.length ? `${notesBase}：${warnings.join(' | ')}` : notesBase).slice(0, 4000);
+      const created = await store.mutate((draft) => {
+        if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
+        // Serialized post-generation revision check: never overwrite concurrent edits.
+        assertRevision(draft, { revision: expectedRevision });
+        if (draft.cases.length >= MAX_CASES) fail('too_many_cases', '用例数量超过上限', 422);
+        if (draft.cases.some((c) => c?.generation?.requestId === requestId)) {
+          fail('request_id_conflict', 'requestId 已存在', 409);
+        }
+        const caseData = {
+          id: newId('c'),
+          revision: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          question: request.text || '[图片输入] 复现截图中的对话',
+          inputLanguage: language,
+          targetIM: request.targetIM,
+          surface: request.surface,
+          outputKind: request.outputKind,
+          width: header.width,
+          height: header.height,
+          notes,
+          maxDiffRatio: DEFAULT_MAX_DIFF_RATIO,
+          synthetic: request.synthetic === true,
+          attachments: request.images.map((image) => ({
+            id: newId('att'),
+            name: image.name,
+            kind: 'image',
+            mime: image.mime,
+            size: image.size,
+            sha256: image.sha256,
+            addedAt: timestamp,
+            synthetic: request.synthetic === true,
+          })),
+          candidate: {
+            id: newId('cand'),
+            name: `${requestId}.png`,
+            mime: 'image/png',
+            size: buffer.length,
+            sha256: sha256OfBuffer(buffer),
+            width: header.width,
+            height: header.height,
+            uploadedAt: timestamp,
+            inputFingerprint: null,
+            synthetic: request.synthetic === true,
+            provenance: {
+              kind: 'ai-generated',
+              model,
+              promptVersion: AI_PROMPT_VERSION,
+              rendererVersion: RENDERER_VERSION,
+              generatedAt: timestamp,
+            },
+          },
+          review: null,
+          golden: null,
+          generation: {
+            requestId,
+            inputHash: request.inputHash,
+            input: {
+              text: request.text,
+              targetIM: request.targetIM,
+              surface: request.surface,
+              outputKind: request.outputKind,
+              synthetic: request.synthetic === true,
+            },
+            model,
+            language,
+            promptVersion: AI_PROMPT_VERSION,
+            rendererVersion: RENDERER_VERSION,
+            imageCount: request.images.length,
+            scene,
+            warnings,
+            createdAt: timestamp,
+          },
+        };
+        caseData.candidate.inputFingerprint = computeInputFingerprint(caseData);
+        draft.cases.push(caseData);
+        return caseData;
+      });
+
+      await generationLedger.complete(requestId, request.inputHash, created.id);
+      return sendJson(res, 200, { revision: store.revision, case: decorateCase(created), warnings });
+    } finally {
+      res.off?.('close', onClientClose);
+      generationState.inFlight.delete(requestId);
+      generationState.active = false;
+    }
+  }
+
   async function routeApi(req, res, url) {
     const method = req.method.toUpperCase();
     const segments = url.pathname.split('/').filter(Boolean); // ['api', ...]
@@ -311,6 +601,10 @@ export function createApp({ store, publicDir, host = HOST, getPort }) {
         maxAttachmentBytes: MAX_ATTACHMENT_BYTES,
         maxCandidateBytes: MAX_CANDIDATE_BYTES,
         maxPixels: MAX_PIXELS,
+        maxGenerationImages: MAX_GENERATION_IMAGES,
+        maxGenerationImageBytes: MAX_GENERATION_IMAGE_BYTES,
+        surfaceDimensions: SURFACE_DIMENSIONS,
+        generationDefaults: { targetIM: 'wechat', surface: 'ios', outputKind: 'screenshot' },
         targetIMs: TARGET_IMS,
         surfaces: SURFACES,
         inputLanguages: INPUT_LANGUAGES,
@@ -336,6 +630,15 @@ export function createApp({ store, publicDir, host = HOST, getPort }) {
         updatedAt: store.state.updatedAt,
         cases: store.listCases().map(decorateCase),
       });
+    }
+
+    if (method === 'GET' && rest.length === 1 && rest[0] === 'generation') {
+      return sendJson(res, 200, publicGenerationStatus(currentAiConfig()));
+    }
+
+    if (method === 'POST' && rest.length === 1 && rest[0] === 'generate') {
+      const body = await readJsonBody(req);
+      return handleGeneration(req, res, body);
     }
 
     if (method === 'GET' && rest.length === 1 && rest[0] === 'starter') {
