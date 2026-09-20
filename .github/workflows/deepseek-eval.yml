@@ -23,9 +23,9 @@ jobs:
     if: github.repository == 'kubbot/imstage' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/eval-lab')
     runs-on: ${{ vars.IMSTAGE_EVAL_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 20
-    env:
-      IMSTAGE_EVAL_TEST_DIR: ${{ runner.temp }}/imstage-eval-tests
     steps:
+      - name: Scope temporary test artifacts to this job
+        run: echo "IMSTAGE_EVAL_TEST_DIR=$RUNNER_TEMP/imstage-eval-tests" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
