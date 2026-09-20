@@ -1,6 +1,6 @@
 # Contributing
 
-IMStage currently contains project documentation and reserved directories only. Product implementation has not started.
+IMStage includes a React website and browser-local conversation editor. Backend, AI, hosted API/MCP and deployment remain future phases; reserved directories do not imply implemented services.
 
 1. Open an issue describing the problem, intended behavior, and scope.
 2. Agree on the scope before adding runtime dependencies or major architecture.
@@ -9,6 +9,6 @@ IMStage currently contains project documentation and reserved directories only. 
 
 Use English or Simplified Chinese. Be respectful and discuss ideas rather than people. Use synthetic or authorized examples; omit credentials, personal conversations, and private screenshots.
 
-There are no build or test commands at this stage. For documentation changes, review links, formatting, and consistency with the initialization-only status. Runtime checks and CI will be introduced with the implementation they validate.
+Run `npm run build` and `npm test` for frontend changes. Use `npm run test:ui` for changed browser behavior; it defaults to local Google Chrome. See [run instructions](README.md#run-and-verify) and [verification coverage](design/VERIFICATION.md). Keep screenshots and fixtures synthetic, check both themes and mobile layouts, and distinguish local verification from CI or deployment.
 
 Contributions are provided under the repository's MIT license.

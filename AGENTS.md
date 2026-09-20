@@ -2,7 +2,7 @@
 
 ## Scope
 
-The repository is in its initialization stage. Do not implement product functionality, generate UI prototypes, install an application stack, deploy an application, or configure paid services until the user explicitly requests that next phase.
+The user authorized a runnable React frontend, website redesign, and publication to the existing GitHub/Vercel project on 2026-09-20. The frontend phase includes local editing/export and adaptive light/dark/system themes. Backend services and paid services require separate scope; publishing the frontend does not imply that planned AI/API capabilities are implemented.
 
 Read `docs/product-brief.md` and `design/BRIEF.md` before future implementation. Distinguish accepted requirements, proposals, and unresolved decisions. Directory placeholders do not constitute architecture approval.
 
