@@ -1,0 +1,30 @@
+npm notice run imstage@0.1.0 test:ui
+npm notice run playwright test
+
+Running 19 tests using 2 workers
+
+(node:27431) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27432) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 tests/ui/frontend.spec.ts:19:1 › homepage edit changes only the selected reply; platform switching retains it (2.1s)
+  ✓   1 tests/ui/frontend.spec.ts:8:1 › system appearance follows changes; manual preference survives reload (2.5s)
+  ✓   3 tests/ui/frontend.spec.ts:28:1 › template filtering, empty recovery and selected scene entry (1.7s)
+  ✓   4 tests/ui/frontend.spec.ts:36:1 › message edit is live, supports undo and reload, date is rendered independently (2.2s)
+  ✓   5 tests/ui/frontend.spec.ts:45:1 › new scene is blank and deletion is undoable (1.3s)
+  ✓   6 tests/ui/frontend.spec.ts:52:1 › gallery selection protects an existing draft and template replacement can be undone (1.7s)
+  ✓   7 tests/ui/frontend.spec.ts:60:1 › corrupt draft is preserved until explicit discard (1.5s)
+  ✓   8 tests/ui/frontend.spec.ts:69:1 › cross-tab change pauses local writes and allows deliberate resolution (2.0s)
+  ✓   9 tests/ui/frontend.spec.ts:81:1 › PNG export is a real image, supports full content and has correct dimensions (1.7s)
+  ✓  10 tests/ui/frontend.spec.ts:93:1 › unavailable storage does not crash or falsely report successful saving (1.1s)
+  ✓  11 tests/ui/frontend.spec.ts:99:1 › image upload decodes real local data and invalid uploads preserve the scene (1.9s)
+  ✓  12 tests/ui/frontend.spec.ts:114:1 › export failures can retry without discarding the draft (1.6s)
+  ✓  13 tests/ui/frontend.spec.ts:123:1 › JSON dialog is keyboard reachable and Escape restores focus (1.0s)
+  ✓  14 tests/ui/frontend.spec.ts:130:40 › responsive routes have no horizontal overflow at 320px (1.8s)
+  ✓  15 tests/ui/frontend.spec.ts:130:40 › responsive routes have no horizontal overflow at 390px (1.9s)
+  ✓  16 tests/ui/frontend.spec.ts:130:40 › responsive routes have no horizontal overflow at 768px (1.6s)
+  ✓  17 tests/ui/frontend.spec.ts:130:40 › responsive routes have no horizontal overflow at 1440px (1.9s)
+  ✓  18 tests/ui/frontend.spec.ts:135:46 › WCAG A/AA automated checks across frontend in light (4.5s)
+  ✓  19 tests/ui/frontend.spec.ts:135:46 › WCAG A/AA automated checks across frontend in dark (4.7s)
+
+  19 passed (22.6s)

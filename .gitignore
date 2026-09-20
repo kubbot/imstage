@@ -11,3 +11,5 @@ coverage/
 .local/
 *.log
 *.tsbuildinfo
+test-results/
+playwright-report/

@@ -2,7 +2,7 @@
 
 Open-source conversation scene creation for the Web, MCP, and API.
 
-**Status: early development. The local note-first Eval workspace supports AI text/image input, rendered chat PNGs and human-approved goldens. Shared website integration, hosted API and MCP remain unconnected.**
+**Status: runnable React website and local conversation editor, plus a separate note-first Eval workspace with DeepSeek generation, private screenshot benchmarks and human review. The website does not yet share the Eval generation runtime; hosted API and MCP remain unconnected.**
 
 [简体中文](README.zh-CN.md) · [Product brief](docs/product-brief.md) · [Design brief](design/BRIEF.md) · [Contributing](CONTRIBUTING.md)
 
@@ -26,6 +26,27 @@ The public Web experience is intended to offer free use. Hosted MCP/API access i
 | `design/` | Open Design brief and future design handoff |
 | `docs/` | Product scope, setup, and planning context |
 
+`apps/web/` is runnable (React + TypeScript + Vite). The Eval schema/renderer is implemented separately; the frontend renderer is currently local to the web app.
+
+## Run and verify
+
+Requires Node.js 22.x (verified with 22.23.2). Run from the repository root:
+
+```sh
+npm ci
+npm run dev             # http://127.0.0.1:4417
+npm run build
+npm run preview         # same port; stop the dev server first
+npm test
+npm run test:ui         # Google Chrome is the default test browser
+```
+
+For bundled Chromium: `npx playwright install chromium`, then `IMSTAGE_BROWSER=chromium npm run test:ui`. On this development Mac, use `dev-storage-guard new-artifact imstage-ui` and set `IMSTAGE_ARTIFACT_DIR` to the returned directory before UI tests.
+
+Website: `/`; prompt-first creation: `/#/create`; editor: `/#/studio`; scene library: `/#/templates`; usage and integration status: `/#/docs`. The default theme follows the system; light/dark overrides persist locally. See [design review](design/REVIEW.md) and [verification](design/VERIFICATION.md).
+
+See [prompt-first design and generation boundary](design/PROMPT-FIRST.md) for the new streaming Mars example, asset provenance and provider limitations. The local example replays authored content; arbitrary live AI generation is not connected.
+
 The shared schema and deterministic renderer are implemented for the Eval path; other product integrations remain separate. The independently runnable evaluation tool lives in `tools/eval/`.
 
 ## Local evaluation lab
@@ -46,14 +67,13 @@ npm --prefix tools/eval run selftest
 
 The **Eval harness** GitHub workflow checks the evaluator using positive and negative synthetic controls across Linux, macOS and Windows. It does not certify an unconnected production renderer. See [evaluation design](docs/evaluation.md) and [tool and manifest reference](tools/eval/README.md).
 
-## Initialization background
+The private screenshot dataset is available at `/dataset.html` in the Eval server. See [screenshot evaluation and CI](docs/screenshot-evaluation.md).
 
-- Establish the open-source repository and contribution conventions.
-- Initialize a Vercel project without publishing an application.
-- Initialize an Open Design project and its brief without generating UI.
-- Initialize a ChatGPT project with shared instructions and product context.
+## Website scope
 
-Roadmap items are proposals and are not delivery commitments. See [initialization scope](docs/initialization.md).
+The browser editor supports synthetic templates, per-message editing, participants and local images, undo/redo, versioned local drafts, and PNG/JSON downloads. Normal PNG export is 360×640 logical pixels at 2× resolution; long export includes all content. The scene data drives both preview and export.
+
+UI templates are **visual approximations**, not certified replicas of a specific platform version. For the website, arbitrary live generation and screenshot recognition remain unconnected; accounts, hosted persistence, charging and live MCP/API are future work. The static frontend is deployable to Vercel; see [deployment and verification](docs/deployment.md).
 
 ## Responsible use
 

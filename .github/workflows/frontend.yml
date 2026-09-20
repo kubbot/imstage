@@ -1,0 +1,47 @@
+name: Frontend
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build and browser tests
+    # A repository owner can temporarily route trusted changes to an ephemeral
+    # runner when GitHub-hosted capacity is unavailable. Forks stay on GitHub.
+    runs-on: ${{ github.repository == 'kubbot/imstage' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.FRONTEND_RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_CACHE: .local/npm-cache
+      IMSTAGE_TEST_PORT: '4418'
+      IMSTAGE_ARTIFACT_DIR: .local/ci-artifacts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+        if: runner.os == 'Linux'
+      - run: npm run test:ui
+        env:
+          IMSTAGE_BROWSER: ${{ runner.os == 'macOS' && 'chrome' || 'chromium' }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: .local/ci-artifacts
+          include-hidden-files: true
+          retention-days: 7

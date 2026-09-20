@@ -2,7 +2,7 @@
 
 ## Scope
 
-The repository is in early development. The user authorized the local evaluation/annotation phase in `tools/eval/`; see `docs/evaluation.md`. Other product phases, deployment and paid services still require an explicit user request. Keep Eval harness checks distinct from production renderer acceptance.
+The user authorized the runnable React frontend/website publication and an independently runnable local Eval workspace on 2026-09-20. Eval includes real DeepSeek text/image calls, deterministic rendering, a private screenshot-edit dataset and GitHub evaluation integration. The website editor and Eval are separate runtimes; do not imply the website has live AI or shared service integration. Other hosted backend, billing and MCP/API work remains separately scoped.
 
 Read `docs/product-brief.md` and `design/BRIEF.md` before future implementation. Distinguish accepted requirements, proposals, and unresolved decisions. Directory placeholders do not constitute architecture approval.
 

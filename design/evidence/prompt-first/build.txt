@@ -1,0 +1,20 @@
+npm notice run imstage@0.1.0 build
+npm notice run tsc --noEmit && vite build
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 6249 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              1.17 kB │ gzip:  0.63 kB
+dist/assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff    13.14 kB
+dist/assets/syne-latin-700-normal-AF3Rs61n.woff2            14.07 kB
+dist/assets/syne-latin-600-normal-BiwQbQXw.woff2            14.34 kB
+dist/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2   14.70 kB
+dist/assets/syne-latin-700-normal-Cd-_iCn5.woff             18.08 kB
+dist/assets/syne-latin-600-normal-dRu9QuIh.woff             18.23 kB
+dist/assets/index-BiF0iN5-.css                              53.05 kB │ gzip: 11.05 kB
+dist/assets/es-D4THWdz3.js                                  12.50 kB │ gzip:  4.97 kB
+dist/assets/Studio-DWujfg29.js                              27.41 kB │ gzip:  7.55 kB
+dist/assets/index-Bs-FFs59.js                              295.04 kB │ gzip: 93.32 kB
+
+✓ built in 1.14s
