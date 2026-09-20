@@ -14,7 +14,8 @@ export default defineConfig({
     screenshot: 'only-on-failure', trace: 'retain-on-failure',
   },
   webServer: process.env.IMSTAGE_BASE_URL ? undefined : {
-    command: `npm run ${process.env.CI ? 'preview' : 'dev'} -- --port ${port}`,
+    command: 'npm start',
+    env: { IMSTAGE_WEB_PORT: port, IMSTAGE_APP_ORIGIN: localURL, IMSTAGE_DATA_DIR: `${process.env.IMSTAGE_ARTIFACT_DIR || '.local/ui-artifacts'}/accounts` },
     url: localURL, reuseExistingServer: !process.env.CI,
   },
 });

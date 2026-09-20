@@ -1,0 +1,1448 @@
+#!/usr/bin/env node
+/**
+ * IMStage — local / self-hosted API server.
+ *
+ * Scope of this module (see services/api/README.md):
+ *   - account registration / login / logout / password change
+ *   - opaque server-side sessions stored as token hashes in SQLite
+ *   - owned scene persistence with optimistic revisions
+ *   - optional static serving of the built web app from `distDir`
+ *
+ * It intentionally implements no OAuth, no email verification, no password
+ * reset, no billing and no CORS. It is not a Vercel/edge backend: it uses
+ * `node:sqlite`, `node:crypto` and the native `node:http` server only.
+ *
+ * Node >= 22.18 is required (native type stripping is used to import the
+ * shared scene model from `apps/web/src/studio/model.ts`).
+ */
+
+import http from 'node:http';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
+
+import { validateScene } from '../../apps/web/src/studio/model.ts';
+
+const scryptAsync = promisify(crypto.scrypt);
+
+/* ------------------------------------------------------------------ */
+/* Constants                                                           */
+/* ------------------------------------------------------------------ */
+
+export const SESSION_COOKIE = 'imstage_session';
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, fixed
+export const AUTH_BODY_LIMIT = 16 * 1024; // 16 KiB
+export const SCENE_BODY_LIMIT = 16 * 1024 * 1024; // 16 MiB
+export const MAX_SCENES_PER_USER = 100;
+export const REQUEST_MARKER_HEADER = 'x-imstage-request';
+export const REQUEST_MARKER_VALUE = '1';
+
+/** OWASP-recommended scrypt work factor: N=2^15, r=8, p=3. */
+export const SCRYPT_PARAMS = Object.freeze({
+  N: 32768,
+  r: 8,
+  p: 3,
+  keylen: 64,
+  maxmem: 64 * 1024 * 1024, // matches `maxmem:64MiB`
+});
+
+/**
+ * A precomputed hash for an unknown random passphrase. Used to give the
+ * "user does not exist" branch exactly the same scrypt cost as a real
+ * verification, so login timing never reveals whether an email is registered.
+ * The passphrase is random and never stored anywhere.
+ */
+const DUMMY_PASSWORD_HASH =
+  'scrypt$32768$8$3$s0/if6VkGDWwgjnI24Cxrw==$Zle4GroaoUqpVLIMtzk8b/LO0GXbOEIyJtLBVM1jMzSDZRnpMTkhbPRWu/l+ecJ4FSMDXB84MQc2G7BMAFjWhw==';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+
+const AUTH_DEADLINE_MS = 15_000;
+const SCENE_DEADLINE_MS = 30_000;
+
+const API_SECURITY_HEADERS = Object.freeze({
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'DENY',
+  'Cache-Control': 'no-store',
+  Pragma: 'no-cache',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+});
+
+const STATIC_SECURITY_HEADERS = Object.freeze({
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'DENY',
+});
+
+const MIME_TYPES = Object.freeze({
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+});
+
+const DEFAULT_RATE_LIMITS = Object.freeze({
+  ip: { windowMs: 10 * 60 * 1000, max: 300, maxKeys: 10_000 },
+  email: { windowMs: 10 * 60 * 1000, max: 10, maxKeys: 20_000 },
+  user: { windowMs: 10 * 60 * 1000, max: 20, maxKeys: 10_000 },
+});
+
+/* ------------------------------------------------------------------ */
+/* Small utilities                                                    */
+/* ------------------------------------------------------------------ */
+
+class HttpError extends Error {
+  constructor(status, code, message, headers = undefined) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.code = code;
+    this.headers = headers;
+  }
+}
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeEmail(value) {
+  return String(value).trim().toLowerCase();
+}
+
+function remoteIp(req) {
+  // Deliberately ignore X-Forwarded-For / Forwarded: this server is meant to be
+  // bound to loopback, so the socket peer is the trustworthy source.
+  return req.socket?.remoteAddress ?? 'unknown';
+}
+
+function isUniqueConstraintError(err) {
+  return Boolean(
+    err &&
+      err.code === 'ERR_SQLITE_ERROR' &&
+      typeof err.message === 'string' &&
+      /UNIQUE constraint failed/i.test(err.message),
+  );
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+function dateISO(ms) {
+  return new Date(ms).toISOString();
+}
+
+function isLoopbackHost(host) {
+  const value = String(host).trim().toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+  return (
+    value === '127.0.0.1' ||
+    value === '::1' ||
+    value === '0:0:0:0:0:0:0:1' ||
+    value === 'localhost'
+  );
+}
+
+function normalizeOrigin(raw) {
+  let url;
+  try {
+    url = new URL(String(raw));
+  } catch {
+    throw new Error(`IMSTAGE_APP_ORIGIN is not a valid URL: ${String(raw)}`);
+  }
+  if (url.origin === 'null') {
+    throw new Error(`IMSTAGE_APP_ORIGIN must be an absolute origin: ${String(raw)}`);
+  }
+  return url.origin;
+}
+
+function parseAbsolutePort(value, fallback) {
+  const raw = value === undefined || value === null || value === '' ? fallback : value;
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`IMSTAGE_API_PORT must be an integer between 0 and 65535, got: ${String(raw)}`);
+  }
+  return port;
+}
+
+/* ------------------------------------------------------------------ */
+/* Password hashing (async scrypt + bounded concurrency)               */
+/* ------------------------------------------------------------------ */
+
+function encodePasswordHash(salt, derived) {
+  const { N, r, p } = SCRYPT_PARAMS;
+  return `scrypt$${N}$${r}$${p}$${salt.toString('base64')}$${derived.toString('base64')}`;
+}
+
+function decodePasswordHash(stored) {
+  if (typeof stored !== 'string') return null;
+  const parts = stored.split('$');
+  if (parts.length !== 6 || parts[0] !== 'scrypt') return null;
+  const N = Number(parts[1]);
+  const r = Number(parts[2]);
+  const p = Number(parts[3]);
+  if (!Number.isInteger(N) || !Number.isInteger(r) || !Number.isInteger(p)) return null;
+  let salt;
+  let hash;
+  try {
+    salt = Buffer.from(parts[4], 'base64');
+    hash = Buffer.from(parts[5], 'base64');
+  } catch {
+    return null;
+  }
+  if (salt.length < 16 || hash.length === 0) return null;
+  if (N <= 1 || r <= 0 || p <= 0) return null;
+  // Guard against an attacker-controlled stored record requesting absurd work.
+  if (N > SCRYPT_PARAMS.N || r > SCRYPT_PARAMS.r || p > SCRYPT_PARAMS.p) return null;
+  return { N, r, p, salt, hash };
+}
+
+class Semaphore {
+  constructor(limit) {
+    this.limit = Number.isInteger(limit) && limit > 0 ? limit : 1;
+    this.active = 0;
+    this.queue = [];
+  }
+
+  acquire() {
+    return new Promise((resolve, reject) => {
+      if (this.active >= this.limit && this.queue.length >= 16) { reject(new HttpError(429, 'busy', '账号服务繁忙，请稍后重试', { 'Retry-After': '5' })); return; }
+      const tryAcquire = () => {
+        if (this.active < this.limit) {
+          this.active += 1;
+          resolve();
+          return;
+        }
+        this.queue.push(tryAcquire);
+      };
+      tryAcquire();
+    });
+  }
+
+  release() {
+    this.active = Math.max(0, this.active - 1);
+    const next = this.queue.shift();
+    if (next) next();
+  }
+
+  async run(fn) {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+}
+
+async function hashPassword(password, semaphore) {
+  return semaphore.run(async () => {
+    const salt = crypto.randomBytes(16);
+    const derived = await scryptAsync(Buffer.from(password, 'utf8'), salt, SCRYPT_PARAMS.keylen, {
+      N: SCRYPT_PARAMS.N,
+      r: SCRYPT_PARAMS.r,
+      p: SCRYPT_PARAMS.p,
+      maxmem: SCRYPT_PARAMS.maxmem,
+    });
+    return encodePasswordHash(salt, derived);
+  });
+}
+
+async function verifyPassword(password, stored, semaphore) {
+  const parsed = decodePasswordHash(stored);
+  if (!parsed) return false;
+  return semaphore.run(async () => {
+    const derived = await scryptAsync(Buffer.from(password, 'utf8'), parsed.salt, parsed.hash.length, {
+      N: parsed.N,
+      r: parsed.r,
+      p: parsed.p,
+      maxmem: SCRYPT_PARAMS.maxmem,
+    });
+    return derived.length === parsed.hash.length && crypto.timingSafeEqual(derived, parsed.hash);
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Bounded fixed-window rate limiting                                  */
+/* ------------------------------------------------------------------ */
+
+class FixedWindowLimiter {
+  constructor({ windowMs, max, maxKeys }) {
+    this.windowMs = Math.max(1, Number(windowMs) || 1);
+    this.max = Math.max(1, Number(max) || 1);
+    this.maxKeys = Math.max(1, Number(maxKeys) || 1);
+    this.buckets = new Map();
+  }
+
+  consume(key, nowMs) {
+    let bucket = this.buckets.get(key);
+    if (!bucket || nowMs >= bucket.resetAt) {
+      bucket = { count: 0, resetAt: nowMs + this.windowMs };
+      this.buckets.set(key, bucket);
+    }
+    bucket.count += 1;
+    this.#prune(nowMs);
+    if (bucket.count > this.max) {
+      return { allowed: false, retryAfterMs: Math.max(0, bucket.resetAt - nowMs) };
+    }
+    return { allowed: true, retryAfterMs: 0 };
+  }
+
+  #prune(nowMs) {
+    if (this.buckets.size <= this.maxKeys) return;
+    for (const [key, bucket] of this.buckets) {
+      if (nowMs >= bucket.resetAt) this.buckets.delete(key);
+      if (this.buckets.size <= this.maxKeys) return;
+    }
+    // Still oversized (all buckets live): drop the oldest inserted keys.
+    const excess = this.buckets.size - this.maxKeys;
+    let removed = 0;
+    for (const key of this.buckets.keys()) {
+      if (removed >= excess) break;
+      this.buckets.delete(key);
+      removed += 1;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Database                                                            */
+/* ------------------------------------------------------------------ */
+
+function openDatabase(dbPath) {
+  if (dbPath !== ':memory:') {
+    const dir = path.dirname(dbPath);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(dir, 0o700);
+    } catch {
+      /* best effort (e.g. exotic filesystems) */
+    }
+  }
+
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+  db.exec('PRAGMA busy_timeout = 5000;');
+  db.exec('PRAGMA synchronous = NORMAL;');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      email         TEXT NOT NULL UNIQUE,
+      name          TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash   TEXT NOT NULL UNIQUE,
+      created_at   TEXT NOT NULL,
+      expires_at_ms INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE TABLE IF NOT EXISTS scenes (
+      user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      id            TEXT NOT NULL,
+      title         TEXT NOT NULL,
+      platform      TEXT NOT NULL,
+      message_count INTEGER NOT NULL,
+      revision      INTEGER NOT NULL,
+      scene_json    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL,
+      PRIMARY KEY (user_id, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_scenes_user_updated ON scenes(user_id, updated_at DESC);
+  `);
+
+  if (dbPath !== ':memory:') {
+    for (const suffix of ['', '-wal', '-shm']) {
+      try {
+        fs.chmodSync(`${dbPath}${suffix}`, 0o600);
+      } catch {
+        /* file may not exist yet */
+      }
+    }
+  }
+  return db;
+}
+
+function withTransaction(db, fn) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* ignore rollback failure, original error wins */
+    }
+    throw err;
+  }
+}
+
+function createSessionRow(db, userId, nowMs) {
+  db.prepare('DELETE FROM sessions WHERE expires_at_ms <= ?').run(nowMs);
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND id NOT IN (SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 19)').run(userId, userId);
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+  const id = crypto.randomUUID();
+  const expiresAtMs = nowMs + SESSION_TTL_MS;
+  db.prepare(
+    'INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at_ms) VALUES (?, ?, ?, ?, ?)',
+  ).run(id, userId, tokenHash, dateISO(nowMs), expiresAtMs);
+  return { token, expiresAtMs };
+}
+
+function toPublicUser(row) {
+  return { id: row.id, email: row.email, name: row.name };
+}
+
+/* ------------------------------------------------------------------ */
+/* Cookies / sessions                                                  */
+/* ------------------------------------------------------------------ */
+
+function readSessionToken(req) {
+  const header = req.headers.cookie;
+  if (typeof header !== 'string' || header.length === 0) return null;
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const name = part.slice(0, index).trim();
+    if (name !== SESSION_COOKIE) continue;
+    const value = part.slice(index + 1).trim();
+    return TOKEN_RE.test(value) ? value : null;
+  }
+  return null;
+}
+
+function sessionCookieAttributes(config, expiresAtMs) {
+  const attributes = [
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`,
+    `Expires=${new Date(expiresAtMs).toUTCString()}`,
+  ];
+  if (config.secureCookie) attributes.push('Secure');
+  return attributes;
+}
+
+function setSessionCookie(res, config, token, expiresAtMs) {
+  res.setHeader(
+    'Set-Cookie',
+    [`${SESSION_COOKIE}=${token}`, ...sessionCookieAttributes(config, expiresAtMs)].join('; '),
+  );
+}
+
+function clearSessionCookie(res, config) {
+  const attributes = [
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+  ];
+  if (config.secureCookie) attributes.push('Secure');
+  res.setHeader('Set-Cookie', [`${SESSION_COOKIE}=`, ...attributes].join('; '));
+}
+
+function loadSession(ctx, req) {
+  const token = readSessionToken(req);
+  if (!token) return null;
+  const row = ctx.db
+    .prepare(
+      `SELECT s.id AS session_id, s.user_id, s.expires_at_ms, u.email, u.name
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token_hash = ?`,
+    )
+    .get(hashToken(token));
+  if (!row) return null;
+  if (Number(row.expires_at_ms) <= ctx.nowMs()) {
+    ctx.db.prepare('DELETE FROM sessions WHERE id = ?').run(row.session_id);
+    return null;
+  }
+  return {
+    sessionId: row.session_id,
+    user: { id: row.user_id, email: row.email, name: row.name },
+  };
+}
+
+function requireSession(ctx, req) {
+  const session = loadSession(ctx, req);
+  if (!session) {
+    throw new HttpError(401, 'unauthorized', '请先登录');
+  }
+  const expectedUser = req.headers['x-imstage-user'];
+  if (expectedUser !== undefined && expectedUser !== session.user.id) {
+    throw new HttpError(401, 'account_changed', '当前登录账号已改变，请重新打开作品。');
+  }
+  return session;
+}
+
+function recheckSession(ctx, req, expected) {
+  if (requireSession(ctx, req).sessionId !== expected.sessionId) throw new HttpError(401, 'unauthorized', '登录已失效，请重新登录');
+}
+
+/* ------------------------------------------------------------------ */
+/* HTTP helpers                                                        */
+/* ------------------------------------------------------------------ */
+
+function sendJson(req, res, status, body, extraHeaders = undefined) {
+  if (res.headersSent) return;
+  const payload = Buffer.from(JSON.stringify(body), 'utf8');
+  const headers = {
+    ...API_SECURITY_HEADERS,
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': payload.length,
+    ...(extraHeaders ?? {}),
+  };
+  // If the request body was never fully consumed (early auth/origin/limit
+  // rejection), the connection cannot be reused safely for another request.
+  // Drain the remainder (bounded) so the client can still read this response,
+  // then force the socket closed.
+  const methodHasBody = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET');
+  if (methodHasBody && !req.readableEnded) {
+    headers.Connection = 'close';
+    res.once('finish', () => {
+      try {
+        req.resume();
+      } catch {
+        /* ignore */
+      }
+      const timer = setTimeout(() => {
+        try {
+          req.destroy();
+        } catch {
+          /* ignore */
+        }
+      }, 2_000);
+      timer.unref?.();
+    });
+  }
+  res.writeHead(status, headers);
+  res.end(payload);
+}
+
+function drainRequest(req, maxBytes, deadlineMs) {
+  return new Promise((resolve) => {
+    if (req.readableEnded) {
+      resolve();
+      return;
+    }
+    let total = 0;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      req.off('data', onData);
+      req.off('end', finish);
+      req.off('error', finish);
+      req.off('aborted', finish);
+      resolve();
+    };
+    const onData = (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        try {
+          req.destroy();
+        } catch {
+          /* ignore */
+        }
+        finish();
+      }
+    };
+    const timer = setTimeout(() => {
+      try {
+        req.destroy();
+      } catch {
+        /* ignore */
+      }
+      finish();
+    }, deadlineMs);
+    timer.unref?.();
+    req.on('data', onData);
+    req.on('end', finish);
+    req.on('error', finish);
+    req.on('aborted', finish);
+    req.resume();
+  });
+}
+
+async function sendError(req, res, ctx, err) {
+  if (res.headersSent) {
+    try {
+      res.destroy();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  // If we are rejecting before the body was read (bad origin, missing session,
+  // too many requests, ...), drain what is in flight first so the client can
+  // actually read the error instead of seeing a connection reset.
+  const methodHasBody = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET');
+  if (methodHasBody && !req.readableEnded) {
+    try {
+      await drainRequest(req, SCENE_BODY_LIMIT + 8 * 1024 * 1024, 5_000);
+    } catch {
+      /* best effort */
+    }
+  }
+  if (res.headersSent) return;
+  if (err instanceof HttpError) {
+    sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
+    return;
+  }
+  ctx.logger.error('[imstage-api] unexpected error:', err?.stack ?? err);
+  sendJson(req, res, 500, { error: { code: 'internal_error', message: '服务器内部错误' } });
+}
+
+function requireJsonContentType(req) {
+  const raw = req.headers['content-type'];
+  const value = typeof raw === 'string' ? raw.split(';')[0].trim().toLowerCase() : '';
+  if (value !== 'application/json') {
+    throw new HttpError(415, 'unsupported_media_type', '请求体必须是 application/json');
+  }
+}
+
+function guardMutation(req, config) {
+  const rawOrigin = req.headers.origin;
+  if (typeof rawOrigin !== 'string' || rawOrigin.trim() === '') {
+    throw new HttpError(403, 'origin_required', '缺少 Origin 请求头');
+  }
+  let origin;
+  try {
+    origin = new URL(rawOrigin).origin;
+  } catch {
+    throw new HttpError(403, 'origin_mismatch', '请求来源不被允许');
+  }
+  if (origin !== config.appOrigin) {
+    throw new HttpError(403, 'origin_mismatch', '请求来源不被允许');
+  }
+  const marker = req.headers[REQUEST_MARKER_HEADER];
+  const markerValue = Array.isArray(marker) ? marker[0] : marker;
+  if (markerValue !== REQUEST_MARKER_VALUE) {
+    throw new HttpError(403, 'request_marker_required', '缺少必要的请求标记');
+  }
+}
+
+function readBody(req, limit, deadlineMs) {
+  // Bodies up to `limit` are buffered. Bodies above the limit are not stored but
+  // are drained up to a hard cap so the client can always read the 413 response;
+  // anything above the cap is rejected immediately and the socket is closed.
+  const hardCap = limit + 4 * 1024 * 1024;
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > hardCap) {
+      reject(new HttpError(413, 'payload_too_large', '请求体过大'));
+      return;
+    }
+
+    const chunks = [];
+    let total = 0;
+    let oversize = false;
+    let settled = false;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      req.off('data', onData);
+      req.off('end', onEnd);
+      req.off('error', onError);
+      req.off('aborted', onAborted);
+    };
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const tooLarge = () => new HttpError(413, 'payload_too_large', '请求体过大');
+    const onData = (chunk) => {
+      total += chunk.length;
+      if (total > hardCap) {
+        finish(tooLarge());
+        return;
+      }
+      if (total > limit) {
+        if (!oversize) {
+          oversize = true;
+          chunks.length = 0; // stop retaining data once over the limit
+        }
+        return;
+      }
+      chunks.push(chunk);
+    };
+    const onEnd = () => {
+      if (oversize) finish(tooLarge());
+      else finish(null, Buffer.concat(chunks, total));
+    };
+    const onError = () => finish(new HttpError(400, 'bad_request', '请求读取失败'));
+    const onAborted = () => finish(new HttpError(400, 'bad_request', '请求已中断'));
+
+    const timer = setTimeout(
+      () => finish(new HttpError(408, 'request_timeout', '请求处理超时')),
+      deadlineMs,
+    );
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
+    req.on('aborted', onAborted);
+  });
+}
+
+async function readJsonBody(req, limit, deadlineMs) {
+  const buffer = await readBody(req, limit, deadlineMs);
+  if (buffer.length === 0) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(buffer.toString('utf8'));
+  } catch {
+    throw new HttpError(400, 'invalid_json', '请求体不是合法 JSON');
+  }
+  if (!isPlainObject(parsed)) {
+    throw new HttpError(400, 'invalid_request', '请求体必须是 JSON 对象');
+  }
+  return parsed;
+}
+
+function rateLimitedError(retryAfterMs) {
+  const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  return new HttpError(429, 'rate_limited', '请求过于频繁，请稍后再试', {
+    'Retry-After': String(retryAfterSeconds),
+  });
+}
+
+function throttleAuth(ctx, req, email) {
+  const ip = remoteIp(req);
+  const ipResult = ctx.limiters.ip.consume(`ip:${ip}`, ctx.nowMs());
+  if (!ipResult.allowed) throw rateLimitedError(ipResult.retryAfterMs);
+  const emailKey = normalizeEmail(email).slice(0, 254);
+  const emailResult = ctx.limiters.email.consume(`email:${emailKey}`, ctx.nowMs());
+  if (!emailResult.allowed) throw rateLimitedError(emailResult.retryAfterMs);
+}
+
+function throttleUser(ctx, userId) {
+  const result = ctx.limiters.user.consume(`user:${userId}`, ctx.nowMs());
+  if (!result.allowed) throw rateLimitedError(result.retryAfterMs);
+}
+
+/* ------------------------------------------------------------------ */
+/* Account validation                                                  */
+/* ------------------------------------------------------------------ */
+
+function validateRegistration(body) {
+  const { name, email, password } = body;
+  if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+    throw new HttpError(400, 'invalid_request', '请完整填写名称、邮箱和密码');
+  }
+  const trimmedName = name.trim();
+  if (trimmedName.length < 1 || trimmedName.length > 60) {
+    throw new HttpError(400, 'invalid_name', '名称长度需为 1-60 个字符');
+  }
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail.length > 254 || !EMAIL_RE.test(normalizedEmail)) {
+    throw new HttpError(400, 'invalid_email', '邮箱格式不正确');
+  }
+  // Password is intentionally not trimmed and accepts any character set.
+  if (password.length < 12 || password.length > 128) {
+    throw new HttpError(400, 'invalid_password', '密码长度需为 12-128 个字符');
+  }
+  return { name: trimmedName, email: normalizedEmail, password };
+}
+
+function validateNewPassword(password) {
+  if (typeof password !== 'string' || password.length < 12 || password.length > 128) {
+    throw new HttpError(400, 'invalid_password', '新密码长度需为 12-128 个字符');
+  }
+}
+
+function uniformCredentialError() {
+  return new HttpError(401, 'invalid_credentials', '邮箱或密码不正确');
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth routes                                                         */
+/* ------------------------------------------------------------------ */
+
+async function handleRegister(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const { name, email, password } = validateRegistration(body);
+
+  throttleAuth(ctx, req, email);
+
+  // Hash before the uniqueness check so duplicate registrations cost the same.
+  const passwordHash = await hashPassword(password, ctx.semaphore);
+  const nowMs = ctx.nowMs();
+  const userId = crypto.randomUUID();
+
+  let sessionToken;
+  let sessionExpiresAtMs;
+  let user;
+  try {
+    const result = withTransaction(ctx.db, () => {
+      const existing = ctx.db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      if (existing) {
+        throw new HttpError(409, 'email_taken', '该邮箱已注册');
+      }
+      ctx.db
+        .prepare(
+          'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(userId, email, name, passwordHash, dateISO(nowMs));
+      const session = createSessionRow(ctx.db, userId, nowMs);
+      return { user: { id: userId, email, name }, session };
+    });
+    user = result.user;
+    sessionToken = result.session.token;
+    sessionExpiresAtMs = result.session.expiresAtMs;
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    if (isUniqueConstraintError(err)) {
+      throw new HttpError(409, 'email_taken', '该邮箱已注册');
+    }
+    throw err;
+  }
+
+  setSessionCookie(res, ctx.config, sessionToken, sessionExpiresAtMs);
+  sendJson(req, res, 200, { user });
+}
+
+async function handleLogin(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  if (typeof body.email !== 'string' || typeof body.password !== 'string') {
+    throw new HttpError(400, 'invalid_request', '请输入邮箱和密码');
+  }
+  const email = normalizeEmail(body.email);
+  const password = body.password;
+
+  throttleAuth(ctx, req, email);
+
+  const row = ctx.db
+    .prepare('SELECT id, email, name, password_hash FROM users WHERE email = ?')
+    .get(email);
+  // Always pay one scrypt verification, even for unknown accounts.
+  const ok = await verifyPassword(password, row ? row.password_hash : DUMMY_PASSWORD_HASH, ctx.semaphore);
+  if (!row || !ok) throw uniformCredentialError();
+
+  // A concurrent password change must not allow the old credential to create a new session.
+  const current = ctx.db.prepare('SELECT password_hash FROM users WHERE id = ?').get(row.id);
+  if (current?.password_hash !== row.password_hash) throw uniformCredentialError();
+  const nowMs = ctx.nowMs();
+  const { token, expiresAtMs } = createSessionRow(ctx.db, row.id, nowMs);
+  setSessionCookie(res, ctx.config, token, expiresAtMs);
+  sendJson(req, res, 200, { user: toPublicUser(row) });
+}
+
+async function handleLogout(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  requireJsonContentType(req);
+  await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+
+  if (loadSession(ctx, req)) requireSession(ctx, req);
+  const token = readSessionToken(req);
+  if (token) {
+    ctx.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+  }
+  clearSessionCookie(res, ctx.config);
+  sendJson(req, res, 200, { ok: true });
+}
+
+async function handlePasswordChange(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+
+  if (typeof body.currentPassword !== 'string') {
+    throw new HttpError(400, 'invalid_request', '请输入当前密码');
+  }
+  validateNewPassword(body.newPassword);
+
+  throttleUser(ctx, session.user.id);
+
+  const row = ctx.db
+    .prepare('SELECT password_hash FROM users WHERE id = ?')
+    .get(session.user.id);
+  const ok = await verifyPassword(body.currentPassword, row?.password_hash, ctx.semaphore);
+  if (!row || !ok) {
+    throw new HttpError(401, 'invalid_credentials', '当前密码不正确');
+  }
+
+  const newHash = await hashPassword(body.newPassword, ctx.semaphore);
+  withTransaction(ctx.db, () => {
+    recheckSession(ctx, req, session);
+    const result = ctx.db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?').run(newHash, session.user.id, row.password_hash);
+    if (result.changes !== 1) throw new HttpError(409, 'password_changed', '密码已经改变，请重新登录');
+    // Revoke every session, including the caller's: re-login is required.
+    ctx.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(session.user.id);
+  });
+
+  clearSessionCookie(res, ctx.config);
+  sendJson(req, res, 200, { ok: true });
+}
+
+/* ------------------------------------------------------------------ */
+/* Scene routes                                                        */
+/* ------------------------------------------------------------------ */
+
+function parseSceneId(raw) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  const normalized = decoded.toLowerCase();
+  return UUID_RE.test(normalized) ? normalized : null;
+}
+
+function sceneItemFromRow(row) {
+  return {
+    id: row.id,
+    scene: JSON.parse(row.scene_json),
+    updatedAt: row.updated_at,
+    revision: Number(row.revision),
+  };
+}
+
+function handleSceneList(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  const rows = ctx.db
+    .prepare(
+      `SELECT id, title, platform, message_count, revision, updated_at
+       FROM scenes WHERE user_id = ?
+       ORDER BY updated_at DESC, id ASC`,
+    )
+    .all(session.user.id);
+  const items = rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    platform: row.platform,
+    messageCount: Number(row.message_count),
+    updatedAt: row.updated_at,
+    revision: Number(row.revision),
+  }));
+  sendJson(req, res, 200, { items });
+}
+
+function handleSceneGet(ctx, req, res, sceneId) {
+  const session = requireSession(ctx, req);
+  const row = ctx.db
+    .prepare('SELECT id, scene_json, revision, updated_at FROM scenes WHERE user_id = ? AND id = ?')
+    .get(session.user.id, sceneId);
+  if (!row) throw new HttpError(404, 'not_found', '场景不存在');
+  sendJson(req, res, 200, { item: sceneItemFromRow(row) });
+}
+
+async function handleScenePut(ctx, req, res, sceneId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, SCENE_BODY_LIMIT, SCENE_DEADLINE_MS);
+
+  const revision = body.revision;
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new HttpError(400, 'invalid_revision', 'revision 必须是不小于 0 的整数');
+  }
+
+  const validation = validateScene(body.scene);
+  if (!validation.ok || !validation.scene) {
+    const detail = validation.errors.slice(0, 3).join('；');
+    throw new HttpError(
+      400,
+      'validation_error',
+      detail ? `场景数据无效：${detail}` : '场景数据无效',
+    );
+  }
+  const scene = validation.scene;
+  if (scene.id.toLowerCase() !== sceneId) {
+    throw new HttpError(400, 'invalid_request', '场景 id 与请求路径不一致');
+  }
+  scene.id = sceneId;
+
+  const nowMs = ctx.nowMs();
+  const updatedAt = dateISO(nowMs);
+  const sceneJson = JSON.stringify(scene);
+  const messageCount = scene.messages.length;
+  const userId = session.user.id;
+
+  const item = withTransaction(ctx.db, () => {
+    recheckSession(ctx, req, session);
+    if (revision === 0) {
+      const existing = ctx.db
+        .prepare('SELECT revision FROM scenes WHERE user_id = ? AND id = ?')
+        .get(userId, sceneId);
+      if (existing) {
+        throw new HttpError(409, 'conflict', '场景已存在，请重新加载');
+      }
+      const count = ctx.db
+        .prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?')
+        .get(userId);
+      if (Number(count.total) >= MAX_SCENES_PER_USER) {
+        throw new HttpError(409, 'scene_limit_reached', `每个用户最多保存 ${MAX_SCENES_PER_USER} 个场景`);
+      }
+      try {
+        ctx.db
+          .prepare(
+            `INSERT INTO scenes (user_id, id, title, platform, message_count, revision, scene_json, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+          )
+          .run(userId, sceneId, scene.title, scene.platform, messageCount, sceneJson, updatedAt);
+      } catch (err) {
+        if (isUniqueConstraintError(err)) {
+          throw new HttpError(409, 'conflict', '场景已存在，请重新加载');
+        }
+        throw err;
+      }
+      return { id: sceneId, scene, updatedAt, revision: 1 };
+    }
+
+    const result = ctx.db
+      .prepare(
+        `UPDATE scenes
+         SET title = ?, platform = ?, message_count = ?, revision = revision + 1, scene_json = ?, updated_at = ?
+         WHERE user_id = ? AND id = ? AND revision = ?`,
+      )
+      .run(scene.title, scene.platform, messageCount, sceneJson, updatedAt, userId, sceneId, revision);
+
+    if (result.changes === 0) {
+      const exists = ctx.db
+        .prepare('SELECT revision FROM scenes WHERE user_id = ? AND id = ?')
+        .get(userId, sceneId);
+      if (exists) {
+        throw new HttpError(409, 'revision_conflict', '场景已更新，请刷新后重试');
+      }
+      throw new HttpError(404, 'not_found', '场景不存在');
+    }
+
+    return { id: sceneId, scene, updatedAt, revision: revision + 1 };
+  });
+
+  sendJson(req, res, 200, { item });
+}
+
+async function handleSceneDelete(ctx, req, res, sceneId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+
+  const revision = body.revision;
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new HttpError(400, 'invalid_revision', 'revision 必须是不小于 0 的整数');
+  }
+
+  const userId = session.user.id;
+  const result = withTransaction(ctx.db, () => {
+    recheckSession(ctx, req, session);
+    const row = ctx.db
+      .prepare('SELECT revision FROM scenes WHERE user_id = ? AND id = ?')
+      .get(userId, sceneId);
+    if (!row) throw new HttpError(404, 'not_found', '场景不存在');
+    if (Number(row.revision) !== revision) {
+      throw new HttpError(409, 'revision_conflict', '场景已更新，请刷新后重试');
+    }
+    return ctx.db.prepare('DELETE FROM scenes WHERE user_id = ? AND id = ?').run(userId, sceneId);
+  });
+  if (result.changes === 0) throw new HttpError(404, 'not_found', '场景不存在');
+  sendJson(req, res, 200, { ok: true });
+}
+
+/* ------------------------------------------------------------------ */
+/* Static file serving (built web app)                                 */
+/* ------------------------------------------------------------------ */
+
+async function statFile(filePath) {
+  try {
+    const info = await fs.promises.stat(filePath);
+    return info.isFile() ? info : null;
+  } catch {
+    return null;
+  }
+}
+
+async function serveStatic(ctx, req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+  if (!ctx.config.distDir || !ctx.config.distRoot) {
+    throw new HttpError(404, 'not_found', '资源不存在');
+  }
+
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url, 'http://internal').pathname);
+  } catch {
+    throw new HttpError(400, 'bad_request', '请求路径无效');
+  }
+  if (pathname.includes('\0')) throw new HttpError(400, 'bad_request', '请求路径无效');
+
+  const segments = pathname.split('/').filter((segment) => segment.length > 0);
+  // Reject dotfiles and any traversal attempt before touching the filesystem.
+  if (segments.some((segment) => segment === '..' || segment.startsWith('.'))) {
+    throw new HttpError(404, 'not_found', '资源不存在');
+  }
+
+  let target = path.join(ctx.config.distRoot, ...segments);
+  const rootWithSep = ctx.config.distRoot.endsWith(path.sep)
+    ? ctx.config.distRoot
+    : ctx.config.distRoot + path.sep;
+  if (target !== ctx.config.distRoot && !target.startsWith(rootWithSep)) {
+    throw new HttpError(404, 'not_found', '资源不存在');
+  }
+
+  let resolvedTarget = target;
+  try {
+    resolvedTarget = await fs.promises.realpath(target);
+  } catch {
+    resolvedTarget = null;
+  }
+
+  let info = resolvedTarget ? await statFile(resolvedTarget) : null;
+  if (!info) {
+    // SPA fallback: only for non-API GET/HEAD routes.
+    const indexPath = path.join(ctx.config.distRoot, 'index.html');
+    let resolvedIndex;
+    try {
+      resolvedIndex = await fs.promises.realpath(indexPath);
+    } catch {
+      resolvedIndex = null;
+    }
+    info = resolvedIndex ? await statFile(resolvedIndex) : null;
+    if (!info) throw new HttpError(404, 'not_found', '资源不存在');
+    resolvedTarget = resolvedIndex;
+  }
+
+  if (resolvedTarget !== ctx.config.distRoot && !resolvedTarget.startsWith(rootWithSep)) throw new HttpError(404, 'not_found', '资源不存在');
+  const extension = path.extname(resolvedTarget).toLowerCase();
+  const contentType = MIME_TYPES[extension] ?? 'application/octet-stream';
+  const cacheControl = extension === '.html' ? 'no-cache' : 'public, max-age=3600';
+  res.writeHead(200, {
+    ...STATIC_SECURITY_HEADERS,
+    'Content-Type': contentType,
+    'Content-Length': info.size,
+    'Cache-Control': cacheControl,
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(resolvedTarget);
+    stream.on('error', reject);
+    stream.on('end', resolve);
+    stream.pipe(res);
+  }).catch((err) => {
+    if (!res.headersSent) throw err;
+    res.destroy();
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Router                                                              */
+/* ------------------------------------------------------------------ */
+
+async function route(ctx, req, res) {
+  if (typeof req.url !== 'string' || req.url.length === 0) {
+    throw new HttpError(400, 'bad_request', '请求无效');
+  }
+  let pathname;
+  try {
+    pathname = new URL(req.url, 'http://internal').pathname;
+  } catch {
+    throw new HttpError(400, 'bad_request', '请求路径无效');
+  }
+  const method = req.method ?? 'GET';
+
+  if (pathname === '/api/health') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    sendJson(req, res, 200, { status: 'ready' });
+    return;
+  }
+
+  if (pathname === '/api/auth/session') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    const session = loadSession(ctx, req);
+    sendJson(req, res, 200, { user: session ? session.user : null });
+    return;
+  }
+
+  if (pathname === '/api/auth/register' || pathname === '/api/auth/login') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    if (pathname.endsWith('/register')) await handleRegister(ctx, req, res);
+    else await handleLogin(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/auth/logout') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleLogout(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/auth/password') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handlePasswordChange(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/scenes') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleSceneList(ctx, req, res);
+    return;
+  }
+
+  const sceneMatch = /^\/api\/scenes\/([^/]+)$/.exec(pathname);
+  if (sceneMatch) {
+    const sceneId = parseSceneId(sceneMatch[1]);
+    if (!sceneId) throw new HttpError(404, 'not_found', '场景不存在');
+    if (method === 'GET') {
+      handleSceneGet(ctx, req, res, sceneId);
+      return;
+    }
+    if (method === 'PUT') {
+      await handleScenePut(ctx, req, res, sceneId);
+      return;
+    }
+    if (method === 'DELETE') {
+      await handleSceneDelete(ctx, req, res, sceneId);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    // Unknown API endpoints are never served as SPA fallback.
+    throw new HttpError(404, 'not_found', '接口不存在');
+  }
+
+  await serveStatic(ctx, req, res);
+}
+
+/* ------------------------------------------------------------------ */
+/* Configuration                                                       */
+/* ------------------------------------------------------------------ */
+
+function resolveConfig(options) {
+  const env = options.env ?? process.env;
+  const dataDir = options.dataDir ?? env.IMSTAGE_DATA_DIR ?? '.local/app';
+  const dbPath = options.dbPath ?? path.join(dataDir, 'imstage.db');
+  const appOrigin = normalizeOrigin(options.appOrigin ?? env.IMSTAGE_APP_ORIGIN ?? 'http://127.0.0.1:4417');
+  const host = options.host ?? env.IMSTAGE_API_HOST ?? '127.0.0.1';
+  const port = parseAbsolutePort(options.port ?? env.IMSTAGE_API_PORT, 4419);
+  const distDir = options.distDir ?? env.IMSTAGE_DIST_DIR ?? 'dist';
+  const nodeEnv = options.nodeEnv ?? env.NODE_ENV ?? 'development';
+
+  if (!isLoopbackHost(host)) {
+    throw new Error(`IMStage API must bind to a loopback host, refusing to use: ${String(host)}`);
+  }
+
+  const originUrl = new URL(appOrigin);
+  if (nodeEnv === 'production') {
+    if (originUrl.protocol !== 'https:' && !isLoopbackHost(originUrl.hostname)) {
+      throw new Error(
+        'Refusing to start: IMSTAGE_APP_ORIGIN must use https (or be a loopback origin) when NODE_ENV=production',
+      );
+    }
+  }
+
+  const now = typeof options.now === 'function' ? options.now : () => new Date();
+  const nowMs = () => {
+    const value = now();
+    const ms = value instanceof Date ? value.getTime() : Number(value);
+    if (!Number.isFinite(ms)) throw new Error('now() must return a Date or a finite timestamp');
+    return ms;
+  };
+
+  const rateLimit = {
+    ip: { ...DEFAULT_RATE_LIMITS.ip, ...(options.rateLimit?.ip ?? {}) },
+    email: { ...DEFAULT_RATE_LIMITS.email, ...(options.rateLimit?.email ?? {}) },
+    user: { ...DEFAULT_RATE_LIMITS.user, ...(options.rateLimit?.user ?? {}) },
+  };
+
+  let distRoot = null;
+  if (distDir) {
+    const absolute = path.resolve(distDir);
+    try {
+      distRoot = fs.realpathSync(absolute);
+    } catch {
+      distRoot = null;
+    }
+  }
+
+  return {
+    dbPath,
+    dataDir,
+    appOrigin,
+    host,
+    port,
+    distDir,
+    distRoot,
+    nodeEnv,
+    secureCookie: originUrl.protocol === 'https:',
+    now,
+    nowMs,
+    hashConcurrency: Number.isInteger(options.hashConcurrency) && options.hashConcurrency > 0
+      ? options.hashConcurrency
+      : 4,
+    rateLimit,
+    logger: options.logger ?? console,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Public API                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build the API application without starting to listen.
+ *
+ * @param {object} [options]
+ * @param {string} [options.dbPath]      SQLite file path (or ':memory:').
+ * @param {string} [options.dataDir]     Directory used when dbPath is omitted.
+ * @param {string} [options.appOrigin]   Browser origin allowed for mutations.
+ * @param {number} [options.port]        Preferred port (0 picks a free port).
+ * @param {string} [options.host]        Loopback bind host.
+ * @param {string} [options.distDir]     Built web app directory for static serving.
+ * @param {() => Date|number} [options.now] Injectable clock (expiry tests).
+ * @returns {{ server: http.Server, close: () => Promise<void>, db: DatabaseSync, config: object }}
+ *
+ * The returned `server` is created but not listening: call
+ * `server.listen(config.port, config.host)` yourself, or use `start()`.
+ */
+export function createApp(options = {}) {
+  const config = resolveConfig(options);
+  const db = openDatabase(config.dbPath);
+  const semaphore = new Semaphore(config.hashConcurrency);
+  const limiters = {
+    ip: new FixedWindowLimiter(config.rateLimit.ip),
+    email: new FixedWindowLimiter(config.rateLimit.email),
+    user: new FixedWindowLimiter(config.rateLimit.user),
+  };
+  const ctx = { config, db, semaphore, limiters, nowMs: config.nowMs, logger: config.logger };
+
+  const server = http.createServer((req, res) => {
+    route(ctx, req, res).catch((err) => {
+      sendError(req, res, ctx, err).catch(() => {
+        try {
+          res.destroy();
+        } catch {
+          /* ignore */
+        }
+      });
+    });
+  });
+  server.requestTimeout = 30_000;
+  server.headersTimeout = 15_000;
+  server.keepAliveTimeout = 5_000;
+
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    await new Promise((resolve) => {
+      if (!server.listening) {
+        resolve();
+        return;
+      }
+      server.close(() => resolve());
+      if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+      const timer = setTimeout(() => {
+        if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+      }, 1_000);
+      timer.unref?.();
+    });
+    try {
+      db.close();
+    } catch {
+      /* already closed */
+    }
+  };
+
+  return { server, close, db, config };
+}
+
+/**
+ * Convenience wrapper: build the app and start listening.
+ *
+ * @returns {Promise<{server, close, db, config, port}>}
+ */
+export async function start(options = {}) {
+  const app = createApp(options);
+  await new Promise((resolve, reject) => {
+    const onError = (err) => reject(err);
+    app.server.once('error', onError);
+    app.server.listen(app.config.port, app.config.host, () => {
+      app.server.removeListener('error', onError);
+      resolve();
+    });
+  });
+  const address = app.server.address();
+  app.port = typeof address === 'object' && address !== null ? address.port : app.config.port;
+  return app;
+}
+
+export { HttpError, resolveConfig };
+
+/* ------------------------------------------------------------------ */
+/* CLI entry                                                           */
+/* ------------------------------------------------------------------ */
+
+async function main() {
+  const app = await start();
+  const { config } = app;
+  config.logger.log(
+    `IMStage API ready on http://${config.host}:${app.port} (app origin: ${config.appOrigin})`,
+  );
+
+  let stopping = false;
+  const shutdown = async (signal) => {
+    if (stopping) return;
+    stopping = true;
+    config.logger.log(`IMStage API stopping (${signal})`);
+    await app.close();
+    process.exit(0);
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+}
+
+const isDirectRun =
+  typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('[imstage-api] failed to start:', err?.message ?? err);
+    process.exit(1);
+  });
+}
