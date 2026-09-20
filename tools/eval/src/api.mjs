@@ -61,6 +61,7 @@ import {
   scenePlainText,
 } from './generation.mjs';
 import { renderScenePng } from './render.mjs';
+import { createDatasetApi } from './dataset-api.mjs';
 import { GenerationLedger } from './generation-ledger.mjs';
 import { RENDERER_VERSION } from '../../../packages/renderer/renderSceneHtml.mjs';
 
@@ -305,6 +306,7 @@ export function createApp({
   generateScene,
   renderScene,
 } = {}) {
+  const handleDataset = createDatasetApi({dataDir: store.dataDir, sendJson, readJsonBody});
   // One concurrent generation at a time; requestId is also idempotent.
   const generationState = { active: false, inFlight: new Set() };
   const generationLedger = new GenerationLedger({ dataDir: store.dataDir });
@@ -1029,6 +1031,7 @@ export function createApp({
         } else if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
           fail('method_not_allowed', `不支持的方法: ${method}`, 405);
         }
+        if (await handleDataset(req, res, url)) return;
         const handled = await routeApi(req, res, url);
         if (handled === false) fail('not_found', `未知 API: ${method} ${url.pathname}`, 404);
         return;

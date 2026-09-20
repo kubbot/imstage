@@ -1,0 +1,78 @@
+name: DeepSeek screenshot evaluation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/eval-lab]
+    paths:
+      - 'eval/datasets/*.imb'
+      - '.github/workflows/deepseek-eval.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deepseek-private-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    name: Private screenshot benchmark
+    # Paid calls and decryption only run on explicitly trusted repository refs.
+    # Never use pull_request_target or execute fork code with dataset secrets.
+    if: github.repository == 'kubbot/imstage' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/eval-lab')
+    runs-on: ${{ vars.IMSTAGE_EVAL_RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    env:
+      IMSTAGE_EVAL_TEST_DIR: ${{ runner.temp }}/imstage-eval-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/eval/package-lock.json
+      - run: npm --prefix tools/eval ci
+      - name: Install renderer and CJK fonts
+        if: runner.os == 'Linux'
+        working-directory: tools/eval
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify evaluator with synthetic controls
+        run: node --test tools/eval/test/benchmark.test.mjs tools/eval/test/benchmark-regression.test.mjs
+      - name: Decrypt and verify private dataset
+        env:
+          IMSTAGE_EVAL_DATASET_KEY: ${{ secrets.IMSTAGE_EVAL_DATASET_KEY }}
+        run: node tools/eval/benchmark.mjs unpack --bundle eval/datasets/chat-screenshot-edits-v1.imb --out "$RUNNER_TEMP/imstage-private-dataset"
+      - name: Run DeepSeek once per case (maximum 11 calls, no retries)
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          IMSTAGE_AI_MODEL: deepseek-flash
+        run: node tools/eval/benchmark.mjs run --dataset "$RUNNER_TEMP/imstage-private-dataset" --out "$RUNNER_TEMP/imstage-private-results"
+      - name: Publish quantitative summary only
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/imstage-private-results/report.md" ]; then
+            cat "$RUNNER_TEMP/imstage-private-results/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deepseek-eval-metrics
+          path: |
+            ${{ runner.temp }}/imstage-private-results/report.json
+            ${{ runner.temp }}/imstage-private-results/report.md
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove this job's private plaintext
+        if: always()
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          for (const name of ['imstage-private-dataset','imstage-private-results','imstage-eval-tests']) {
+            await fs.rm(path.join(process.env.RUNNER_TEMP,name), {recursive:true,force:true});
+          }
+          JS
