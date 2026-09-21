@@ -1,3 +1,4 @@
+import { useViewportDrag } from './useViewportDrag';
 import { timelinePresentation } from '../../../../packages/schema/timeline.mjs';
 import {platformTemplate} from './platform-templates';
 import {deviceProfile} from './device-profiles';
@@ -26,6 +27,7 @@ export interface SceneViewProps {
   selectedId?: string;
   onSelect?: (id: string) => void;
   exportMode?: boolean;
+  interactiveViewport?: boolean;
   pendingAssets?: boolean;
   onSelectElement?: (id: string) => void;
 }
@@ -126,7 +128,8 @@ function headerTitle(scene: Scene): string {
  * Reusable chat renderer. The same DOM is used for the landing preview, the
  * editor canvas and the PNG export — never a separate canvas renderer.
  */
-export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement }: SceneViewProps) {
+export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement, interactiveViewport = false }: SceneViewProps) {
+  const viewportDrag = useViewportDrag(interactiveViewport && !exportMode);
   const selectable = typeof onSelect === 'function' && !exportMode;
   const elementProps = (label: string) => onSelectElement && !exportMode ? {
     role: 'button' as const, tabIndex: 0, 'aria-label': label, 'data-editor-selectable': true,
@@ -168,7 +171,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         {template.headerAvatar ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
       </div>
 
-      <div className="scene-messages" onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
+      <div className="scene-messages" {...viewportDrag} data-scrollable={interactiveViewport || undefined} tabIndex={interactiveViewport ? 0 : undefined} role={interactiveViewport ? 'region' : undefined} aria-label={interactiveViewport ? '聊天内容，可滚动调整截取范围' : undefined} onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
         {timeline.header && <div className="scene-date" {...elementProps("编辑日期文字")}>{timeline.header}</div>}
         {scene.messages.length === 0 ? <div className="scene-empty">还没有消息</div> : null}
         {scene.messages.map((message, index) => {

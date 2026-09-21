@@ -102,13 +102,13 @@ test('keyboard selection, grouped typing undo and short viewport keep editing us
   expect(box!.y + box!.height).toBeLessThanOrEqual(720);
 });
 
-test('element list reveals messages outside a standard screenshot', async ({ page }) => {
+test('element list scrolls to offscreen messages without changing screenshot mode', async ({ page }) => {
   await ready(page);
   await page.evaluate(() => { const key = Object.keys(sessionStorage).find(k => k.startsWith('imstage.agent.') && !k.includes('.guest.') && k.endsWith('.draft'))!; const value = JSON.parse(sessionStorage.getItem(key)!); value.scene.deviceProfileId = 'iphone-17-pro'; value.scene.surface = 'ios'; value.scene.messages = Array.from({ length: 25 }, (_, n) => ({ id: `long-${n}`, participantId: n % 2 ? 'me' : 'friend', type: 'text', text: `合成对话第 ${n + 1} 条，今天去美术馆看展。`, time: `10:${String(n).padStart(2, '0')}` })); sessionStorage.setItem(key, JSON.stringify(value)); });
   await page.reload();
   await page.getByRole('button', { name: '元素 25', exact: true }).click();
   await page.locator('.element-item').filter({ hasText: '合成对话第 25 条' }).click();
-  await expect(page.getByLabel('导出图片范围')).toHaveValue('full');
+  await expect(page.getByLabel('导出图片范围')).toHaveValue('standard');
   await expect(page.getByLabel('消息文字', { exact: true })).toContainText('合成对话第 25 条');
   await expect(page.getByRole('button', { name: '选择消息：合成对话第 25 条，今天去美术馆看展。', exact: true })).toBeInViewport();
 });

@@ -146,3 +146,8 @@ body:has(.agent-workspace) .nav-wrap{width:100%}
 @media(max-width:660px){.agent-render-toolbar>div{flex-wrap:wrap;justify-content:flex-end}.agent-copy{min-width:36px}.agent-render-toolbar{row-gap:6px}.agent-render-toolbar>div{flex-basis:100%;justify-content:space-between}}
 
 .device-preview-stage{position:relative;flex-shrink:0}.device-preview-stage>.device-frame{position:absolute;left:0;top:0}
+
+/* A standard screenshot behaves like a phone: only its conversation scrolls. */
+.agent-phone[data-mode=standard] .scene-messages{overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain;touch-action:pan-y;cursor:grab;user-select:none}
+.agent-phone[data-mode=standard] .scene-messages::-webkit-scrollbar{display:none}
+.agent-phone[data-mode=standard] .scene-messages[data-dragging=true],.agent-phone[data-mode=standard] .scene-messages[data-dragging=true] *{cursor:grabbing}
