@@ -18,14 +18,19 @@
 | --- | --- | --- |
 | ![微信初稿](evidence/mcp/revision-1.png) | ![微信修改时间](evidence/mcp/revision-2.png) | ![WhatsApp 修改版](evidence/mcp/revision-3.png) |
 
+## 私有安装进度
+
+- 用户确认后，已在实际 ChatGPT 设置中开启 Developer mode，并读回为 on。
+- 已创建 IMStage Personal 私有 tunnel，刷新 Platform 页面后确认只关联当前个人组织和个人 ChatGPT 工作区。账号与 tunnel 标识仅保留在本机私有配置。
+- 已生成 IMStage Tunnel Runtime 凭据，保存页面确认只有 Tunnels Read、Use 两项权限，其他能力均为 None。凭据尚未成功写入本机私有文件：TextEdit 保存连续超时，Computer Use 拒绝操作 Terminal；已将保存步骤交给用户，密钥未写入仓库或对话输出。
+
 ## 尚未完成
 
-- ChatGPT Developer mode 的启用。
-- 个人工作区私有 MCP tunnel、受限运行凭据及连接就绪。
+- 运行凭据的本机私有保存及隧道连接就绪。
 - 在 ChatGPT 创建并安装 IMStage，发现五个工具。
 - 实际 ChatGPT 对话的三轮创作、组件内追问、宿主下载验收。
 
-上述项目需要完成安装授权后继续，不能以 SDK 或模拟宿主测试替代。此分支依赖尚未合入主干的编辑器工作，不代表 GitHub `main` 或公开 Vercel 网站已经发布 MCP。
+安装已获得授权，剩余项目等待凭据安全保存后继续，不能以 SDK 或模拟宿主测试替代。此分支依赖尚未合入主干的编辑器工作，不代表 GitHub `main` 或公开 Vercel 网站已经发布 MCP。
 
 ## 运行边界
 
