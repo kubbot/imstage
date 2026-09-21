@@ -1,0 +1,42 @@
+/* Creation owns the primary working space; properties open only on demand. */
+.agent-workspace .agent-chat{width:var(--creation-width,480px);min-width:0;flex-shrink:0;border-right:0}
+.agent-workspace .agent-chat>.session-toolbar{margin:14px 18px 10px}
+.agent-workspace .agent-chat>.editor-tabs{margin:0 18px 8px;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:0 0 8px;gap:6px}
+.agent-chat>.editor-tabs button{flex:0 1 auto;padding:8px 14px;min-height:38px;font-size:13px}
+.agent-chat>.editor-tabs button[aria-pressed=true]{background:var(--surface-2);box-shadow:none}
+.agent-chat>.editor-tabs .creation-expand{margin-left:auto;flex:0 0 38px;padding:7px}
+.creation-context{margin:0 18px 6px;flex-shrink:0;border-bottom:1px solid var(--line);max-height:175px;overflow:auto;font-size:12px}
+.creation-context summary{cursor:pointer;padding:10px 2px;color:var(--muted);min-height:38px}
+.creation-context summary>span{float:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.creation-context[open] summary{color:var(--text)}
+.creation-context .agent-identity-summary{width:100%;margin:0 0 10px;font-size:12px;padding:9px 12px}
+.creation-context .agent-project{padding:0 0 12px;font-size:12px}.creation-context .agent-project select{max-width:none}
+.agent-chat .agent-transcript{padding:10px 24px 22px;scroll-padding-block:16px}
+.agent-chat .agent-turn{font-size:14px;margin:16px 0 26px;line-height:1.85}
+.agent-chat .agent-turn>span{font-size:11px;margin-bottom:9px}
+.agent-chat .agent-turn.user>p{padding:14px 16px;border-radius:12px 12px 3px 12px}
+.agent-chat .agent-tools{font-size:12px}.agent-chat .agent-tools small{font-size:11px}
+.agent-workspace .agent-chat .agent-input-dock{padding:10px 18px 12px;background:var(--surface);border-top:1px solid var(--line)}
+.agent-chat .agent-composer{padding:14px;border-radius:14px;background:var(--bg)}
+.agent-chat .agent-composer textarea{font-size:14px;min-height:100px;max-height:min(240px,28dvh);line-height:1.8;resize:vertical}
+.agent-chat .agent-composer-actions{margin-top:10px}.agent-chat .agent-composer-actions>button{width:38px;height:38px}
+.agent-chat .agent-input-dock>small{font-size:10px;margin-top:7px}.agent-chat .agent-capability{font-size:11px}
+.agent-chat .composer-scope{font-size:11px;min-height:32px}
+.agent-workspace .agent-chat .agent-welcome{padding:28px 24px 20px;min-height:0}
+.agent-chat .agent-emblem{margin-bottom:12px}.agent-chat .agent-welcome h2{font-size:26px;line-height:1.35;margin-bottom:12px}
+.agent-chat .agent-welcome>p{font-size:13px;line-height:1.85}
+.agent-chat .agent-drop-entry{padding:16px;font-size:13px;margin-block:18px}
+.agent-chat .agent-ideas{gap:8px;margin-top:18px}.agent-chat .agent-ideas button{font-size:12px;padding:11px 13px}
+.agent-chat .agent-sample-link{font-size:11px;line-height:1.8}
+.creation-divider{width:7px;flex:0 0 7px;cursor:col-resize;touch-action:none;display:flex;align-items:center;justify-content:center;position:relative;z-index:12;background:var(--surface-2);border-inline:1px solid var(--line)}
+.creation-divider>span{height:32px;width:3px;border-radius:4px;background:var(--line)}
+.creation-divider:hover>span,.creation-divider[data-moving=true]>span{background:var(--accent)}
+.creation-divider:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.agent-body:has(.creation-divider[data-moving=true]){user-select:none;cursor:col-resize}
+.agent-workspace .agent-render-toolbar{flex-wrap:wrap;min-height:54px}
+.agent-workspace .agent-error{position:static;left:auto;right:auto;max-width:none;max-height:112px;overflow:auto;margin:0;padding:9px 18px;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;flex-shrink:0;background:var(--soft);color:var(--text)}
+.agent-workspace .agent-error>button{flex-shrink:0}
+@media(min-width:1101px) and (max-width:1379px){.agent-workspace .agent-vibe{position:absolute;right:12px;top:12px;bottom:12px;width:320px;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 60px #0002;overflow:hidden}}
+@media(min-width:661px) and (max-width:1100px){.agent-workspace .agent-chat{width:clamp(300px,40vw,400px)}.creation-divider,.agent-chat>.editor-tabs .creation-expand{display:none}.agent-workspace .agent-render-toolbar{gap:4px;padding:8px}.agent-workspace .agent-render-toolbar>div{flex-wrap:wrap}.agent-chat .agent-transcript{padding-inline:18px}}
+@media(max-height:760px){.agent-chat .agent-composer textarea{min-height:76px;max-height:150px}.agent-workspace .agent-chat>.session-toolbar{margin-top:10px;margin-bottom:6px}.agent-chat .agent-turn{margin-block:12px 18px}.agent-workspace .agent-chat .agent-input-dock{padding-top:6px;padding-bottom:8px}.agent-chat .agent-capability{margin-bottom:4px}.creation-context summary{padding-block:7px;min-height:32px}}
+@media(max-width:660px){.agent-workspace .agent-chat{width:100%}.creation-divider,.agent-chat>.editor-tabs .creation-expand{display:none}.agent-workspace .agent-chat>.session-toolbar{margin:10px 16px 8px}.agent-workspace .agent-chat>.editor-tabs{margin-inline:16px;margin-bottom:4px}.creation-context{margin-inline:16px}.agent-workspace .agent-chat .agent-input-dock{padding:8px 14px 10px}.agent-chat .agent-composer{padding:12px}.agent-chat .agent-composer textarea{min-height:76px;max-height:180px}.agent-chat .agent-transcript{padding:8px 18px 16px}.agent-chat .agent-turn{font-size:14px;margin-block:12px 18px}.agent-workspace .agent-chat .agent-welcome{padding:18px}.agent-chat .agent-welcome h2{font-size:23px}.agent-chat .agent-emblem{display:none}.agent-chat .agent-ideas{margin-top:12px}.agent-chat .agent-composer-actions>button{width:40px;height:40px}}

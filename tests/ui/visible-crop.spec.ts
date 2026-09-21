@@ -27,7 +27,7 @@ test('drag at scaled zoom scrolls content, preserves chrome, suppresses selectio
 });
 
 test('PNG and clipboard match the currently visible crop; full export still contains the whole conversation',async({page,context})=>{
- await ready(page);await page.getByRole('button',{name:'关闭 AI 编辑',exact:true}).click();
+ await ready(page);await expect(page.getByRole('complementary',{name:'Vibe Edit'})).toHaveCount(0);
  const region=page.getByRole('region',{name:'聊天内容，可滚动调整截取范围'});
  const top=await png(page,'crop-top');
  await region.evaluate(el=>el.scrollTop=543);

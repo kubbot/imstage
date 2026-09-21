@@ -21,15 +21,15 @@ test('project membership recovers, detaches and keeps element editing usable on 
  await page.goto('/#/workspace?scene='+scene.id);
  await expect(page.getByLabel('当前项目')).toHaveValue(projectId);
  const save=page.getByRole('button',{name:'保存作品',exact:true});await expect(save).toBeDisabled();
- await page.getByLabel('当前项目').selectOption('');await expect(save).toBeEnabled();
+ await page.locator('.creation-context > summary').click();await page.getByLabel('当前项目').selectOption('');await expect(save).toBeEnabled();
  await page.reload();await expect(page.getByLabel('当前项目')).toHaveValue('');
  await save.click();await expect(save).toBeDisabled();
  expect((await(await page.request.get('/api/scenes/'+scene.id)).json()).item.projectIds).toEqual([]);
  await page.getByRole('button',{name:'选择消息：周末见。',exact:true}).click();
- await expect(page.getByText('元素与外观',{exact:true})).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'消息文字',exact:true})).toBeVisible();
  await page.getByRole('textbox',{name:'消息文字',exact:true}).fill('可以自由编辑');
  await page.getByLabel('选中元素',{exact:true}).selectOption('@scene');
- await page.getByLabel('聊天背景',{exact:true}).fill('#cbded3');
+ await page.getByLabel('背景颜色',{exact:true}).fill('#cbded3');
  await page.getByLabel('会话标题',{exact:true}).fill('周末见面');
  await page.getByRole('button',{name:'关闭 AI 编辑'}).click();
  await expect(page.locator('.agent-phone')).toContainText('可以自由编辑');
