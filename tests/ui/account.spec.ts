@@ -13,9 +13,16 @@ async function register(page: Page) {
   return email;
 }
 async function createWork(page: Page) {
+  await page.route('**/api/agent/run', async route => {
+    const input = route.request().postDataJSON();
+    const scene = { ...input.scene, messages: [{id:'m-test', participantId:input.scene.selfId, type:'text',text:'今天的日落很好看。',time:'09:41'}] };
+    await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene},{type:'assistant',text:'已生成。'},{type:'done'}].map(v=>JSON.stringify(v)).join('\n')+'\n'});
+  });
   await page.getByRole('link', { name: '新建对话', exact: true }).click();
-  await page.getByRole('textbox', { name: '添加一条台词', exact: true }).fill('今天的日落很好看。');
-  await page.getByRole('button', { name: '添加这条台词', exact: true }).click();
+  await page.getByRole('textbox', { name: '描述想生成的聊天', exact: true }).fill('今天的日落很好看。');
+  await page.getByRole('button', { name: '开始生成', exact: true }).click();
+  await expect(page.locator('.agent-phone')).toContainText('今天的日落很好看。');
+  await expect(page.getByRole('button',{name:'开始生成',exact:true})).toBeDisabled();
   await page.getByRole('button', { name: '保存作品', exact: true }).click();
   await expect(page).toHaveURL(/scene=[0-9a-f-]{36}/);
   await expect(page.getByText('已保存到账号 ·', { exact: false })).toBeVisible();
@@ -28,7 +35,7 @@ test('real registration, save, reopen, logout and password login', async ({ page
   await page.getByRole('link', { name: '← 我的作品', exact: true }).click();
   await expect(page.getByRole('link', { name: '编辑 新的对话' })).toBeVisible();
   await page.getByRole('link', { name: '编辑 新的对话' }).click();
-  await expect(page.locator('.studio-canvas .scene-view')).toContainText('今天的日落很好看。');
+  await expect(page.locator('.agent-phone .scene-view')).toContainText('今天的日落很好看。');
   await page.goto('/#/account');
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
   await expect(page).toHaveURL(/#\/login/);
@@ -42,7 +49,7 @@ test('real registration, save, reopen, logout and password login', async ({ page
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page).toHaveURL(savedURL);
-  await expect(page.locator('.studio-canvas .scene-view')).toContainText('今天的日落很好看。');
+  await expect(page.locator('.agent-phone .scene-view')).toContainText('今天的日落很好看。');
 });
 
 test('guest draft survives login and is only imported by explicit save', async ({ page }) => {
@@ -65,12 +72,15 @@ test('guest draft survives login and is only imported by explicit save', async (
 test('unsaved account editing recovers on same-tab navigation, never writes guest draft', async ({ page }) => {
   await register(page); await createWork(page);
   const savedURL = page.url();
-  await page.getByRole('textbox', { name: '文本内容', exact: true }).fill('还没保存，但可以恢复');
+  await page.locator('.agent-phone .scene-selectable').first().click();
+  await page.getByText('手动微调文字', {exact:true}).click();
+  await page.getByRole('textbox', { name: '选中消息文字', exact: true }).fill('还没保存，但可以恢复');
   await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).some(k => k.startsWith('imstage.account.')))).toBe(true);
   expect(await page.evaluate(() => localStorage.getItem('imstage.studio.draft.v1'))).toBeNull();
   await page.getByRole('link', { name: '← 我的作品', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
   await page.goto(savedURL);
-  await expect(page.locator('.studio-canvas .scene-view')).toContainText('还没保存，但可以恢复');
+  await expect(page.locator('.agent-phone .scene-view')).toContainText('还没保存，但可以恢复');
   await expect(page.getByRole('status').filter({hasText:'已恢复此标签页'})).toBeVisible();
   page.on('dialog', dialog => dialog.accept());
 });
@@ -81,12 +91,14 @@ test('stale revision preserves edits and can save a separate copy', async ({ pag
   const result = await (await page.request.get(`/api/scenes/${id}`)).json();
   const origin = new URL(page.url()).origin;
   await page.request.put(`/api/scenes/${id}`, { headers: { Origin: origin, 'X-IMStage-Request': '1' }, data: { scene: { ...result.item.scene, title: '另一个窗口的标题' }, revision: result.item.revision } });
-  await page.getByRole('textbox', { name: '文本内容', exact: true }).fill('保留当前修改');
+  await page.locator('.agent-phone .scene-selectable').first().click();
+  await page.getByText('手动微调文字', {exact:true}).click();
+  await page.getByRole('textbox', { name: '选中消息文字', exact: true }).fill('保留当前修改');
   await page.getByRole('button', { name: '保存作品', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('版本已经改变');
   await page.getByRole('button', { name: '另存为新作品' }).click();
   await expect(page).not.toHaveURL(new RegExp(`scene=${id}`));
-  await expect(page.locator('.studio-canvas .scene-view')).toContainText('保留当前修改');
+  await expect(page.locator('.agent-phone .scene-view')).toContainText('保留当前修改');
   expect((await (await page.request.get('/api/scenes')).json()).items).toHaveLength(2);
 });
 

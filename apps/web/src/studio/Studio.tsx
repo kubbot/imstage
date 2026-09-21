@@ -863,7 +863,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
               </div>
             ) : null}
             <p className="studio-hint">
-              自然语言生成与截图识别尚未接入；现在可以直接编辑示例。
+              这是手动编辑器。自然语言和截图创作请进入 Agent 创作台。
             </p>
             <button className="studio-btn studio-btn-primary studio-btn-block" type="button" onClick={addComposerMessage} disabled={exporting}>
               <IconPlus size={16} stroke={1.8} />

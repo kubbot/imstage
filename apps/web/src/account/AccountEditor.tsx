@@ -4,8 +4,8 @@ import { useAuth } from './Auth';
 import { api, ApiError, errorText, loginLink, type SavedScene } from './api';
 import { setNavigationGuard } from './navigation';
 import { createScene, validateScene, type Scene } from '../studio/model';
-const Studio = lazy(() => import('../studio/Studio'));
-export function AccountSave({ scene }: { scene: Scene }) {
+const Studio = lazy(() => import('../agent/AgentStudio'));
+export function AccountSave({ scene, disabled = false }: { scene: Scene; disabled?: boolean }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -18,7 +18,7 @@ export function AccountSave({ scene }: { scene: Scene }) {
     try { const data = await api<{ item: SavedScene }>(`/scenes/${id.current}`, { method: 'PUT', body: { scene: { ...scene, id: id.current }, revision } }); setRevision(data.item.revision); snapshot.current = raw; setStatus('已保存到我的作品'); }
     catch (error) { setStatus(errorText(error)); } finally { setBusy(false); }
   }
-  return <div className="account-save"><button className="studio-btn" onClick={save} disabled={busy || snapshot.current === JSON.stringify(scene)}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存到我的作品'}</button>{status && <span className="account-save-message" role="status">{status} {revision > 0 && <a href={`#/workspace?scene=${id.current}`}>打开作品 →</a>}</span>}</div>;
+  return <div className="account-save"><button className="studio-btn" onClick={save} disabled={disabled || busy || snapshot.current === JSON.stringify(scene)}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存到我的作品'}</button>{status && <span className="account-save-message" role="status">{status} {revision > 0 && <a href={`#/workspace?scene=${id.current}`}>打开作品 →</a>}</span>}</div>;
 }
 export default function AccountEditor({ sceneId }: { sceneId: string }) {
   const { user } = useAuth();
@@ -27,7 +27,7 @@ export default function AccountEditor({ sceneId }: { sceneId: string }) {
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setError(''); setItem(null);
-    if (sceneId === 'new') { setItem({ id: crypto.randomUUID(), revision: 0, updatedAt: '', scene: { ...createScene(), title: '新的对话', messages: [] } }); return; }
+    if (sceneId === 'new') { const id = crypto.randomUUID(); setItem({ id, revision: 0, updatedAt: '', scene: { ...createScene(), id, title: '新的对话', selfId: 'me', participants: [{id:'me',name:'我'},{id:'other',name:'对方'}], messages: [] } }); return; }
     api<{ item: SavedScene }>(`/scenes/${encodeURIComponent(sceneId)}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setItem(data.item); }).catch(error => { if (!controller.signal.aborted) setError(errorText(error)); });
     return () => controller.abort();
   }, [sceneId, retry]);
@@ -52,6 +52,8 @@ function EditorSession({ item, userId, draftId }: { item: SavedScene; userId: st
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(initial.recovered ? '已恢复此标签页未保存的内容，请确认后保存。' : '');
   const [conflict, setConflict] = useState(false);
+  const [agentBusy, setAgentBusy] = useState(false);
+  const [agentStorageError, setAgentStorageError] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -63,11 +65,11 @@ function EditorSession({ item, userId, draftId }: { item: SavedScene; userId: st
   }, [scene, revision, id, dirty, draftKey]);
   useEffect(() => { const warn = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
   useEffect(() => {
-    if (!dirty || !storageError) return;
+    if ((!dirty || !storageError) && !agentStorageError) return;
     return setNavigationGuard(() => window.confirm('当前修改尚未保存，浏览器也无法保存恢复副本。离开会丢失这些修改，确定离开？'));
-  }, [dirty, storageError]);
+  }, [dirty, storageError, agentStorageError]);
   async function save(copy = false) {
-    if (busy) return; setBusy(true); setStatus('');
+    if (busy || agentBusy) return; setBusy(true); setStatus('');
     const sent = liveScene.current; const raw = JSON.stringify(sent); const target = copy ? crypto.randomUUID() : id;
     try {
       const result = await api<{ item: SavedScene }>(`/scenes/${target}`, { method: 'PUT', body: { scene: { ...sent, id: target }, revision: copy ? 0 : revision } });
@@ -77,8 +79,8 @@ function EditorSession({ item, userId, draftId }: { item: SavedScene; userId: st
     } catch (error) { if (!active.current) return; setStatus(errorText(error)); setConflict(error instanceof ApiError && error.status === 409); }
     finally { if (active.current) setBusy(false); }
   }
-  return <><div className="account-editor-bar"><a href="#/workspace">← 我的作品</a><p>{dirty ? '有未保存的修改' : '已保存到账号'} · {storageError ? '无法保存恢复副本，请先保存作品或导出 JSON' : '未保存的内容可在此标签页恢复'}</p></div>
-    {conflict && <div className="account-error account-editor-error" role="alert">服务端的版本已经改变，当前修改仍保留。可以下载场景 JSON，或另存一份作品。<button disabled={busy} onClick={() => save(true)}>另存为新作品</button></div>}
-    <Suspense fallback={<p className="page-loading" role="status">正在准备编辑器…</p>}><Studio initialScene={initial.scene} persistLocal={false} onSceneChange={setScene} accountAction={() => <div className="account-save"><button className="studio-btn" disabled={busy || !dirty} onClick={() => save()}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存作品'}</button>{status && <span className="account-save-message" role="status">{status}</span>}</div>} /></Suspense>
+  return <><div className="account-editor-bar"><a href="#/workspace">← 我的作品</a><p>{dirty ? '有未保存的修改' : '已保存到账号'} · {storageError || agentStorageError ? '无法保存恢复副本，请先保存作品或导出 JSON' : '未保存的内容可在此标签页恢复'}</p></div>
+    {conflict && <div className="account-error account-editor-error" role="alert">服务端的版本已经改变，当前修改仍保留。可以下载场景 JSON，或另存一份作品。<button disabled={busy || agentBusy} onClick={() => save(true)}>另存为新作品</button></div>}
+    <Suspense fallback={<p className="page-loading" role="status">正在准备编辑器…</p>}><Studio initialScene={initial.scene} persistLocal={false} disabled={busy} onBusyChange={setAgentBusy} onStorageError={setAgentStorageError} onSceneChange={setScene} accountAction={(_, locked) => <div className="account-save"><button className="studio-btn" disabled={busy || locked || !dirty} onClick={() => save()}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存作品'}</button>{status && <span className="account-save-message" role="status">{status}</span>}</div>} /></Suspense>
   </>;
 }

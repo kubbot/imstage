@@ -1,0 +1,191 @@
+# IMStage Agent service
+
+Bounded, server-side DeepSeek tool-calling backend for the prompt-first studio.
+It is deliberately **separate from the frontend**: it owns provider calls, tool
+execution, scene invariants and the NDJSON event stream, while the UI owns
+rendering and presentation.
+
+Scope boundary: real AI-assisted scene creation/editing only. No arbitrary
+URLs, no shell, no network tool, no browser access, no image downloads.
+
+## Endpoints
+
+### `GET /api/agent/capabilities`
+
+Public, non-secret status. No session, no mutation headers.
+
+```json
+{ "configured": true, "model": "deepseek-flash", "imageConfigured": false }
+```
+
+`configured` means a DeepSeek-compatible chat key + base URL resolved;
+`imageConfigured` means an explicit OpenAI-compatible images key/base/model
+resolved. The response never contains a key, base URL or token.
+
+### `POST /api/agent/run`
+
+Protected by the existing `guardMutation` (exact `Origin` +
+`X-IMStage-Request: 1`), `requireSession` and a post-body `recheckSession`.
+Errors before streaming (auth, CSRF, validation, limits, unconfigured AI) are
+regular JSON `{error:{code,message}}`. A successful request returns
+`200 application/x-ndjson; charset=utf-8` and one JSON object per line.
+
+Request body:
+
+```jsonc
+{
+  "prompt": "把最后一句改得更轻松一点",        // 1..4000 chars
+  "scene": { /* canonical Scene from apps/web/src/studio/model.ts */ },
+  "targetId": "m-4",                          // optional: targeted-edit one message
+  "attachments": ["data:image/png;base64,..."], // optional, max 3, <=6MB each, png/jpeg/webp
+  "history": [{ "role": "user", "content": "..." }] // optional, max 12, <=4000 chars each
+}
+```
+
+NDJSON event union (exactly these records, one per line):
+
+```jsonc
+{ "type": "scene", "scene": { /* validated Scene */ } }
+{ "type": "tool", "id": "call_1", "name": "upsert_message", "state": "running", "detail": "正在更新消息…" }
+{ "type": "assistant", "text": "已按要求修改。" }
+{ "type": "done" }
+{ "type": "error", "message": "AI 服务暂时不可用，请稍后重试。" }
+```
+
+`done` is only emitted after at least one real, validated scene mutation. A run
+that only narrates (no tool call), whose tool calls all fail, or whose final
+provider turn reports an incomplete/refused finish reason (`length`,
+`content_filter`, `insufficient_system_resource`, `aborted`) ends with `error`,
+never with `done`. An incomplete turn is rejected before any of its tool calls
+are applied. Streams abort on client disconnect and on a 120 s wall deadline;
+the deadline also aborts pending socket writes, so a non-reading client cannot
+pin a run or its concurrency lease — the socket is finished/destroyed boundedly.
+
+## Tools
+
+| Tool | Arguments | Effect |
+| --- | --- | --- |
+| `create_scene` | `{scene}` | Replace the whole scene from a full Scene object. |
+| `upsert_message` | `{message}` | Insert or update one message by `id`. |
+| `delete_message` | `{id}` | Delete one message. |
+| `generate_image` | `{targetId, kind:"message"\|"avatar", prompt}` | Generate a real image for a message or participant avatar. |
+
+Rules enforced after every mutation:
+
+- the candidate is passed through the shared canonical `validateScene`;
+- `scene.id` is always preserved (a model-supplied id is ignored);
+- `create_scene`/`upsert_message` strip any model-supplied `asset`/`avatar`
+  (models never return base64); existing assets are re-attached server-side by
+  message/participant id;
+- a mutation that changes nothing is reported as a failed tool result;
+- `generate_image` with `kind:"message"` requires the target message to already
+  have `type:"image"` (a text/location target gets a corrective tool error
+  telling the model to `upsert_message` it to `type:"image"` first), so no paid
+  image call is made for a message the renderer would ignore;
+- on a **targeted** run (`targetId` present) only that message may change:
+  `create_scene`, `delete_message`, avatar generation, scene metadata changes,
+  participant changes and edits to any other message all fail.
+
+The model only ever sees a compact scene context in which existing images and
+avatars are replaced by `<已有图片…>` / `<已有头像…>` markers. The context is
+built in O(n) with a single pass/id-serialization and a bounded join (no
+repeated slice + stringify); when it must be truncated, the `targetId` message
+is always preserved even if it is early in a long scene. User-provided
+`attachments` are the only base64 that reaches the provider and are framed as
+untrusted data.
+
+## Provider
+
+- Chat: native `fetch` to `{IMSTAGE_AI_BASE_URL}/chat/completions` (default
+  `https://api.deepseek.com/chat/completions`), default model `deepseek-flash`,
+  `stream:false`, `thinking:{type:"disabled"}`, `tool_choice:"auto"`, function
+  tools. The loop appends the assistant `tool_calls` message and a
+  `{role:"tool", tool_call_id, content}` result for every call, then calls the
+  model again until it returns a final assistant message.
+- The production client fails closed on `finish_reason`: only `stop` and
+  `tool_calls` are accepted; `length`/`content_filter`/
+  `insufficient_system_resource`/`aborted`, a missing value or an unknown value
+  raise a bounded Chinese error (the raw value is never echoed). Injected test
+  providers may omit `finishReason`, in which case the run loop still rejects
+  any non-accepted string it is given.
+- Upstream error bodies are never surfaced to clients: provider errors are
+  built from the HTTP status only, so a proxy cannot echo a credential through
+  an error detail.
+- The loop is bounded to **8 rounds**, **24 tool calls** and a **120 s** wall
+  deadline; the chat/image responses are read with a byte cap; client abort is
+  propagated to `fetch`.
+- Image: native `fetch` to `{IMSTAGE_IMAGE_BASE_URL}/images/generations` with
+  `response_format:"b64_json"`. The returned base64 is decoded only to sniff the
+  raster mime type; nothing is downloaded and there is no fake fallback. Missing
+  image configuration yields a failed tool result + `tool` error event while
+  text generation keeps working.
+
+## Environment (server-only)
+
+| Setting | Env var | Default |
+| --- | --- | --- |
+| Chat key | `IMSTAGE_AI_API_KEY` or `DEEPSEEK_API_KEY` | — |
+| Chat base URL | `IMSTAGE_AI_BASE_URL` | `https://api.deepseek.com` |
+| Chat model | `IMSTAGE_AI_MODEL` | `deepseek-flash` |
+| Image key | `IMSTAGE_IMAGE_API_KEY` | — |
+| Image base URL | `IMSTAGE_IMAGE_BASE_URL` | — |
+| Image model | `IMSTAGE_IMAGE_MODEL` | — |
+
+A non-http(s) base URL degrades to "not configured" instead of ever producing an
+arbitrary outbound request. Keys are read from the process environment only and
+are never echoed in events, tool results or the capability response.
+
+## Limits
+
+Scene resource limits (applied to the incoming scene **and** every proposed
+mutation; violations of the incoming scene are a `400 invalid_scene` before any
+model context is built, mutations get a corrective tool error):
+
+- messages: **200**; participants: **20**;
+- message text: **4000** chars; ids: **128**; participant name: **120**;
+- date: **80**; deviceTime: **20**; title/watermark: **200**.
+
+Run limits:
+
+- Global concurrent runs: 4 (default).
+- Per-user concurrent runs: 1 (default).
+- Per-user rate: 20 runs / 10 min (default), bounded windows.
+- Whole-run wall deadline: 120 s (default). It covers the first emit, every
+  backpressure wait and the provider calls; on expiry all pending writes abort,
+  the socket is finished/destroyed after a short bounded delay and the active
+  lease is released.
+- Request body cap: 40 MiB (16 MiB scene + 3 × 6 MiB attachments + history).
+  Prompt, attachments, history and scene are all bounded. Exceeding a limit
+  returns `429` with `Retry-After` before streaming.
+
+## Tests
+
+```bash
+node --test tests/agent.test.mjs tests/agent-api.test.mjs
+```
+
+Both suites inject fake providers/fetch — **no network call and no credential**
+is used. They cover: genuine multi-round tool sequences, invalid-tool
+feedback/recovery, no-op-is-not-success, incomplete/refused/unknown provider
+finish reasons (provider-level and run-level), selected-only invariants,
+id/asset preservation, image targets that must be `type:"image"`, batch abort
+(is rethrow + no later mutation/emit), disabled-image failure, image success,
+scene resource limits on input and mutations, O(n) bounded context with the
+target preserved under truncation, bounds, abort/timeout, round/call caps, the
+NDJSON wire format, provider request/response shape and error-message
+sanitisation, abortable NDJSON backpressure writes with bounded socket
+finish/destroy, per-user/global active limits, bounded rate limiting, auth
+denial and admitted NDJSON, and lease cleanup on finish/disconnect.
+
+## Limitations
+
+- Streaming from the model is not used (`stream:false`); events are emitted per
+  completed turn/tool, not token-by-token.
+- Thinking mode is intentionally disabled; `reasoning_content` is not handled.
+- Image generation only accepts `b64_json`; remote image URLs are rejected.
+- The server runs agent runs in-process; long runs occupy a Node request
+  handler until completion or the 120 s deadline.
+- Not a managed cloud service: no billing, quotas, persistence of run history or
+  cross-instance coordination (limits are process-local).
+
+Generated image tools additionally require actual PNG/JPEG/WebP decoding through sharp, with a 16-megapixel limit. Invalid/truncated image bytes never produce a successful tool result. Combined scene assets are capped at 12 MiB of data URL characters. The same check runs after each mutation.

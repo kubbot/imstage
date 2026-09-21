@@ -4,8 +4,7 @@ Local / self-hosted backend for IMStage accounts and owned scenes.
 
 `services/api/server.mjs` implements the real backend only: registration, login,
 logout, password change, opaque server-side sessions, and per-user scene
-persistence. It is built entirely on Node's standard library — `node:http`,
-`node:crypto`, `node:sqlite`, `node:fs` — with **no new dependencies**.
+persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
 
 ## What this is (and is not)
 
@@ -14,8 +13,7 @@ persistence. It is built entirely on Node's standard library — `node:http`,
   no way to recover an account through this server; document that to users.
 - Not a Vercel/serverless backend. It is a long-lived Node process with a local
   SQLite file storing both accounts and sessions. Rate-limit counters are process-local.
-- The AI/MCP, billing, quota and key features promised in the product brief are
-  **not** implemented here.
+- DeepSeek Agent creation/editing is implemented under `/api/agent/run`; see [Agent service](../agent/README.md). Image generation requires separate provider configuration. MCP, billing and hosted API keys remain unimplemented.
 - The Web UI is integrated with these endpoints. Run `npm run dev` for both development servers, or `npm run build && npm start` for the unified app.
 
 Requires **Node >= 22.18** (native TypeScript type stripping is used to import

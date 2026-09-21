@@ -25,6 +25,16 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
+import {
+  AGENT_BODY_LIMIT,
+  createAgentLimiter,
+  createAgentRuntime,
+  resolveAgentConfig,
+  serializeAgentEvent,
+  validateAgentInput,
+  writeNdjsonLine,
+  finishNdjsonResponse,
+} from '../agent/index.mjs';
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -64,6 +74,7 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 const AUTH_DEADLINE_MS = 15_000;
 const SCENE_DEADLINE_MS = 30_000;
+const AGENT_READ_DEADLINE_MS = 30_000;
 
 const API_SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
@@ -1079,6 +1090,85 @@ async function handleSceneDelete(ctx, req, res, sceneId) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Agent routes                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Stream a bounded tool-calling agent run as NDJSON.
+ *
+ * The response is only switched to NDJSON after auth, CSRF, input validation
+ * and the concurrency/rate leases have all succeeded, so early failures stay
+ * regular JSON errors. The lease is always released (finish, error or client
+ * disconnect) and the in-flight provider call is cancelled on disconnect.
+ */
+async function handleAgentRun(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AGENT_BODY_LIMIT, AGENT_READ_DEADLINE_MS);
+  // The session may have been revoked or replaced while the body was read.
+  recheckSession(ctx, req, session);
+
+  const validation = validateAgentInput(body);
+  if (!validation.ok) {
+    throw new HttpError(400, validation.code, validation.message);
+  }
+  const input = validation.value;
+
+  const runtime = ctx.agent.runtime;
+  if (!runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务尚未配置，无法运行 Agent');
+  }
+
+  const lease = ctx.agent.limiter.tryStart(session.user.id, ctx.nowMs());
+  if (!lease.ok) throw rateLimitedError(lease.retryAfterMs);
+
+  const controller = new AbortController();
+  const onClientClose = () => controller.abort();
+  res.on('close', onClientClose);
+
+  // Absolute whole-run deadline: registered before the run starts so it also
+  // bounds the very first emit and every backpressure wait. On expiry every
+  // pending write wait aborts, the socket is finished/destroyed boundedly and
+  // the active lease is always released below.
+  const deadlineMs = ctx.agent.config.deadlineMs;
+  const deadlineMessage = `生成超过 ${Math.max(1, Math.ceil(deadlineMs / 1000))} 秒上限，已停止。`;
+  let deadlineHit = false;
+  const deadlineTimer = setTimeout(() => {
+    deadlineHit = true;
+    controller.abort();
+  }, deadlineMs);
+
+  try {
+    res.writeHead(200, {
+      ...API_SECURITY_HEADERS,
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+    });
+
+    const writeEvent = (event) =>
+      writeNdjsonLine(res, serializeAgentEvent(event), controller.signal, { deadlineMessage });
+
+    await runtime.run({
+      ...input,
+      signal: controller.signal,
+      onEvent: writeEvent,
+      userId: session.user.id,
+    });
+  } finally {
+    clearTimeout(deadlineTimer);
+    res.off('close', onClientClose);
+    lease.release();
+    finishNdjsonResponse(res, {
+      deadlineHit,
+      timeoutLine: deadlineHit
+        ? serializeAgentEvent({ type: 'error', message: deadlineMessage })
+        : undefined,
+      destroyDelayMs: 500,
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Static file serving (built web app)                                 */
 /* ------------------------------------------------------------------ */
 
@@ -1241,6 +1331,19 @@ async function route(ctx, req, res) {
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
   }
 
+  if (pathname === '/api/agent/capabilities') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    // Public, non-secret status so the UI can explain whether AI is configured.
+    sendJson(req, res, 200, ctx.agent.runtime.capabilities);
+    return;
+  }
+
+  if (pathname === '/api/agent/run') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleAgentRun(ctx, req, res);
+    return;
+  }
+
   if (pathname === '/api' || pathname.startsWith('/api/')) {
     // Unknown API endpoints are never served as SPA fallback.
     throw new HttpError(404, 'not_found', '接口不存在');
@@ -1349,7 +1452,21 @@ export function createApp(options = {}) {
     email: new FixedWindowLimiter(config.rateLimit.email),
     user: new FixedWindowLimiter(config.rateLimit.user),
   };
-  const ctx = { config, db, semaphore, limiters, nowMs: config.nowMs, logger: config.logger };
+  const agentConfig = resolveAgentConfig(options.env ?? process.env, options.agent ?? {});
+  const agentRuntime = createAgentRuntime(agentConfig, {
+    ...(options.agent ?? {}),
+    logger: config.logger,
+  });
+  const agentLimiter = createAgentLimiter(agentConfig.limits);
+  const ctx = {
+    config,
+    db,
+    semaphore,
+    limiters,
+    nowMs: config.nowMs,
+    logger: config.logger,
+    agent: { config: agentConfig, runtime: agentRuntime, limiter: agentLimiter },
+  };
 
   const server = http.createServer((req, res) => {
     route(ctx, req, res).catch((err) => {

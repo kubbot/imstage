@@ -37,9 +37,9 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 }
 export function errorText(error: unknown) { return error instanceof Error ? error.message : '操作未完成，请重试。'; }
 export function safeNext(value: string | null) {
-  return value && /^\/(workspace|account|studio)(\?[^#]*)?$/.test(value) ? value : '/workspace';
+  return value && /^\/(workspace|account|studio|create)(\?[^#]*)?$/.test(value) ? value : '/workspace';
 }
 export function loginLink(next = '/workspace') { return `#/login?next=${encodeURIComponent(safeNext(next))}`; }
 export function clearAccountDrafts(userId: string) {
-  try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(`imstage.account.${userId}.`)) sessionStorage.removeItem(key); } catch { /* memory state is cleared by route unmount */ }
+  try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(`imstage.account.${userId}.`) || key.startsWith(`imstage.agent.${userId}.`)) sessionStorage.removeItem(key); } catch { /* memory state is cleared by route unmount */ }
 }
