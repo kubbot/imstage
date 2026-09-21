@@ -127,6 +127,15 @@ function headerTitle(scene: Scene): string {
  */
 export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement }: SceneViewProps) {
   const selectable = typeof onSelect === 'function' && !exportMode;
+  const elementProps = (label: string) => onSelectElement && !exportMode ? {
+    role: 'button' as const, tabIndex: 0, 'aria-label': label, 'data-editor-selectable': true,
+    onClick: () => onSelectElement('@scene'),
+    onKeyDown: (event: React.KeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectElement('@scene'); } },
+  } : {};
+  const Bubble = selectable ? 'button' : 'div';
+  function avatar(participant: Participant | undefined) {
+    return onSelectElement && !exportMode && participant ? <button type="button" className="scene-avatar-select" aria-label={`编辑 ${participant.name} 的头像`} aria-pressed={selectedId === `@participant:${participant.id}`} onClick={() => onSelectElement(`@participant:${participant.id}`)}><Avatar participant={participant}/></button> : <Avatar participant={participant}/>;
+  }
   const participantMap = new Map(scene.participants.map((participant) => [participant.id, participant]));
   const title = headerTitle(scene);
   const group = scene.participants.length > 2;
@@ -137,7 +146,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
 
   return (
     <div className="scene-view" data-platform={scene.platform} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
-      <div className="scene-status" data-element="@scene" onClick={() => onSelectElement?.("@scene")}>
+      <div className="scene-status" data-element="@scene" {...elementProps("编辑设备状态")}>
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
           <span className="scene-signal" aria-hidden="true"><i/><i/><i/><i/></span>
@@ -147,18 +156,18 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         </span>
       </div>
 
-      <div className="scene-header" onClick={() => onSelectElement?.("@scene")}>
+      <div className="scene-header">
         <IconChevronLeft size={22} stroke={2} aria-hidden="true" className="scene-header-back" />
         {template.headerAvatar && (onSelectElement && !exportMode ? <button type="button" className="scene-profile-select" aria-label={`编辑 ${other?.name || "联系人"} 的头像`} onClick={event=>{event.stopPropagation();if(other)onSelectElement(`@participant:${other.id}`);}}><Avatar participant={other}/></button> : <Avatar participant={other}/>)}
-        <div className="scene-header-title">
+        <div className="scene-header-title" {...elementProps("编辑会话标题")}>
           <span className="scene-header-name">{title}</span>
           {group ? <span className="scene-header-sub">{scene.participants.length} 人</span> : template.headerAvatar ? <span className="scene-header-sub">{scene.platform === 'whatsapp' ? 'tap for contact info' : other?.name}</span> : null}
         </div>
         {template.headerAvatar ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
       </div>
 
-      <div className="scene-messages" style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
-        {scene.date && <div className="scene-date">{scene.date}</div>}
+      <div className="scene-messages" onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
+        {scene.date && <div className="scene-date" {...elementProps("编辑日期文字")}>{scene.date}</div>}
         {scene.messages.length === 0 ? <div className="scene-empty">还没有消息</div> : null}
         {scene.messages.map((message, index) => {
           const previous = scene.messages[index - 1];
@@ -177,50 +186,32 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
             <div className={rowClass} data-message-id={message.id}>
               {!template.inlineTime && showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
               <div className="scene-line">
-                {!isSelf && showAvatar(false) && message.type !== 'system' ? <span onClick={event => { if (onSelectElement) { event.stopPropagation(); onSelectElement(`@participant:${participant?.id}`); } }}><Avatar participant={participant} /></span> : null}
-                <div className="scene-bubble-wrap" style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
+                {!isSelf && showAvatar(false) && message.type !== 'system' ? avatar(participant) : null}
+                <Bubble type={selectable ? "button" : undefined} className={`scene-bubble-wrap${selectable ? ' scene-message-select' : ''}`} aria-label={selectable ? `选择消息：${message.text || message.type}` : undefined} aria-pressed={selectable ? selectedId === message.id : undefined} onClick={selectable ? () => onSelect?.(message.id) : undefined} style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
                   {!isSelf && message.type !== 'system' && group ? (
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
                   {message.quote && <div className="scene-quote">{message.quote}</div>}
                   <MessageBody message={message} pending={pendingAssets} />
                   {template.inlineTime && message.type !== 'system' && <div className="scene-message-meta"><span>{message.time}</span>{isSelf && <IconChecks size={16} stroke={1.7} aria-label="已读"/>}</div>}
-                </div>
-                {isSelf && showAvatar(true) ? <span onClick={event => { if (onSelectElement) { event.stopPropagation(); onSelectElement(`@participant:${participant?.id}`); } }}><Avatar participant={participant} /></span> : null}
+                </Bubble>
+                {isSelf && showAvatar(true) ? avatar(participant) : null}
               </div>
             </div>
           );
 
-          if (!selectable) {
-            return (
-              <div className="scene-row-host" key={message.id}>
-                {row}
-              </div>
-            );
-          }
-          return (
-            <button
-              className={`scene-row-host scene-selectable${selectedId === message.id ? ' is-selected' : ''}`}
-              key={message.id}
-              type="button"
-              aria-pressed={selectedId === message.id}
-              aria-label={`选择消息：${message.text || message.type}`}
-              onClick={() => onSelect?.(message.id)}
-            >
-              {row}
-            </button>
-          );
+          return <div className={`scene-row-host${selectable ? ' scene-selectable' : ''}${selectable && selectedId === message.id ? ' is-selected' : ''}`} key={message.id} onClick={selectable ? event => { if (!(event.target as HTMLElement).closest('button')) onSelect?.(message.id); } : undefined}>{row}</div>;
         })}
       </div>
 
-      {profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" onClick={()=>onSelectElement?.('@scene')}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send">发送</span></div> : <div className="scene-composer" onClick={() => onSelectElement?.("@scene")}>
+      {profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" {...elementProps("编辑输入栏")}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send" aria-hidden="true">发送</span></div> : <div className="scene-composer" {...elementProps("编辑输入栏")}>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M11 9q4 4 0 8M14 7q6 6 0 12M8 11q2 2 0 4"/></svg> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-field">{scene.composerText ?? (template.composer === 'instagram' ? 'Message…' : '')}</span>
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M7 13h12M13 7v12"/></svg> : <IconPlus size={25} stroke={1.6}/>}</span>
       </div>}
 
-      {scene.watermark ? <div className="scene-watermark">{scene.watermark}</div> : null}
+      {scene.watermark ? <div className="scene-watermark" {...elementProps("编辑水印")}>{scene.watermark}</div> : null}
     </div>
   );
 }

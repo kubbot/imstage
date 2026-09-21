@@ -24,6 +24,7 @@ test('Agent creation, scoped Vibe Edit, undo and PNG export share the rendered s
   await ready(page); await generate(page);
   await page.getByRole('button',{name:'选择消息：周末一起去看展吗？',exact:true}).click();
   await expect(page.getByRole('complementary',{name:'Vibe Edit'})).toBeVisible();
+  await page.getByRole('button',{name:'AI 修改',exact:true}).click();
   const request = page.waitForRequest('**/api/agent/run');
   await page.getByLabel('描述想怎样修改').fill('周末要不要一起去逛展？');
   await page.getByRole('button',{name:'发送修改',exact:true}).click();
@@ -68,6 +69,7 @@ for(const theme of ['light','dark'] as const) test(`Agent responsive and accessi
     if(width===390) await page.getByRole('button',{name:/渲染画面/}).click();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
     await page.getByRole('button',{name:'选择消息：周末一起去看展吗？',exact:true}).click();
+    await page.getByRole('button',{name:'AI 修改',exact:true}).click();
     await expect(page.getByLabel('描述想怎样修改')).toBeVisible();
     const axe = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();
     expect(axe.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
