@@ -37,7 +37,7 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
-  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,background,appearance,headerText,composerText,battery,title,date,deviceTime,platform；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,deviceTime,platform；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
@@ -168,12 +168,19 @@ function applyCreateScene(args, context) {
   if (context.targetId) return fail(context, '定向编辑不允许替换整个场景');
   if (!isPlainObject(args?.scene)) return fail(context, '参数 scene 必须是对象');
   const stripped = stripSceneAssets(args.scene);
+  // A model-generated scene must not silently discard the selected output device.
+  if(context.scene.deviceProfileId) { stripped.deviceProfileId=context.scene.deviceProfileId;stripped.surface=context.scene.surface; }
   const validation = validateScene(stripped);
   if (!validation.ok || !validation.scene) {
     const errors = validation.errors.slice(0, 3).join('；');
     return fail(context, `场景数据无效：${errors || '数据无效'}`);
   }
   const preserved = preserveAssetsById(validation.scene, context.scene);
+  preserved.participants=preserved.participants.map(p=>{
+    if(p.avatar)return p;
+    const matches=context.scene.participants.filter(old=>old.name===p.name && (old.id===context.scene.selfId)===(p.id===preserved.selfId));
+    return matches.length===1&&matches[0].avatar?{...p,avatar:matches[0].avatar}:p;
+  });
   return buildCandidate(context, preserved, '场景已重建');
 }
 
@@ -322,7 +329,7 @@ export async function executeTool(name, args, context) {
       const target = resolveTarget(ctx.scene,args.targetId);
       if (!target || target.kind === 'message' || !isPlainObject(args.patch)) return fail(ctx,'元素或 patch 无效');
       if (ctx.targetId && ctx.targetId !== args.targetId) return fail(ctx,'只能调整所选元素');
-      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','watermark','surface','background','appearance','headerText','composerText','battery'] : ['name','subtitle'];
+      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','watermark','surface','deviceProfileId','background','appearance','headerText','composerText','battery'] : ['name','subtitle'];
       if (Object.keys(args.patch).some(k => !allowed.includes(k))) return fail(ctx,'patch 包含不允许的字段');
       return buildCandidate(ctx,target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)},'元素已更新');
     }

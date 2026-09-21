@@ -1,3 +1,4 @@
+import {DEVICE_PROFILES,deviceProfile} from '../studio/device-profiles';
 import { useEffect, useRef, useState } from 'react';
 import { MESSAGE_TYPES, MESSAGE_TYPE_LABELS, validateScene, type Message, type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
@@ -13,7 +14,7 @@ export default function ElementInspector({scene,selected,locked,onSelect,onChang
   function text(label:string,key:string,value:string,multiline=false) {return <label>{label}{multiline ? <textarea value={value} onChange={e=>update({[key]:e.target.value})} maxLength={4000}/> : <input value={value} onChange={e=>update({[key]:e.target.value})} maxLength={4000}/>}</label>;}
   async function upload(f:File) {onBusy(true);try {const result=await readImageFile(f);if(!result.ok){setError(result.error);return;} if(slot.startsWith('item:')&&message)update({items:message.items?.map(i=>i.id===slot.slice(5)?{...i,asset:result.dataUrl}:i)});else update({[slot]:result.dataUrl});} finally {onBusy(false);} }
   const style=message?.appearance || scene.appearance || {};
-  return <details className="agent-manual agent-inspector"><summary>元素与外观</summary><fieldset disabled={locked}>
+  return <details className="agent-manual agent-inspector" open><summary>元素与外观</summary><fieldset disabled={locked}>
     <label>选中元素<select aria-label="选中元素" value={selected || '@scene'} onChange={e=>onSelect(e.target.value)}><option value="@scene">背景、标题与界面</option>{scene.participants.map(p=><option key={p.id} value={`@participant:${p.id}`}>人物 · {p.name}</option>)}{scene.messages.map((m,i)=><option key={m.id} value={m.id}>{i+1} · {m.text.slice(0,24)||MESSAGE_TYPE_LABELS[m.type]}</option>)}</select></label>
     {person ? <>{text('姓名','name',person.name)}{text('资料说明','subtitle',person.subtitle||'')}<button type="button" className="agent-button" onClick={()=>{setSlot('avatar');file.current?.click();}}>上传头像</button></> : message ? <>
       {text('消息文字','text',message.text,true)}{text('说明 / 地址 / 时长','subtitle',message.subtitle||'')}{text('引用内容','quote',message.quote||'',true)}{text('消息时间','time',message.time)}
@@ -25,7 +26,7 @@ export default function ElementInspector({scene,selected,locked,onSelect,onChang
       <div className="inspector-pair"><button className="agent-button" disabled={scene.messages[0]?.id===message.id} onClick={()=>{const ms=[...scene.messages];const n=ms.findIndex(m=>m.id===message.id);[ms[n-1],ms[n]]=[ms[n],ms[n-1]];apply({...scene,messages:ms});}}>上移</button><button className="agent-button" onClick={()=>{apply({...scene,messages:scene.messages.filter(m=>m.id!==message.id)});onSelect('@scene');}}>删除消息</button></div>
     </> : <>
       {text('会话标题','headerText',scene.headerText??scene.title)}{text('设备时间','deviceTime',scene.deviceTime)}{text('日期文字','date',scene.date)}{text('输入栏提示','composerText',scene.composerText??'输入消息')}{text('水印','watermark',scene.watermark)}
-      <label>设备<select value={scene.surface||'ios'} onChange={e=>update({surface:e.target.value as Scene['surface']})}><option value="ios">iOS</option><option value="android">Android</option><option value="desktop">桌面</option></select></label>
+      <label>截图设备<select value={scene.deviceProfileId||''} onChange={e=>{const p=DEVICE_PROFILES.find(p=>p.id===e.target.value);if(p)update({deviceProfileId:p.id,surface:p.surface});}}>{!scene.deviceProfileId&&<option value="">{deviceProfile(scene).label}</option>}{DEVICE_PROFILES.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
       <label>电量<input type="number" min={0} max={100} value={scene.battery??60} onChange={e=>update({battery:Number(e.target.value)})}/></label>
       <label>聊天背景<input type="color" value={scene.background||'#ededed'} onChange={e=>update({background:e.target.value})}/></label>
       <div className="inspector-pair"><button className="agent-button" onClick={()=>{setSlot('backgroundImage');file.current?.click();}}>上传背景</button><button className="agent-button" disabled={!scene.backgroundImage} onClick={()=>update({backgroundImage:''})}>清除背景图</button></div>

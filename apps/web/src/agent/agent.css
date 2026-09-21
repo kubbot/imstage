@@ -15,3 +15,29 @@
 .agent-project{display:flex;align-items:center;gap:8px;padding:0 20px 12px;color:var(--muted);font-size:11px}.agent-project select{flex:1;min-width:0;max-width:145px;border:1px solid var(--line);border-radius:6px;padding:6px;background:var(--bg);color:var(--text)}.agent-project a{font-size:10px}
 @media(max-width:800px){.agent-heading-actions .account-save{flex-direction:column;align-items:flex-end}.agent-heading-actions .account-save-message{position:static;max-width:150px;padding:0;border:0;box-shadow:none;background:none;font-size:10px;line-height:1.4;text-align:right;overflow-wrap:anywhere}.agent-heading-actions .account-save-message a{display:inline}}
 .reference-select{padding:0;border:0;background:transparent;cursor:pointer}.reference-select:hover,.reference-select:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* Reusable identities are adjacent to creation, not buried in message fields. */
+.agent-identity-summary{margin:0 18px 10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;font-size:11px;text-align:left;background:var(--bg);color:var(--text)}
+.agent-identity-summary span{color:var(--accent);white-space:nowrap}
+.contact-panel{overflow:auto;padding:0 20px 24px;font-size:12px;display:flex;flex-direction:column;gap:14px}
+.contact-panel label{display:grid;gap:7px;color:var(--text)}
+.contact-panel input:not([type=checkbox]),.contact-panel select,.contact-panel textarea{width:100%;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px;color:var(--text);font:inherit}
+.contact-help{color:var(--muted);line-height:1.7;margin:0}
+.contact-panel .contact-check{display:flex;align-items:center;gap:8px;line-height:1.6}
+.contact-check input{accent-color:var(--accent);width:16px;height:16px;flex-shrink:0}
+.contact-list{display:grid;gap:8px}.contact-row{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.contact-row>img,.contact-monogram,.contact-avatar-preview>img{width:48px;height:48px;object-fit:cover;border-radius:10px;flex-shrink:0}
+.contact-monogram{display:grid;place-items:center;background:var(--soft);color:var(--accent);font-size:20px}
+.contact-row>div{min-width:0}.contact-row strong{display:block;overflow-wrap:anywhere}.contact-row small{display:block;color:var(--muted);margin-top:4px}
+.contact-actions{display:flex;gap:16px;margin-top:5px}.contact-actions button{min-height:32px;color:var(--accent);font-size:11px}
+.contact-form{border-top:1px solid var(--line);padding-top:8px}.contact-form h3{font-size:14px}.contact-form fieldset{border:0;padding:0;display:grid;gap:12px;min-width:0}
+.contact-avatar-preview{display:flex;gap:8px;align-items:center}.contact-panel [role=alert]{color:var(--accent)}.contact-panel [role=status]{color:var(--muted);line-height:1.7}
+.contact-panel button:disabled{opacity:.45;cursor:default}
+.agent-inspector[open] summary{font-weight:600;color:var(--text)}
+.device-preview{width:100%;display:flex;justify-content:center;flex-shrink:0}
+.agent-phone.device-frame{min-height:0;max-width:none;flex-shrink:0;border-width:8px;align-self:auto}
+.agent-phone.device-frame .scene-view{width:100%;max-width:none;min-height:0;height:100%}
+.agent-phone.device-frame[data-mode=full] .scene-view{height:auto;min-height:640px}
+.agent-export-frame[data-mode=full]>.scene-view{height:auto;min-height:640px}
+.agent-export-frame[data-mode=standard]>.scene-view{min-height:0;height:100%}
+.agent-render-toolbar{flex-wrap:wrap}.agent-render-toolbar select[aria-label="截图设备"]{max-width:160px}
+@media(max-width:660px){.agent-heading-actions{flex-wrap:wrap}.agent-heading-actions .agent-button{font-size:11px}.agent-render-toolbar>div{margin-left:0}.agent-render-toolbar select[aria-label="截图设备"]{max-width:125px}}

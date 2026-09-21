@@ -1,14 +1,14 @@
 import {platformTemplate} from './platform-templates';
+import {deviceProfile} from './device-profiles';
 import type { CSSProperties } from 'react';
 import {
-  IconBattery3,
+  IconFolder,
+  IconScissors,
   IconPhone,
   IconVideo,
   IconMicrophone,
   IconCamera,
   IconChecks,
-  IconVolume,
-  IconCellSignal4,
   IconChevronLeft,
   IconDots,
   IconMapPin,
@@ -131,18 +131,19 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   const title = headerTitle(scene);
   const group = scene.participants.length > 2;
   const template = platformTemplate(scene.platform);
+  const profile = deviceProfile(scene);
   const other = scene.participants.find(p => p.id !== scene.selfId);
   const showAvatar = (self:boolean) => template.messageAvatars === 'all' || (template.messageAvatars === 'incoming' && !self) || (template.messageAvatars === 'group' && group && !self);
 
   return (
-    <div className="scene-view" data-platform={scene.platform} data-template={template.version} data-surface={scene.surface || 'ios'} style={{'--scene-font':`${scene.appearance?.fontSize || 15}px`,'--scene-radius':`${scene.appearance?.radius ?? 8}px`,'--scene-spacing':`${scene.appearance?.spacing ?? 10}px`,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
+    <div className="scene-view" data-platform={scene.platform} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
       <div className="scene-status" data-element="@scene" onClick={() => onSelectElement?.("@scene")}>
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
-          <IconCellSignal4 size={15} stroke={1.8} />
+          <span className="scene-signal" aria-hidden="true"><i/><i/><i/><i/></span>
           <IconWifi size={15} stroke={1.8} />
           {scene.battery !== undefined && <small>{scene.battery}%</small>}
-          <IconBattery3 size={17} stroke={1.6} />
+          <span className="scene-battery" aria-hidden="true"><i style={{width:`${scene.battery??80}%`}}/></span>
         </span>
       </div>
 
@@ -212,12 +213,12 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         })}
       </div>
 
-      <div className="scene-composer" onClick={() => onSelectElement?.("@scene")}>
-        <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <IconVolume size={25} stroke={1.6}/> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
+      {profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" onClick={()=>onSelectElement?.('@scene')}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send">发送</span></div> : <div className="scene-composer" onClick={() => onSelectElement?.("@scene")}>
+        <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M11 9q4 4 0 8M14 7q6 6 0 12M8 11q2 2 0 4"/></svg> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-field">{scene.composerText ?? (template.composer === 'instagram' ? 'Message…' : '')}</span>
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : <IconPlus size={25} stroke={1.6}/>}</span>
-      </div>
+      </div>}
 
       {scene.watermark ? <div className="scene-watermark">{scene.watermark}</div> : null}
     </div>

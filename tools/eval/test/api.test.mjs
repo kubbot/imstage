@@ -556,3 +556,11 @@ test('corrupt store surfaces an error and is never overwritten', async (t) => {
   assert.equal(await fs.promises.readFile(storePath, 'utf8'), corrupt);
   await cleanupDir(dir);
 });
+
+test('device fidelity cases remain explicitly unapproved and do not modify screenshot goldens',async t=>{
+ const env=await launch();t.after(()=>env.close());
+ const before=await revisionOf(env);const result=await env.request('GET','/api/device-fidelity');
+ assert.equal(result.status,200);assert.equal(result.json.cases.length,6);
+ assert.ok(result.json.cases.every(c=>c.visualStatus==='待人工标注'&&c.answer.assertions.length>=3));
+ assert.equal(await revisionOf(env),before);
+});

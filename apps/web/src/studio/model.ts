@@ -1,4 +1,5 @@
 import { validateReference, type ReferenceDocument } from '../../../../packages/schema/reference.ts';
+import { deviceProfileError } from './device-profiles.ts';
 /**
  * IMStage studio scene model.
  *
@@ -54,6 +55,8 @@ export interface Scene {
   watermark: string;
   reference?: ReferenceDocument;
   surface?: 'ios' | 'android' | 'desktop';
+  /** Optional coded device profile id; must match `surface` when present. */
+  deviceProfileId?: string;
   background?: string;
   backgroundImage?: string;
   appearance?: Appearance;
@@ -452,6 +455,16 @@ export function validateScene(value: unknown): ValidationResult {
   if (value.surface !== undefined) {
     if (!['ios','android','desktop'].includes(String(value.surface))) errors.push('设备平台无效');
     else extras.surface = value.surface;
+  }
+  if (value.deviceProfileId !== undefined) {
+    if (typeof value.deviceProfileId !== 'string' || value.deviceProfileId.trim() === '') {
+      errors.push('设备配置 id 必须是非空字符串');
+    } else {
+      const surface = ['ios','android','desktop'].includes(String(value.surface)) ? String(value.surface) : undefined;
+      const profileError = deviceProfileError(value.deviceProfileId, surface);
+      if (profileError) errors.push(profileError);
+      else extras.deviceProfileId = value.deviceProfileId;
+    }
   }
   if (value.background !== undefined) {
     if (typeof value.background !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value.background)) errors.push('背景必须是六位颜色');

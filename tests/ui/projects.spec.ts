@@ -26,7 +26,7 @@ test('project membership recovers, detaches and keeps element editing usable on 
  await save.click();await expect(save).toBeDisabled();
  expect((await(await page.request.get('/api/scenes/'+scene.id)).json()).item.projectIds).toEqual([]);
  await page.getByRole('button',{name:'选择消息：周末见。',exact:true}).click();
- await page.getByText('元素与外观',{exact:true}).click();
+ await expect(page.getByText('元素与外观',{exact:true})).toBeVisible();
  await page.getByRole('textbox',{name:'消息文字',exact:true}).fill('可以自由编辑');
  await page.getByLabel('选中元素',{exact:true}).selectOption('@scene');
  await page.getByLabel('聊天背景',{exact:true}).fill('#cbded3');

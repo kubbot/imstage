@@ -26,6 +26,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
 import * as projects from '../projects/index.mjs';
+import * as contacts from '../contacts/index.mjs';
+import {withContactLibrary} from '../contacts/runtime.mjs';
 import {
   AGENT_BODY_LIMIT,
   createAgentLimiter,
@@ -49,6 +51,8 @@ export const AUTH_BODY_LIMIT = 16 * 1024; // 16 KiB
 export const SCENE_BODY_LIMIT = 16 * 1024 * 1024; // 16 MiB
 export const PROJECT_BODY_LIMIT = 64 * 1024; // 64 KiB (name + rules)
 export const BATCH_BODY_LIMIT = 256 * 1024; // 256 KiB (10 prompts × 4000 chars)
+/** Contact library: 100 contacts plus local avatars; still strictly bounded. */
+export const CONTACT_BODY_LIMIT = 12 * 1024 * 1024; // 12 MiB
 /** Single source of truth lives in `services/projects/model.mjs`. */
 export const MAX_SCENES_PER_USER = projects.MAX_SCENES_PER_USER;
 export const REQUEST_MARKER_HEADER = 'x-imstage-request';
@@ -79,6 +83,7 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const AUTH_DEADLINE_MS = 15_000;
 const SCENE_DEADLINE_MS = 30_000;
 const AGENT_READ_DEADLINE_MS = 30_000;
+const CONTACT_READ_DEADLINE_MS = 30_000;
 
 const API_SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
@@ -394,6 +399,10 @@ function openDatabase(dbPath) {
   // existing accounts): scenes associate through `scene_projects`.
   db.exec(projects.PROJECT_SCHEMA_SQL);
 
+  // Account-scoped contact library. Additive migration only; existing accounts
+  // simply read the empty default until they PUT a library.
+  db.exec(contacts.CONTACT_SCHEMA_SQL);
+
   if (dbPath !== ':memory:') {
     for (const suffix of ['', '-wal', '-shm']) {
       try {
@@ -632,7 +641,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError || err instanceof projects.ProjectsError) {
+  if (err instanceof HttpError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -1100,6 +1109,47 @@ async function handleSceneDelete(ctx, req, res, sceneId) {
   });
   if (result.changes === 0) throw new HttpError(404, 'not_found', '场景不存在');
   sendJson(req, res, 200, { ok: true });
+}
+
+/* ------------------------------------------------------------------ */
+/* Contact library routes                                              */
+/* ------------------------------------------------------------------ */
+
+function contactLibraryPayload(state) {
+  return {
+    revision: state.revision,
+    contacts: state.contacts,
+    selfContactId: state.selfContactId,
+    autoSave: state.autoSave,
+  };
+}
+
+function handleContactLibraryGet(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  const state = contacts.getContactLibrary(ctx.db, session.user.id);
+  sendJson(req, res, 200, contactLibraryPayload(state));
+}
+
+async function handleContactLibraryPut(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, CONTACT_BODY_LIMIT, CONTACT_READ_DEADLINE_MS);
+  // Structural bounds first (cheap), then actually decode every avatar with
+  // sharp before anything is written. `X-IMStage-User` is rechecked after the
+  // async decode so a concurrent account switch can never write the wrong row.
+  const input = contacts.normalizeContactLibraryInput(body);
+  await contacts.validateContactAvatars(input.contacts);
+  recheckSession(ctx, req, session);
+  const state = contacts.putContactLibrary(ctx.db, {
+    userId: session.user.id,
+    revision: input.revision,
+    contacts: input.contacts,
+    selfContactId: input.selfContactId,
+    autoSave: input.autoSave,
+    nowMs: ctx.nowMs(),
+  });
+  sendJson(req, res, 200, contactLibraryPayload(state));
 }
 
 /* ------------------------------------------------------------------ */
@@ -1674,6 +1724,18 @@ async function route(ctx, req, res) {
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
   }
 
+  if (pathname === '/api/contact-library') {
+    if (method === 'GET') {
+      handleContactLibraryGet(ctx, req, res);
+      return;
+    }
+    if (method === 'PUT') {
+      await handleContactLibraryPut(ctx, req, res);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
   if (pathname === '/api/agent/capabilities') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     // Public, non-secret status so the UI can explain whether AI is configured.
@@ -1809,10 +1871,10 @@ export function createApp(options = {}) {
     user: new FixedWindowLimiter(config.rateLimit.user),
   };
   const agentConfig = resolveAgentConfig(options.env ?? process.env, options.agent ?? {});
-  const agentRuntime = createAgentRuntime(agentConfig, {
+  const agentRuntime = withContactLibrary(createAgentRuntime(agentConfig, {
     ...(options.agent ?? {}),
     logger: config.logger,
-  });
+  }),{db,nowMs:config.nowMs});
   const agentLimiter = createAgentLimiter(agentConfig.limits);
   const batchQueue = projects.createBatchQueue({
     db,

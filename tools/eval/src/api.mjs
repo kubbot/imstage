@@ -1031,6 +1031,7 @@ export function createApp({
         } else if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
           fail('method_not_allowed', `不支持的方法: ${method}`, 405);
         }
+        if(url.pathname==='/api/device-fidelity'&&method==='GET'){sendJson(res,200,JSON.parse(fs.readFileSync(new URL('../fixtures/device-fidelity.json',import.meta.url),'utf8')));return;}
         if (await handleDataset(req, res, url)) return;
         const handled = await routeApi(req, res, url);
         if (handled === false) fail('not_found', `未知 API: ${method} ${url.pathname}`, 404);

@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "kind": "imstage-device-fidelity-fixtures",
+  "notice": "Synthetic device-fidelity fixtures. They describe the same semantic chat content across three coded device profiles plus manual realism/avatar checks. They are NOT approved product goldens, NOT private data, and do NOT claim that any official app version or hardware panel is pixel-perfect verified.",
+  "platform": "wechat",
+  "semanticContent": {
+    "deviceTime": "09:41",
+    "date": "周六 09:38",
+    "selfId": "p-linxiaoman",
+    "participants": [
+      {
+        "id": "p-linxiaoman",
+        "name": "林小满"
+      },
+      {
+        "id": "p-ayuan",
+        "name": "阿远"
+      }
+    ],
+    "messages": [
+      {
+        "id": "m-1",
+        "participantId": "p-linxiaoman",
+        "type": "text",
+        "text": "周末有空吗？听说东极岛的海，比上次去的那片还要蓝。",
+        "time": "09:38"
+      },
+      {
+        "id": "m-2",
+        "participantId": "p-ayuan",
+        "type": "text",
+        "text": "周六可以！不过得早点出发，下午风大。",
+        "time": "09:39"
+      },
+      {
+        "id": "m-3",
+        "participantId": "p-ayuan",
+        "type": "text",
+        "text": "好，那就周六见，我带上相机。",
+        "time": "09:41"
+      }
+    ]
+  },
+  "devices": [
+    {
+      "deviceProfileId": "iphone-15-pro",
+      "expectedSurface": "ios",
+      "expectedWidth": 393,
+      "expectedHeight": 852,
+      "expectedPixelRatio": 3,
+      "expectedExport": {
+        "width": 1179,
+        "height": 2556
+      },
+      "notes": "Native panel 1179×2556 per Apple; rendered/captured at 393×852 logical points @3x."
+    },
+    {
+      "deviceProfileId": "pixel-8",
+      "expectedSurface": "android",
+      "expectedWidth": 360,
+      "expectedHeight": 800,
+      "expectedPixelRatio": 3,
+      "expectedExport": {
+        "width": 1080,
+        "height": 2400
+      },
+      "notes": "Native panel 1080×2400 per Google; rendered/captured at 360×800 logical dp @3x."
+    },
+    {
+      "deviceProfileId": "macos-window",
+      "expectedSurface": "desktop",
+      "expectedWidth": 1000,
+      "expectedHeight": 720,
+      "expectedPixelRatio": 2,
+      "expectedExport": {
+        "width": 2000,
+        "height": 1440
+      },
+      "notes": "Configurable desktop window preset, not a hardware-screen claim."
+    }
+  ],
+  "checks": {
+    "required": [
+      "Each device renders the identical semanticContent (same participants, messages, order and times); only device chrome and metrics differ.",
+      "Standard screenshots clip to the profile viewport; the composer stays visible and no scrollbar is exported.",
+      "Full screenshots include every message and grow the frame; no device bezel is captured."
+    ],
+    "manual": [
+      {
+        "id": "avatar-rendering",
+        "kind": "avatar",
+        "required": true,
+        "surface": "ios",
+        "description": "On iphone-15-pro the WeChat avatars are readable 40×40 rounded squares, initials/uploaded images are not stretched or clipped, and incoming/outgoing sides stay correct."
+      },
+      {
+        "id": "avatar-android-rendering",
+        "kind": "avatar",
+        "required": true,
+        "surface": "android",
+        "description": "On pixel-8 the same avatars keep the same identity and square crop; the Android status bar and gesture navigation bar are visible."
+      },
+      {
+        "id": "wechat-typography-realism",
+        "kind": "realism",
+        "required": true,
+        "surface": "ios",
+        "description": "WeChat bubbles use the profile font size, padding, radius and spacing; long Chinese lines wrap without overlapping the time or the composer."
+      },
+      {
+        "id": "desktop-titlebar-realism",
+        "kind": "realism",
+        "required": true,
+        "surface": "desktop",
+        "description": "macos-window shows a desktop titlebar and a roomy desktop composer and does NOT show a mobile status bar."
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "D01",
+      "difficulty": 2,
+      "title": "微信 × iPhone：双人对话与头像",
+      "deviceProfileId": "iphone-15-pro",
+      "prompt": "使用我的默认人物，生成我与阿远约好明天十点去看展的微信聊天。生成阿远的自然摄影头像，保持每条消息的头像一致。",
+      "answer": {
+        "text": [
+          "明天一起去看展吗？",
+          "好呀，我们十点见。"
+        ],
+        "dimensions": [
+          1179,
+          2556
+        ],
+        "assertions": [
+          "两位人物均有可解码的头像，不能用首字母方块代替通过",
+          "所有同一人物的头像 SHA-256 一致",
+          "头像40×40逻辑像素，发送方向正确",
+          "顶部状态栏、聊天标题与底部输入栏完整；无手机外壳"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    },
+    {
+      "id": "D02",
+      "difficulty": 2,
+      "title": "同一对话切换 Pixel 8",
+      "deviceProfileId": "pixel-8",
+      "prompt": "将 D01 的对话切换为 Pixel 8 微信截图，不改台词和人物。",
+      "answer": {
+        "dimensions": [
+          1080,
+          2400
+        ],
+        "assertions": [
+          "语义内容及头像不变",
+          "Android 状态栏和底部手势区域正确",
+          "禁止拉伸iPhone截图冒充Android截图"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    },
+    {
+      "id": "D03",
+      "difficulty": 3,
+      "title": "同一对话切换 macOS 微信窗口",
+      "deviceProfileId": "macos-window",
+      "prompt": "将 D01 的对话切换为 macOS 微信独立聊天窗口，不改台词和人物。",
+      "answer": {
+        "dimensions": [
+          2000,
+          1440
+        ],
+        "assertions": [
+          "桌面标题栏及多行输入区域",
+          "没有手机状态栏和手机手势条",
+          "保持头像、发送方向和消息顺序"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    },
+    {
+      "id": "D04",
+      "difficulty": 3,
+      "title": "跨次生成复用默认人物与联系人",
+      "deviceProfileId": "iphone-15-pro",
+      "prompt": "保存 D01 的两位人物。新建一段与阿远讨论晚餐的对话，复用我与阿远的头像。",
+      "answer": {
+        "assertions": [
+          "默认人物姓名和头像与保存记录相同",
+          "选择阿远后复用其头像，不再次生成",
+          "联系人库不因生成次数产生完全重复的记录",
+          "刷新页面后人物仍可使用"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    },
+    {
+      "id": "D05",
+      "difficulty": 3,
+      "title": "长截图与多行消息",
+      "deviceProfileId": "iphone-15-pro",
+      "prompt": "生成25条讨论看展的微信对话，包含多行中文，输出长截图。",
+      "answer": {
+        "width": 1179,
+        "minHeightExclusive": 2556,
+        "assertions": [
+          "25条消息全部存在，无压缩或重叠",
+          "仅一个顶部栏和一个底部输入栏",
+          "人物头像没有拉伸或丢失"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    },
+    {
+      "id": "D06",
+      "difficulty": 4,
+      "title": "选中头像局部再生成",
+      "deviceProfileId": "iphone-15-pro",
+      "prompt": "仅将阿远的头像改为自然光下戴眼镜的青年摄影头像，保持其他元素不变。",
+      "answer": {
+        "assertions": [
+          "必须真实调用图片生成工具并返回可解码图像",
+          "只更新阿远的头像，自己的头像和台词保持不变",
+          "新头像可另存为人物，旧作品不被联动修改"
+        ]
+      },
+      "visualStatus": "待人工标注"
+    }
+  ],
+  "acceptance": "Hard assertions must pass AND a person must approve screenshot realism and portrait quality. A green transport or image-dimension test alone is not ALL PASS."
+}
