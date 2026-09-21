@@ -1,0 +1,54 @@
+{
+  "source": "actual ChatGPT Work conversation with installed IMStage plugin",
+  "synthetic": true,
+  "sceneId": "scn_97aed901c5b8b29d0a3078d4fdcf02a4",
+  "revisions": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "timeOnlyPatchVerified": true,
+  "appendAndPlatformPreservedPriorMessages": true,
+  "historicalVersionsReadable": true,
+  "renders": [
+    {
+      "revision": 1,
+      "file": "chatgpt-revision-1.png",
+      "sha256": "f6b00a0dc1d8288ec84a94e6358e9bcf1e7ac315ec725e85833c0de1eb5e3df9",
+      "width": 390,
+      "height": 773
+    },
+    {
+      "revision": 2,
+      "file": "chatgpt-revision-2.png",
+      "sha256": "7710777988bc4ba42e05eac152970e1c16f85b57835186b2343663a4f3229a64",
+      "width": 390,
+      "height": 773
+    },
+    {
+      "revision": 3,
+      "file": "chatgpt-revision-3.png",
+      "sha256": "cdcf9311b8406aa744a0f3a2e8500a1eb6fa5639cc030f7c61a6c86625c67da7",
+      "width": 390,
+      "height": 729
+    },
+    {
+      "revision": 4,
+      "file": "chatgpt-revision-4.png",
+      "sha256": "cdcf9311b8406aa744a0f3a2e8500a1eb6fa5639cc030f7c61a6c86625c67da7",
+      "width": 390,
+      "height": 729
+    }
+  ],
+  "inlinePreviewVerified": true,
+  "widgetFollowupVerified": true,
+  "hostDownloadVerified": true,
+  "downloadVerification": {
+    "method": "ChatGPT uploadFile/getFileDownloadUrl/openExternal then browser Save",
+    "bytes": 62877,
+    "sha256MatchesRender": true
+  },
+  "widgetFollowupRequiredChatConfirmation": true,
+  "titleOnlyPatchVerified": true
+}

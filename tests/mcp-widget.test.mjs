@@ -44,3 +44,37 @@ test('MCP Apps bridge actually displays the result, exports PNG and targets the 
   await page.evaluate(()=>window.pushResult({isError:true}));await frame.locator('#preview').waitFor({state:'hidden'});assert.deepEqual(failures,[]);
  }finally{await browser.close()}
 });
+
+test('ChatGPT Work metadata-only results load initially and on partial globals updates', async () => {
+ const browser=await chromium.launch({executablePath:resolveChromiumExecutable()||undefined});
+ try {
+  const page=await browser.newPage();
+  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  await page.addInitScript(({png})=>{
+   window.exportCalls=[];
+   window.openai={uploadFile:async(file)=>{window.exportCalls.push({type:'upload',mime:file.type,bytes:file.size});return {fileId:'file-test'};},getFileDownloadUrl:async()=>({downloadUrl:'https://files.example.test/artwork.png'}),openExternal:async(arg)=>window.exportCalls.push({type:'open',href:arg.href}),toolOutput:null,toolResponseMetadata:{preview:{dataUri:'data:image/png;base64,'+png},call_tool_result:{structuredContent:{sceneId:'scn_'+ 'b'.repeat(32),revision:3,title:'Work artwork'},content:[]}}};
+  },{png});
+  await page.goto('about:blank');
+  await page.setContent(buildRenderWidgetHtml());
+  await page.locator('#preview-img').waitFor({state:'visible'});
+  assert.equal(await page.locator('#preview-img').evaluate(e=>e.naturalWidth),1);
+  assert.equal(await page.locator('#scene-title').innerText(),'Work artwork');
+  assert.match(await page.locator('#scene-meta').innerText(),/revision 3.*scn_bbbb/);
+  await page.evaluate(()=>{
+   const meta=structuredClone(window.openai.toolResponseMetadata);
+   meta.call_tool_result.structuredContent.revision=4;
+   meta.call_tool_result.structuredContent.title='Updated artwork';
+   dispatchEvent(new CustomEvent('openai:set_globals',{detail:{globals:{toolResponseMetadata:meta}}}));
+  });
+  assert.equal(await page.locator('#scene-title').innerText(),'Updated artwork');
+  assert.match(await page.locator('#scene-meta').innerText(),/revision 4/);
+  await page.locator('#download').click();
+  await page.locator('#status').filter({hasText:'已打开 PNG'}).waitFor();
+  await page.locator('#download').click();
+  await page.locator('#status').filter({hasText:'已打开 PNG'}).waitFor();
+  const exports=await page.evaluate(()=>window.exportCalls);
+  assert.equal(exports.filter(c=>c.type==='upload').length,1);
+  assert.ok(exports[0].bytes>0);assert.equal(exports[0].mime,'image/png');
+  assert.equal(exports.filter(c=>c.type==='open').length,2);
+ } finally { await browser.close(); }
+});

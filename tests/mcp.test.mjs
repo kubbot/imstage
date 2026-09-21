@@ -372,7 +372,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.equal(result.structuredContent.widgetUri, WIDGET_RESOURCE_URI);
       assert.match(result.structuredContent.downloadUri, /^imstage:\/\/renders\/rnd_[0-9a-f]{32}\.png$/);
       assert.match(result._meta.preview.dataUri, /^data:image\/png;base64,/);
-      assert.equal(result._meta.widgetSessionId, sceneId);
+      assert.equal(result._meta['openai/widgetSessionId'], undefined, 'session identity belongs to the host');
     });
 
     await t.test('render rejects screenshot output that would clip tall content', { skip: !rendererReady ? 'no Chromium executable available' : false }, async () => {

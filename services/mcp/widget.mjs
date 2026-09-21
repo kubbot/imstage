@@ -180,10 +180,39 @@ export function buildRenderWidgetHtml() {
     if (el) el.textContent = value || "";
   }
 
+  var exportedFiles = Object.create(null);
+  async function downloadWithOpenAi(name) {
+    var api = window.openai;
+    if (!api || typeof api.uploadFile !== "function" || typeof api.getFileDownloadUrl !== "function" || typeof api.openExternal !== "function") {
+      setStatus("当前宿主不支持组件下载，请在对话中请求导出 PNG。"); return;
+    }
+    var button = document.getElementById("download");
+    button.disabled = true;
+    setStatus("正在准备 PNG…");
+    try {
+      var key = latest.renderId || latest.dataUri;
+      var fileId = exportedFiles[key];
+      if (!fileId) {
+        var raw = atob(latest.dataUri.split(",")[1]);
+        var bytes = Uint8Array.from(raw, function(c) { return c.charCodeAt(0); });
+        var uploaded = await api.uploadFile(new File([bytes], name, {type:"image/png"}));
+        fileId = uploaded && uploaded.fileId;
+        if (!fileId) throw new Error("missing file");
+        exportedFiles[key] = fileId;
+      }
+      var download = await api.getFileDownloadUrl({fileId:fileId});
+      var url = new URL(download.downloadUrl);
+      if (url.protocol !== "https:" || url.username || url.password) throw new Error("invalid download URL");
+      await api.openExternal({href:url.href});
+      setStatus("已打开 PNG 下载链接。");
+    } catch (error) { setStatus("下载未完成，请重试或在对话中请求导出 PNG。"); }
+    finally { button.disabled = false; }
+  }
+
   function downloadPng() {
     if(!latest.dataUri) return;
     var name = "imstage-" + (latest.revision || "preview") + ".png";
-    if(!hostCapabilities.downloadFile){setStatus("当前宿主不支持组件下载，请在对话中请求导出 PNG。");return;}
+    if(!hostCapabilities.downloadFile){downloadWithOpenAi(name);return;}
     post("ui/download-file", {contents:[{type:"resource",resource:{uri:"file:///"+name,mimeType:"image/png",blob:latest.dataUri.split(",")[1]}}]})
       .then(function(result){if(result && result.isError) throw new Error("download rejected");setStatus("宿主已接受 PNG 下载请求。");})
       .catch(function(){setStatus("下载未完成，请在对话中请求导出 PNG。");});
@@ -199,7 +228,7 @@ export function buildRenderWidgetHtml() {
     }).catch(function () {
       var openai = typeof window.openai !== "undefined" ? window.openai : null;
       if (openai && typeof openai.sendFollowUpMessage === "function") {
-        try { openai.sendFollowUpMessage({ prompt: message }); setStatus("已把修改指令发回 ChatGPT。"); return; } catch (error) { /* fall through */ }
+        try { Promise.resolve(openai.sendFollowUpMessage({ prompt: message })).then(function(){setStatus("已把修改指令发回 ChatGPT。");}).catch(function(){setStatus("无法发送修改指令，请直接在对话中描述修改。");}); return; } catch (error) { /* fall through */ }
       }
       setStatus("无法发送修改指令，请直接在对话中描述修改。");
     });
@@ -229,9 +258,25 @@ export function buildRenderWidgetHtml() {
     if (input) input.value = "";
   });
 
-  var openai = typeof window.openai !== "undefined" ? window.openai : null;
-  if (openai && openai.toolOutput) renderFromResult({ structuredContent: openai.toolOutput, _meta:openai.toolResponseMetadata });
-  window.addEventListener("openai:set_globals", function(event){var g=event.detail && event.detail.globals;if(g && g.toolOutput)renderFromResult({structuredContent:g.toolOutput,_meta:g.toolResponseMetadata});});
+  // ChatGPT Work can provide the complete result only in response metadata.
+  // Globals updates are partial; retain the other fields from window.openai.
+  function renderOpenAiGlobals(globals) {
+    var current = typeof window.openai !== "undefined" ? window.openai : {};
+    var g = globals || {};
+    var meta = g.toolResponseMetadata || current.toolResponseMetadata || {};
+    var nested = meta.call_tool_result;
+    if (nested && typeof nested === "object") {
+      renderFromResult({ content: nested.content, structuredContent: nested.structuredContent,
+        isError: nested.isError, _meta: Object.assign({}, nested._meta || {}, meta) });
+      return;
+    }
+    var output = g.toolOutput || current.toolOutput;
+    if (output || meta.preview) renderFromResult({ structuredContent: output || {}, _meta: meta });
+  }
+  renderOpenAiGlobals();
+  window.addEventListener("openai:set_globals", function(event) {
+    renderOpenAiGlobals(event.detail && event.detail.globals);
+  });
 
   post("ui/initialize", {
     appInfo: { name: "imstage-render-widget", version: "0.1.0" },
@@ -240,8 +285,13 @@ export function buildRenderWidgetHtml() {
   }).then(function (result) {
     hostCapabilities = result && result.hostCapabilities || {};
     notify("ui/notifications/initialized", {});
-    if(window.ResizeObserver)new ResizeObserver(function(){notify("ui/notifications/size-changed",{height:document.documentElement.scrollHeight});}).observe(document.body);
+
   }).catch(function () { /* legacy host without the MCP Apps bridge */ });
+  if (window.ResizeObserver) new ResizeObserver(function() {
+    var height = document.documentElement.scrollHeight;
+    notify("ui/notifications/size-changed", {height:height});
+    if (window.openai && typeof window.openai.notifyIntrinsicHeight === "function") window.openai.notifyIntrinsicHeight(height);
+  }).observe(document.body);
 })();
 </script>
 </body>

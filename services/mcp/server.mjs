@@ -522,8 +522,6 @@ async function toolRenderScene(args, { store, renderService }) {
       ephemeral: sceneRef.sceneId === null,
     },
     _meta: {
-      widgetSessionId: sceneRef.sceneId ?? renderId,
-      'openai/widgetSessionId': sceneRef.sceneId ?? renderId,
       preview: {
         dataUri,
         mimeType: 'image/png',
