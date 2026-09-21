@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import sharp from 'sharp';
 async function ready(page: Page) {
   await page.goto('/#/create');
   const origin = new URL(page.url()).origin;
@@ -34,6 +35,10 @@ test('Agent creation, scoped Vibe Edit, undo and PNG export share the rendered s
   await page.getByRole('button',{name:'关闭 AI 编辑'}).click();
   const download = page.waitForEvent('download'); await page.getByRole('button',{name:'导出 PNG'}).click();
   expect((await download).suggestedFilename()).toBe('imstage-long.png');
+  await page.getByLabel('导出图片范围').selectOption('standard');
+  const standardDownload=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+  const file=await(await standardDownload).path();const {data,info}=await sharp(file!).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  expect([info.width,info.height]).toEqual([720,1280]);expect(data.at(-1)).toBe(255);
 });
 test('provider failure keeps previous scene and restores editable request', async ({page}) => {
   await ready(page); await generate(page);

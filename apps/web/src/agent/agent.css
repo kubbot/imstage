@@ -10,3 +10,4 @@
 .agent-workspace .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .agent-phone.empty{opacity:1}
 @media(max-width:800px){.agent-heading-actions .account-save-message{display:block;position:absolute;left:16px;right:16px;top:62px;z-index:30;max-width:none;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}.agent-heading-actions .agent-more{display:block}.agent-heading .agent-heading-actions .account-save{max-width:150px}}
+.agent-export-frame[data-mode=standard]>.scene-view{min-height:640px}
