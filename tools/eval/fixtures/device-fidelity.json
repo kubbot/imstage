@@ -43,16 +43,16 @@
   },
   "devices": [
     {
-      "deviceProfileId": "iphone-15-pro",
+      "deviceProfileId": "iphone-17-pro",
       "expectedSurface": "ios",
-      "expectedWidth": 393,
-      "expectedHeight": 852,
+      "expectedWidth": 402,
+      "expectedHeight": 874,
       "expectedPixelRatio": 3,
       "expectedExport": {
-        "width": 1179,
-        "height": 2556
+        "width": 1206,
+        "height": 2622
       },
-      "notes": "Native panel 1179×2556 per Apple; rendered/captured at 393×852 logical points @3x."
+      "notes": "Native panel 1206×2622 per Apple; rendered/captured at 402×874 logical points @3x."
     },
     {
       "deviceProfileId": "pixel-8",
@@ -91,7 +91,7 @@
         "kind": "avatar",
         "required": true,
         "surface": "ios",
-        "description": "On iphone-15-pro the WeChat avatars are readable 40×40 rounded squares, initials/uploaded images are not stretched or clipped, and incoming/outgoing sides stay correct."
+        "description": "On iphone-17-pro the WeChat avatars are readable 40×40 rounded squares, initials/uploaded images are not stretched or clipped, and incoming/outgoing sides stay correct."
       },
       {
         "id": "avatar-android-rendering",
@@ -121,7 +121,7 @@
       "id": "D01",
       "difficulty": 2,
       "title": "微信 × iPhone：双人对话与头像",
-      "deviceProfileId": "iphone-15-pro",
+      "deviceProfileId": "iphone-17-pro",
       "prompt": "使用我的默认人物，生成我与阿远约好明天十点去看展的微信聊天。生成阿远的自然摄影头像，保持每条消息的头像一致。",
       "answer": {
         "text": [
@@ -129,8 +129,8 @@
           "好呀，我们十点见。"
         ],
         "dimensions": [
-          1179,
-          2556
+          1206,
+          2622
         ],
         "assertions": [
           "两位人物均有可解码的头像，不能用首字母方块代替通过",
@@ -183,7 +183,7 @@
       "id": "D04",
       "difficulty": 3,
       "title": "跨次生成复用默认人物与联系人",
-      "deviceProfileId": "iphone-15-pro",
+      "deviceProfileId": "iphone-17-pro",
       "prompt": "保存 D01 的两位人物。新建一段与阿远讨论晚餐的对话，复用我与阿远的头像。",
       "answer": {
         "assertions": [
@@ -199,11 +199,11 @@
       "id": "D05",
       "difficulty": 3,
       "title": "长截图与多行消息",
-      "deviceProfileId": "iphone-15-pro",
+      "deviceProfileId": "iphone-17-pro",
       "prompt": "生成25条讨论看展的微信对话，包含多行中文，输出长截图。",
       "answer": {
-        "width": 1179,
-        "minHeightExclusive": 2556,
+        "width": 1206,
+        "minHeightExclusive": 2622,
         "assertions": [
           "25条消息全部存在，无压缩或重叠",
           "仅一个顶部栏和一个底部输入栏",
@@ -216,7 +216,7 @@
       "id": "D06",
       "difficulty": 4,
       "title": "选中头像局部再生成",
-      "deviceProfileId": "iphone-15-pro",
+      "deviceProfileId": "iphone-17-pro",
       "prompt": "仅将阿远的头像改为自然光下戴眼镜的青年摄影头像，保持其他元素不变。",
       "answer": {
         "assertions": [

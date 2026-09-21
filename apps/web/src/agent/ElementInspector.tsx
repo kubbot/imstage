@@ -1,4 +1,4 @@
-import {DEVICE_PROFILES,deviceProfile} from '../studio/device-profiles';
+import {DEVICE_PROFILES} from '../studio/device-profiles';
 import { useEffect, useRef, useState } from 'react';
 import { MESSAGE_TYPES, MESSAGE_TYPE_LABELS, validateScene, type Message, type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
@@ -26,7 +26,7 @@ export default function ElementInspector({scene,selected,locked,onSelect,onChang
       <div className="inspector-pair"><button className="agent-button" disabled={scene.messages[0]?.id===message.id} onClick={()=>{const ms=[...scene.messages];const n=ms.findIndex(m=>m.id===message.id);[ms[n-1],ms[n]]=[ms[n],ms[n-1]];apply({...scene,messages:ms});}}>上移</button><button className="agent-button" onClick={()=>{apply({...scene,messages:scene.messages.filter(m=>m.id!==message.id)});onSelect('@scene');}}>删除消息</button></div>
     </> : <>
       {text('会话标题','headerText',scene.headerText??scene.title)}{text('设备时间','deviceTime',scene.deviceTime)}{text('日期文字','date',scene.date)}{text('输入栏提示','composerText',scene.composerText??'输入消息')}{text('水印','watermark',scene.watermark)}
-      <label>截图设备<select value={scene.deviceProfileId||''} onChange={e=>{const p=DEVICE_PROFILES.find(p=>p.id===e.target.value);if(p)update({deviceProfileId:p.id,surface:p.surface});}}>{!scene.deviceProfileId&&<option value="">{deviceProfile(scene).label}</option>}{DEVICE_PROFILES.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+      <label>截图设备<select value={scene.deviceProfileId||''} onChange={e=>{if(!e.target.value){update({deviceProfileId:undefined});return;}const p=DEVICE_PROFILES.find(p=>p.id===e.target.value);if(p)update({deviceProfileId:p.id,surface:p.surface});}}><option value="">通用尺寸（当前系统）</option>{DEVICE_PROFILES.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
       <label>电量<input type="number" min={0} max={100} value={scene.battery??60} onChange={e=>update({battery:Number(e.target.value)})}/></label>
       <label>聊天背景<input type="color" value={scene.background||'#ededed'} onChange={e=>update({background:e.target.value})}/></label>
       <div className="inspector-pair"><button className="agent-button" onClick={()=>{setSlot('backgroundImage');file.current?.click();}}>上传背景</button><button className="agent-button" disabled={!scene.backgroundImage} onClick={()=>update({backgroundImage:''})}>清除背景图</button></div>

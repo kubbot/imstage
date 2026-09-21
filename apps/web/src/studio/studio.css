@@ -1120,28 +1120,29 @@
 [data-mode='full'] .scene-messages { flex: 0 0 auto; overflow: visible; }
 
 /* iPhone 15 Pro — iOS status bar, safe areas and honest WeChat metrics. */
-.scene-view[data-device='iphone-15-pro'] {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro']) {
+  --scene-radius: 7px;
   --scene-font: 16px;
   --scene-spacing: 14px;
 }
 
-.scene-view[data-device='iphone-15-pro'] .scene-status {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro']) .scene-status {
   min-height: 54px;
   padding: 18px 30px 6px;
   font-size: 15px;
 }
 
-.scene-view[data-device='iphone-15-pro'] .scene-header {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro']) .scene-header {
   min-height: 52px;
   padding: 6px 14px 12px;
 }
 
-.scene-view[data-device='iphone-15-pro'] .scene-composer {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro']) .scene-composer {
   position: relative;
   padding-bottom: 24px;
 }
 
-.scene-view[data-device='iphone-15-pro'] .scene-composer::after {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro']) .scene-composer::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -1153,25 +1154,26 @@
   transform: translateX(-50%);
 }
 
-.scene-view[data-device='iphone-15-pro'][data-platform='wechat'] .scene-avatar {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-avatar {
   width: 40px;
   height: 40px;
   border-radius: 7px;
 }
 
-.scene-view[data-device='iphone-15-pro'][data-platform='wechat'] .scene-bubble {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-bubble {
   padding: 10px 13px;
-  border-radius: 7px;
+  border-radius: var(--scene-radius);
   line-height: 1.42;
 }
 
-.scene-view[data-device='iphone-15-pro'][data-platform='wechat'] .scene-line {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-line {
   gap: 10px;
   margin: 3px 0;
 }
 
 /* Pixel 8 — Android status bar and gesture navigation bar. */
 .scene-view[data-device='pixel-8'] {
+  --scene-radius: 7px;
   --scene-font: 16px;
   --scene-spacing: 14px;
 }
@@ -1212,7 +1214,7 @@
 
 .scene-view[data-device='pixel-8'][data-platform='wechat'] .scene-bubble {
   padding: 10px 13px;
-  border-radius: 7px;
+  border-radius: var(--scene-radius);
   line-height: 1.42;
 }
 
@@ -1268,10 +1270,14 @@
 .scene-status,.scene-header{flex-shrink:0}
 .scene-signal{display:inline-flex;align-items:flex-end;gap:2px;height:12px;width:17px}.scene-signal i{width:3px;border-radius:1px;background:currentColor;height:4px}.scene-signal i:nth-child(2){height:7px}.scene-signal i:nth-child(3){height:10px}.scene-signal i:nth-child(4){height:13px}
 .scene-battery{position:relative;display:inline-flex;border:1px solid #777;border-radius:3px;width:23px;height:12px;padding:1px;margin-left:1px}.scene-battery::after{content:'';position:absolute;right:-3px;top:3px;width:2px;height:4px;background:#777;border-radius:0 1px 1px 0}.scene-battery i{background:currentColor;border-radius:1px;height:100%}
-.scene-view[data-device=iphone-15-pro][data-platform=wechat] .scene-composer{min-height:84px;padding:9px 11px 32px}
-.scene-view[data-device=iphone-15-pro][data-platform=wechat] .scene-composer-field{border-radius:5px;min-height:38px}
+.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat] .scene-composer{min-height:84px;padding:9px 11px 32px}
+.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat] .scene-composer-field{border-radius:5px;min-height:38px}
 .scene-view[data-device=macos-window] .scene-header-back{display:none}.scene-view[data-device=macos-window] .scene-header{grid-template-columns:minmax(0,1fr) auto}
 .scene-view[data-device=macos-window] .scene-desktop-composer{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:12px;height:150px;padding:14px 20px;background:#fafafa}
 .scene-desktop-tools{display:flex;gap:18px;color:#626262}.scene-desktop-input{flex:1;white-space:pre-wrap}.scene-desktop-send{position:absolute;right:20px;bottom:14px;padding:5px 22px;border-radius:4px;background:#efefef;color:#aaa;font-size:13px}
 /* Edit affordances must never move the rendered content relative to PNG. */
 .scene-row-host.scene-selectable{padding:0;border-radius:0}
+
+/* User reference screenshots keep the bottom gesture area empty at rest. */
+.scene-view[data-device=iphone-17-pro][data-platform=wechat] .scene-composer::after{display:none}
+.scene-battery-number{position:absolute;inset:0;text-align:center;font-size:9px;line-height:10px;color:#fff;font-weight:700;letter-spacing:-.3px}

@@ -1,7 +1,7 @@
 import {applySelfDefault,retainContacts} from '../../apps/web/src/contacts/model.ts';
 import {getContactLibrary,putContactLibrary} from './store.mjs';
 import {normalizeContactLibraryInput} from './model.mjs';
-import {validateContactAvatars} from './image.mjs';
+import {validateContactAvatars,assertAvatarByteBudget} from './image.mjs';
 
 /** Same identity lifecycle for interactive and batch Agent calls. */
 export function withContactLibrary(runtime,{db,nowMs}) {
@@ -21,15 +21,15 @@ export function withContactLibrary(runtime,{db,nowMs}) {
    try{
     // Decode first; re-read and append synchronously afterwards, so a concurrent
     // contact edit/default change is never overwritten by the Agent result.
-    const proposed=normalizeContactLibraryInput(retainContacts(getContactLibrary(db,input.userId),final.participants));
-    if(proposed.autoSave){
-     await validateContactAvatars(proposed.contacts);
+    const beforeSave=getContactLibrary(db,input.userId);
+    if(beforeSave.autoSave){
+     const proposed=normalizeContactLibraryInput(retainContacts(beforeSave,final.participants));
+     await validateContactAvatars(proposed.contacts,{trustedAvatars:new Set(beforeSave.contacts.map(c=>c.avatar))});
      if(input.signal?.aborted)throw new Error('aborted');
      const latest=getContactLibrary(db,input.userId);
      if(latest.autoSave){
       const merged=normalizeContactLibraryInput(retainContacts(latest,final.participants));
-      const totalBytes=merged.contacts.reduce((sum,c)=>sum+(c.avatar?Buffer.from(c.avatar.split(',')[1],'base64').length:0),0);
-      if(totalBytes>8*1024*1024)throw new Error('library full');
+      assertAvatarByteBudget(merged.contacts);
       if(merged.contacts.length!==latest.contacts.length)putContactLibrary(db,{...merged,userId:input.userId,nowMs:nowMs()});
      }
     }

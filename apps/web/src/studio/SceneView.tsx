@@ -142,8 +142,8 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-status-icons" aria-hidden="true">
           <span className="scene-signal" aria-hidden="true"><i/><i/><i/><i/></span>
           <IconWifi size={15} stroke={1.8} />
-          {scene.battery !== undefined && <small>{scene.battery}%</small>}
-          <span className="scene-battery" aria-hidden="true"><i style={{width:`${scene.battery??80}%`}}/></span>
+          
+          <span className="scene-battery" aria-hidden="true"><i style={{width:`${scene.battery??80}%`}}/>{scene.battery!==undefined&&<b className="scene-battery-number">{scene.battery}</b>}</span>
         </span>
       </div>
 
@@ -217,7 +217,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M11 9q4 4 0 8M14 7q6 6 0 12M8 11q2 2 0 4"/></svg> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-field">{scene.composerText ?? (template.composer === 'instagram' ? 'Message…' : '')}</span>
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
-        <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : <IconPlus size={25} stroke={1.6}/>}</span>
+        <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M7 13h12M13 7v12"/></svg> : <IconPlus size={25} stroke={1.6}/>}</span>
       </div>}
 
       {scene.watermark ? <div className="scene-watermark">{scene.watermark}</div> : null}

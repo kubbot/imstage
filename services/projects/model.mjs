@@ -220,6 +220,9 @@ export function blankScene(platform, id) {
     id,
     title: '',
     platform,
+    surface:'ios',
+    deviceProfileId:'iphone-17-pro',
+    participants:base.participants.map(p=>p.id===base.selfId?{...p,name:'我',avatar:undefined}:p),
     messages: [],
     watermark: '',
   };

@@ -18,5 +18,5 @@ export {
   parseRevision,
   normalizeContactLibraryInput,
 } from './model.mjs';
-export { assertDecodableAvatar, validateContactAvatars } from './image.mjs';
+export { assertDecodableAvatar, validateContactAvatars, assertAvatarByteBudget } from './image.mjs';
 export { CONTACT_SCHEMA_SQL, getContactLibrary, putContactLibrary } from './store.mjs';

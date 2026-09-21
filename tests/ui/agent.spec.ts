@@ -34,11 +34,11 @@ test('Agent creation, scoped Vibe Edit, undo and PNG export share the rendered s
   await expect(page.locator('.agent-phone')).toContainText('周末一起去看展吗？');
   await page.getByRole('button',{name:'关闭 AI 编辑'}).click();
   const download = page.waitForEvent('download'); await page.getByRole('button',{name:'导出 PNG'}).click();
-  expect((await download).suggestedFilename()).toBe('imstage-1179x2556.png');
+  expect((await download).suggestedFilename()).toBe('imstage-1206x2622.png');
   await page.getByLabel('导出图片范围').selectOption('standard');
   const standardDownload=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
   const file=await(await standardDownload).path();const {data,info}=await sharp(file!).ensureAlpha().raw().toBuffer({resolveWithObject:true});
-  expect([info.width,info.height]).toEqual([1179,2556]);expect(data.at(-1)).toBe(255);
+  expect([info.width,info.height]).toEqual([1206,2622]);expect(data.at(-1)).toBe(255);
 });
 test('provider failure keeps previous scene and restores editable request', async ({page}) => {
   await ready(page); await generate(page);
@@ -121,7 +121,7 @@ test('one conversation uses platform-owned chrome and survives platform switchin
     expect(await phone.locator('.scene-line .scene-avatar').count()).toBe(platform==='wechat'?2:platform==='instagram'?1:0);
     await page.getByLabel('导出图片范围').selectOption('standard');
     const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
-    const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([1179,2556]);
+    const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([1206,2622]);
     await phone.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR||'.local'}/template-${platform}.png`});
   }
 });

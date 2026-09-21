@@ -33,7 +33,7 @@ test('default avatar survives two fresh creations and contact deletion never mut
  await page.getByRole('button',{name:'人物与头像',exact:true}).click();await panel.locator('.contact-row').filter({hasText:'林小满'}).getByRole('button',{name:'移除'}).click();await expect(panel.locator('.contact-row')).toHaveCount(1);
  await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
 });
-for(const [id,width,height] of [['iphone-15-pro',1179,2556],['pixel-8',1080,2400],['macos-window',2000,1440]] as const) test(`device fidelity ${id}: exact export, same messages, no clipped composer`,async({page})=>{
+for(const [id,width,height] of [['iphone-17-pro',1206,2622],['pixel-8',1080,2400],['macos-window',2000,1440]] as const) test(`device fidelity ${id}: exact export, same messages, no clipped composer`,async({page})=>{
  await ready(page);await generation(page);await page.getByLabel('截图设备',{exact:true}).selectOption(id);
  const phone=page.locator('.agent-phone');await expect(phone.locator('.scene-view')).toHaveAttribute('data-device',id);
  await expect(phone).toContainText('明天一起去看展吗？');await expect(phone).toContainText('好呀，我们十点见。');
@@ -42,9 +42,34 @@ for(const [id,width,height] of [['iphone-15-pro',1179,2556],['pixel-8',1080,2400
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:/渲染画面/}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
 test('long screenshot grows with messages while preserving selected device width',async({page})=>{
- await ready(page);const scene={...createScene(),surface:'ios',deviceProfileId:'iphone-15-pro'};
+ await ready(page);const scene={...createScene(),surface:'ios',deviceProfileId:'iphone-17-pro'};
  scene.messages=Array.from({length:25},(_,i)=>({...scene.messages[0],id:`long-${i}`,text:`第 ${i+1} 条：周末一起去看展，然后找一家咖啡馆聊聊天。`,time:`10:${String(i).padStart(2,'0')}`}));
  await page.route('**/api/agent/run',route=>route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'}));
  await page.getByLabel('描述想生成的聊天',{exact:true}).fill('生成长对话');await page.getByRole('button',{name:'开始生成',exact:true}).click();await expect(page.locator('.agent-render-footer')).toContainText('人物与头像已存入');
- await page.getByLabel('导出图片范围').selectOption('full');const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const file=await(await download).path();const data=await readFile(file!);const meta=await sharp(data).metadata();expect(meta.width).toBe(1179);expect(meta.height).toBeGreaterThan(2556);
+ await page.getByLabel('导出图片范围').selectOption('full');const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const file=await(await download).path();const data=await readFile(file!);const meta=await sharp(data).metadata();expect(meta.width).toBe(1206);expect(meta.height).toBeGreaterThan(2622);
+});
+
+test('avatar generation stages the image until Save and reports provider failure without losing it',async({page})=>{
+ await ready(page);await page.getByRole('button',{name:'人物与头像',exact:true}).click();const panel=page.getByRole('complementary',{name:'人物与头像',exact:true});
+ await panel.getByLabel('描述想生成的头像',{exact:true}).fill('自然光头像');
+ const avatar='data:image/png;base64,'+(await sharp({create:{width:64,height:64,channels:3,background:'#657f4a'}}).png().toBuffer()).toString('base64');
+ await page.route('**/api/agent/run',async route=>{const {scene,targetId}=route.request().postDataJSON();expect(targetId).toBe('@participant:portrait');await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,participants:[{...scene.participants[0],avatar}]}},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'});});
+ await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByText('头像已生成。保存后可在之后的对话中复用。',{exact:true})).toBeVisible();
+ const staged=await panel.getByAltText('待保存的头像').getAttribute('src');expect(staged).toContain('data:image/png');
+ const decoded=await sharp(Buffer.from(staged!.split(',')[1],'base64')).raw().toBuffer();expect([...decoded.slice(0,3)]).toEqual([101,127,74]);
+ expect((await(await page.request.get('/api/contact-library')).json()).contacts).toHaveLength(0);
+ await page.unroute('**/api/agent/run');await page.route('**/api/agent/run',r=>r.fulfill({status:503,json:{error:{message:'生图服务不可用'}}}));
+ await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByRole('alert')).toContainText('生图服务不可用');await expect(panel.getByAltText('待保存的头像')).toHaveAttribute('src',staged!);
+});
+
+test('stale contact save is rejected and explicit reload preserves another tab change',async({page})=>{
+ const origin=await ready(page);await page.getByRole('button',{name:'人物与头像',exact:true}).click();const panel=page.getByRole('complementary',{name:'人物与头像',exact:true});
+ await page.request.put('/api/contact-library',{headers:{Origin:origin,'X-IMStage-Request':'1'},data:{revision:0,contacts:[{id:crypto.randomUUID(),name:'另一个标签页保存的人物'}],selfContactId:null,autoSave:false}});
+ await panel.getByRole('button',{name:'保存人物',exact:true}).click();await expect(panel.getByRole('button',{name:'重新读取'})).toBeVisible();await panel.getByRole('button',{name:'重新读取'}).click();await expect(panel.locator('.contact-row')).toContainText('另一个标签页保存的人物');await expect(panel.getByLabel('生成成功后保存人物与头像')).not.toBeChecked();
+});
+
+test('contact library outage cannot block core conversation generation',async({page})=>{
+ await ready(page);await page.route('**/api/contact-library',r=>r.fulfill({status:503,json:{error:{message:'人物库暂不可用'}}}));await page.reload();await expect(page.locator('.agent-identity-summary')).toContainText('人物库连接失败');
+ await page.route('**/api/agent/run',r=>{const {scene}=r.request().postDataJSON();return r.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,messages:[{id:'m',type:'text',participantId:scene.selfId,text:'核心创作继续可用',time:'09:41'}]}},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'});});
+ await page.getByLabel('描述想生成的聊天',{exact:true}).fill('生成一段聊天');await page.getByRole('button',{name:'开始生成',exact:true}).click();await expect(page.locator('.agent-phone')).toContainText('核心创作继续可用');
 });

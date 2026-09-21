@@ -23,3 +23,17 @@ test('failed or cancelled generation cannot add contacts and a portrait-only run
  await runtime.run({userId:'owner',scene,targetId,onEvent:()=>{},signal:new AbortController().signal});assert.equal(getContactLibrary(db,'owner').revision,0);
  }
 });
+
+test('actual project batch blankScene receives the account self identity',async t=>{
+ const {blankScene}=await import('../services/projects/model.mjs');
+ const db=setup(t);putContactLibrary(db,{userId:'owner',revision:0,contacts:[{id:meId,name:'批量默认人物',subtitle:'',avatar:null}],selfContactId:meId,autoSave:false,nowMs:0});
+ let name;const runtime=withContactLibrary({async run(input){name=input.scene.participants.find(p=>p.id===input.scene.selfId).name;assert.equal(input.scene.deviceProfileId,'iphone-17-pro');return {ok:false,scene:input.scene};}},{db,nowMs:()=>1});
+ await runtime.run({userId:'owner',scene:blankScene('wechat',crypto.randomUUID()),onEvent:()=>{}});assert.equal(name,'批量默认人物');
+});
+
+test('a disabled auto-save library neither validates nor stores generated people',async t=>{
+ const db=setup(t);putContactLibrary(db,{userId:'owner',revision:0,contacts:[],selfContactId:null,autoSave:false,nowMs:0});
+ const scene=createScene();scene.participants[0].avatar='invalid';const events=[];
+ const runtime=withContactLibrary({async run(input){await input.onEvent({type:'scene',scene});await input.onEvent({type:'done'});return {ok:true,scene};}},{db,nowMs:()=>1});
+ await runtime.run({userId:'owner',scene,onEvent:e=>events.push(e)});assert.equal(getContactLibrary(db,'owner').revision,1);assert.deepEqual(events.map(e=>e.type),['scene','done']);
+});

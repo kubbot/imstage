@@ -1139,7 +1139,7 @@ async function handleContactLibraryPut(ctx, req, res) {
   // sharp before anything is written. `X-IMStage-User` is rechecked after the
   // async decode so a concurrent account switch can never write the wrong row.
   const input = contacts.normalizeContactLibraryInput(body);
-  await contacts.validateContactAvatars(input.contacts);
+  await contacts.validateContactAvatars(input.contacts,{trustedAvatars:new Set(contacts.getContactLibrary(ctx.db,session.user.id).contacts.map(c=>c.avatar))});
   recheckSession(ctx, req, session);
   const state = contacts.putContactLibrary(ctx.db, {
     userId: session.user.id,

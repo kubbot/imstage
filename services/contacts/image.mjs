@@ -70,14 +70,21 @@ export async function assertDecodableAvatar(avatar) {
  *
  * @returns {Promise<number>} total decoded avatar bytes
  */
-export async function validateContactAvatars(contacts) {
-  let totalBytes = 0;
+export function assertAvatarByteBudget(contacts) {
+  let total=0;
+  for(const contact of contacts){if(contact?.avatar==null)continue;total+=decodeDataUri(contact.avatar).length;}
+  if(total>MAX_TOTAL_AVATAR_BYTES)throw contactsError(400,'invalid_avatar','头像总大小超过 8 MiB 上限');
+  return total;
+}
+
+/** Only server-read, already validated avatar strings may be trusted. */
+export async function validateContactAvatars(contacts,{trustedAvatars=new Set()}={}) {
+  const totalBytes=assertAvatarByteBudget(contacts);
+  const decoded=new Set(trustedAvatars);
   for (const contact of contacts) {
-    if (contact?.avatar === undefined || contact?.avatar === null) continue;
-    totalBytes += await assertDecodableAvatar(contact.avatar);
-    if (totalBytes > MAX_TOTAL_AVATAR_BYTES) {
-      throw contactsError(400, 'invalid_avatar', '头像总大小超过 8 MiB 上限');
-    }
+    if (contact?.avatar == null || decoded.has(contact.avatar)) continue;
+    await assertDecodableAvatar(contact.avatar);
+    decoded.add(contact.avatar);
   }
   return totalBytes;
 }

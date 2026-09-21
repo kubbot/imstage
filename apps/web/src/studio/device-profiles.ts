@@ -55,6 +55,12 @@ const IPHONE_15_PRO: DeviceProfile = {
   pixelRatio: 3,
 };
 
+// Apple: https://support.apple.com/125090 — 1206 × 2622 native pixels.
+const IPHONE_17_PRO: DeviceProfile = {
+  id: 'iphone-17-pro', label: 'iPhone 17 Pro', surface: 'ios',
+  width: 402, height: 874, pixelRatio: 3,
+};
+
 const PIXEL_8: DeviceProfile = {
   id: 'pixel-8',
   label: 'Pixel 8',
@@ -81,6 +87,7 @@ const MACOS_WINDOW: DeviceProfile = {
  */
 export const DEVICE_PROFILES: readonly DeviceProfile[] = [
   LEGACY_IOS,
+  IPHONE_17_PRO,
   IPHONE_15_PRO,
   PIXEL_8,
   MACOS_WINDOW,

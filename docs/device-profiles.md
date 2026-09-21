@@ -17,17 +17,20 @@
 | id | surface | 逻辑尺寸 | DPR | 导出像素 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `legacy360` | ios | 360 × 640 | 2 | 720 × 1280 | 兼容旧版默认外观，无设备专属样式 |
+| `iphone-17-pro` | ios | 402 × 874 | 3 | 1206 × 2622 | 当前默认，与用户参考截图尺寸一致 |
 | `iphone-15-pro` | ios | 393 × 852 | 3 | 1179 × 2556 | 原生面板 1179 × 2556 |
 | `pixel-8` | android | 360 × 800 | 3 | 1080 × 2400 | 原生面板 1080 × 2400 |
 | `macos-window` | desktop | 1000 × 720 | 2 | 2000 × 1440 | 固定尺寸的桌面窗口预设，不是硬件屏幕声明 |
 
-`DEVICE_PROFILES` 只包含上表四项。`deviceProfile(scene)` 另外提供两个“兼容回退”，它们不出现在可选列表中：
+`DEVICE_PROFILES` 只包含上表五项。`deviceProfile(scene)` 另外提供两个“兼容回退”，它们不出现在可选列表中：
 
 - `legacy-android`：场景没有显式 id、`surface = android` 时的 360 × 640 @2x 回退。
 - `legacy-desktop`：场景没有显式 id、`surface = desktop` 时的 900 × 640 @2x 回退。
 - 其余情况回退 `legacy360`（ios）。
 
 ## 权威像素规格 vs 本项目的逻辑缩放
+
+iPhone 17 Pro 的 [Apple 官方规格](https://support.apple.com/125090) 为 1206 × 2622；本项目用 402 × 874 @3x 渲染。它是当前默认，iPhone 15 Pro 仍用于兼容既有作品。
 
 官方给出的是**硬件原生像素**，本项目渲染与截图使用**逻辑（CSS）坐标**：
 

@@ -38,7 +38,7 @@ function shape(profile) {
 /* ------------------------------------------------------------------ */
 
 test('DEVICE_PROFILES matches the coded device spec', () => {
-  assert.deepEqual(DEVICE_PROFILE_IDS, ['legacy360', 'iphone-15-pro', 'pixel-8', 'macos-window']);
+  assert.deepEqual(DEVICE_PROFILE_IDS, ['legacy360', 'iphone-17-pro', 'iphone-15-pro', 'pixel-8', 'macos-window']);
   assert.equal(new Set(DEVICE_PROFILE_IDS).size, DEVICE_PROFILES.length);
 
   const byId = new Map(DEVICE_PROFILES.map((profile) => [profile.id, profile]));
@@ -56,6 +56,7 @@ test('DEVICE_PROFILES matches the coded device spec', () => {
     height: 852,
     pixelRatio: 3,
   });
+  assert.deepEqual(shape(byId.get('iphone-17-pro')), {id:'iphone-17-pro',surface:'ios',width:402,height:874,pixelRatio:3});
   assert.deepEqual(shape(byId.get('pixel-8')), {
     id: 'pixel-8',
     surface: 'android',
@@ -240,7 +241,7 @@ test('device fidelity fixture references real profiles with consistent export pi
   assert.deepEqual([...surfaces].sort(), ['android', 'desktop', 'ios']);
 });
 
-test('each fixture device can validate and render the shared semantic content', () => {
+test('each fixture device validates the shared semantic content', () => {
   const content = fixture.semanticContent;
   assert.equal(fixture.platform, 'wechat');
   assert.ok(content.participants.length >= 2);
