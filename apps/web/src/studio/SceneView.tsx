@@ -1,3 +1,4 @@
+import { timelinePresentation } from '../../../../packages/schema/timeline.mjs';
 import {platformTemplate} from './platform-templates';
 import {deviceProfile} from './device-profiles';
 import type { CSSProperties } from 'react';
@@ -138,6 +139,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   }
   const participantMap = new Map(scene.participants.map((participant) => [participant.id, participant]));
   const title = headerTitle(scene);
+  const timeline = timelinePresentation(scene);
   const group = scene.participants.length > 2;
   const template = platformTemplate(scene.platform);
   const profile = deviceProfile(scene);
@@ -167,11 +169,11 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
       </div>
 
       <div className="scene-messages" onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
-        {scene.date && <div className="scene-date" {...elementProps("编辑日期文字")}>{scene.date}</div>}
+        {timeline.header && <div className="scene-date" {...elementProps("编辑日期文字")}>{timeline.header}</div>}
         {scene.messages.length === 0 ? <div className="scene-empty">还没有消息</div> : null}
         {scene.messages.map((message, index) => {
-          const previous = scene.messages[index - 1];
-          const showTime = !previous || previous.time !== message.time;
+          const { dateLabel, showTime, hidden } = timeline.entries[index];
+          if (hidden && !dateLabel) return null;
           const participant = participantMap.get(message.participantId);
           const isSelf = message.type !== 'system' && message.participantId === scene.selfId;
           const rowClass = [
@@ -184,8 +186,9 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
 
           const row = (
             <div className={rowClass} data-message-id={message.id}>
-              {!template.inlineTime && showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
-              <div className="scene-line">
+              {dateLabel && <div className="scene-date scene-date-separator" data-date={message.date}>{dateLabel}</div>}
+              {!hidden && !template.inlineTime && showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
+              {!hidden && <div className="scene-line">
                 {!isSelf && showAvatar(false) && message.type !== 'system' ? avatar(participant) : null}
                 <Bubble type={selectable ? "button" : undefined} className={`scene-bubble-wrap${selectable ? ' scene-message-select' : ''}`} aria-label={selectable ? `选择消息：${message.text || message.type}` : undefined} aria-pressed={selectable ? selectedId === message.id : undefined} onClick={selectable ? () => onSelect?.(message.id) : undefined} style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
                   {!isSelf && message.type !== 'system' && group ? (
@@ -196,7 +199,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
                   {template.inlineTime && message.type !== 'system' && <div className="scene-message-meta"><span>{message.time}</span>{isSelf && <IconChecks size={16} stroke={1.7} aria-label="已读"/>}</div>}
                 </Bubble>
                 {isSelf && showAvatar(true) ? avatar(participant) : null}
-              </div>
+              </div>}
             </div>
           );
 

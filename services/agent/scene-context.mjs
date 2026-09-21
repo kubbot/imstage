@@ -41,7 +41,7 @@ function markMessage(message) {
     participantId: message.participantId,
     type: message.type,
     text: truncate(message.text, MESSAGE_CONTEXT_TEXT_CHARS),
-    time: message.time,
+    time: message.time, date: message.date,
     subtitle: truncate(message.subtitle,400), quote: truncate(message.quote,800), width: message.width, height: message.height, appearance: message.appearance,
     items: message.items?.map(item => ({...item, caption:truncate(item.caption,200), asset: item.asset ? ASSET_MARKER : undefined})),
   };
@@ -76,7 +76,7 @@ export function buildSceneContext(scene, maxChars, targetId = null) {
     platform: scene.platform,
     surface: scene.surface, background: scene.background, backgroundImage: scene.backgroundImage ? ASSET_MARKER : undefined, appearance: scene.appearance, headerText: truncate(scene.headerText,400), composerText: truncate(scene.composerText,200), battery: scene.battery,
     deviceTime: truncate(scene.deviceTime, AGENT_MAX_SCENE_TIME_CHARS),
-    date: truncate(scene.date, AGENT_MAX_SCENE_DATE_CHARS),
+    date: truncate(scene.date, AGENT_MAX_SCENE_DATE_CHARS), referenceDate: scene.referenceDate,
     selfId: scene.selfId,
     watermark: truncate(scene.watermark, AGENT_MAX_SCENE_WATERMARK_CHARS),
     participants: scene.participants.map(markParticipant),

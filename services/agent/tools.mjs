@@ -37,7 +37,7 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
-  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,deviceTime,platform；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
@@ -50,7 +50,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 wechat/xiaohongshu/imessage/whatsapp/slack/instagram；message.type 只能是 text/image/location/system/contact/transfer/voice/video/link/album。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery；消息可选subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 wechat/xiaohongshu/imessage/whatsapp/slack/instagram；message.type 只能是 text/image/location/system/contact/transfer/voice/video/link/album。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。',
           },
         },
         required: ['scene'],
@@ -70,7 +70,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           message: {
             type: 'object',
             description:
-              'Message 对象：id,participantId,type,text,time；type 为 system 时 participantId 用空字符串。',
+              'Message 对象：id,participantId,type,text,time，可选date(YYYY-MM-DD发送日期)；type 为 system 时 participantId 用空字符串。',
           },
         },
         required: ['message'],
@@ -329,7 +329,7 @@ export async function executeTool(name, args, context) {
       const target = resolveTarget(ctx.scene,args.targetId);
       if (!target || target.kind === 'message' || !isPlainObject(args.patch)) return fail(ctx,'元素或 patch 无效');
       if (ctx.targetId && ctx.targetId !== args.targetId) return fail(ctx,'只能调整所选元素');
-      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','watermark','surface','deviceProfileId','background','appearance','headerText','composerText','battery'] : ['name','subtitle'];
+      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','referenceDate','watermark','surface','deviceProfileId','background','appearance','headerText','composerText','battery'] : ['name','subtitle'];
       if (Object.keys(args.patch).some(k => !allowed.includes(k))) return fail(ctx,'patch 包含不允许的字段');
       return buildCandidate(ctx,target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)},'元素已更新');
     }

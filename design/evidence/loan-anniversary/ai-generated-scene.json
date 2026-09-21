@@ -1,0 +1,114 @@
+{
+  "id": "synthetic-loan-anniversary",
+  "title": "一年之约",
+  "platform": "wechat",
+  "deviceTime": "14:32",
+  "date": "",
+  "selfId": "me",
+  "participants": [
+    {
+      "id": "me",
+      "name": "小林"
+    },
+    {
+      "id": "achuan",
+      "name": "阿川"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "小林，在忙吗？想跟你商量件事。",
+      "time": "20:41",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m2",
+      "participantId": "me",
+      "type": "text",
+      "text": "在的，你说。",
+      "time": "20:43",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m3",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "我这边项目资金周转差一笔，想跟你借500万元。",
+      "time": "20:45",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m4",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "借期一年，明年9月21日之前一定还清，到时候连本带利一起给你。",
+      "time": "20:46",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m5",
+      "participantId": "me",
+      "type": "text",
+      "text": "行，我信你。一年后就是2026年9月21日，我把日子记下了。",
+      "time": "20:52",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m6",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "谢谢你，小林。这份情我记着。",
+      "time": "20:54",
+      "date": "2025-09-21"
+    },
+    {
+      "id": "m7",
+      "participantId": "me",
+      "type": "text",
+      "text": "阿川，今天正好是9月21日，一年之约到期啦，提醒你一下～",
+      "time": "09:15",
+      "date": "2026-09-21"
+    },
+    {
+      "id": "m8",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "记得呢，一天都没忘。我这就把500万元转给你。",
+      "time": "09:18",
+      "date": "2026-09-21"
+    },
+    {
+      "id": "m9",
+      "participantId": "achuan",
+      "type": "transfer",
+      "text": "转账 500万元",
+      "time": "09:26",
+      "date": "2026-09-21"
+    },
+    {
+      "id": "m10",
+      "participantId": "me",
+      "type": "text",
+      "text": "收到了，500万元一分不少，谢谢阿川。",
+      "time": "09:31",
+      "date": "2026-09-21"
+    },
+    {
+      "id": "m11",
+      "participantId": "achuan",
+      "type": "text",
+      "text": "该谢谢你才是。一年前那句话，让我扛过了最难的时候。",
+      "time": "09:33",
+      "date": "2026-09-21"
+    }
+  ],
+  "watermark": "合成案例 · 虚构对话",
+  "referenceDate": "2026-09-21",
+  "composerText": "",
+  "headerText": "阿川",
+  "surface": "ios",
+  "deviceProfileId": "iphone-17-pro"
+}

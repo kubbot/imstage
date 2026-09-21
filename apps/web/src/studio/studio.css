@@ -1293,3 +1293,10 @@
 .scene-view [data-editor-selectable]{cursor:pointer}
 .scene-view [data-editor-selectable]:hover{box-shadow:inset 0 0 0 1px #b5432a88}
 .scene-message-select:focus-visible,.scene-avatar-select:focus-visible,.scene-view [data-editor-selectable]:focus-visible{outline:2px solid #b5432a;outline-offset:3px}
+/* System notices must not shrink to a single CJK character per line. */
+.scene-row.is-system .scene-bubble-wrap{width:100%;max-width:100%;align-items:center}
+.scene-row.is-system .scene-system{width:fit-content;max-width:90%;white-space:pre-wrap;word-break:normal}
+.scene-date-separator{align-self:center;flex-shrink:0;padding:12px 0 6px!important;font-size:11px!important;color:#626870}
+
+/* A screenshot canvas has fixed typography; Safari must not auto-enlarge it when zoomed. */
+.scene-view{-webkit-text-size-adjust:none;text-size-adjust:none}

@@ -1,3 +1,4 @@
+import { calendarToday } from '../../packages/schema/timeline.mjs';
 /**
  * IMStage Agent — prompt construction.
  *
@@ -10,7 +11,7 @@
 import { AGENT_MAX_SCENE_CONTEXT_CHARS } from './config.mjs';
 import { buildSceneContext } from './scene-context.mjs';
 
-export function buildSystemPrompt({ targetId } = {}) {
+export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } = {}) {
   const lines = [
     '你是 IMStage 的对话创作 Agent。用户描述想法，你负责构思人物、编排自然的消息，按需生成配图，并持续修改聊天画面。',
     '你的任务是通过工具真实地创建或修改场景，而不是只在回复里描述修改。禁止只输出说明文字而不调用工具。',
@@ -29,6 +30,12 @@ export function buildSystemPrompt({ targetId } = {}) {
     '- message.type 只能是 text / image / location / system / contact / transfer / voice / video / link / album；system 消息 participantId 用空字符串。',
     '- 所有消息的 participantId 必须存在于 participants；selfId 必须是参与者之一。',
     '- 保持 scene.id 不变；修改已有内容时沿用已有 id，不要无意义地重命名。',
+    '',
+    '时间线规则：',
+    `- 当前创作参考日期为 ${referenceDate}（Asia/Shanghai）。今天、昨天、去年今天均以此为基准。明确指定其他故事日期时以用户指定日期为准。`,
+    '- 涉及跨天/跨年时，Scene.referenceDate 写入故事的今天（YYYY-MM-DD）；每条 Message.date 写实际发送日期（YYYY-MM-DD），time 只写 HH:mm。Scene.date 留空，日期分隔由渲染器统一生成。',
+    '- 不要用 system 消息伪造“今天”或日期分隔，禁止重复日期。跨年旧消息必须显示带年份日期，不能只在今天的台词中回忆去年的事。',
+    '- 对于“去年借款、约定今天归还”的故事，必须先呈现去年当天借款和约定的消息，再呈现今天的还款消息。保持时间先后，不得所有消息都写今天。',
     '',
     '图片规则：',
     '- 不要在工具参数里输出图片 base64、远程 URL 或任何图片数据。',
@@ -64,7 +71,7 @@ export function buildInitialMessages({
   history = [],
   maxSceneContextChars = AGENT_MAX_SCENE_CONTEXT_CHARS,
 }) {
-  const messages = [{ role: 'system', content: buildSystemPrompt({ targetId }) }];
+  const messages = [{ role: 'system', content: buildSystemPrompt({ targetId, referenceDate: scene.referenceDate || calendarToday() }) }];
   for (const item of history) {
     messages.push({ role: item.role, content: item.content });
   }

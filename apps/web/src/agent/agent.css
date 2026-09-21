@@ -134,3 +134,15 @@ body:has(.agent-workspace) .nav-wrap{width:100%}
 .agent-input-dock{flex-shrink:0}
 .editor-properties>.agent-manual{max-height:none;margin:0;border:0;overflow:visible}.editor-properties>.agent-manual textarea{font-size:12px}
 .property-album-item{display:grid;gap:8px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.agent-chat{position:relative}
+.agent-drop-overlay{position:absolute;inset:8px;z-index:35;border:2px dashed var(--accent);border-radius:12px;background:color-mix(in srgb,var(--surface) 95%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none;color:var(--accent)}
+.agent-drop-overlay span{font-size:11px;color:var(--muted)}
+.agent-drop-entry{display:flex;align-items:center;gap:12px;width:100%;border:1px dashed var(--line);border-radius:9px;padding:14px;margin:14px 0;text-align:left;background:var(--bg);color:var(--muted)}
+.agent-drop-entry:hover{border-color:var(--accent);color:var(--accent)}.agent-drop-entry span{font-size:12px}.agent-drop-entry strong{display:block;font-size:10px;font-weight:400;margin-top:4px}
+.agent-sample-link{display:block;color:var(--accent);font-size:11px;line-height:1.8;margin-top:12px}
+.agent-sent-attachments{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.agent-sent-attachments img{width:68px;height:68px;object-fit:cover;border:1px solid var(--line);border-radius:7px}.agent-sent-attachments small{flex-basis:100%;font-size:10px;color:var(--muted)}
+.copy-result{position:fixed;z-index:60;right:20px;top:90px;max-width:min(360px,calc(100vw - 32px));max-height:calc(100dvh - 120px);overflow:auto;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.copy-result>div{display:flex;align-items:center;justify-content:space-between;gap:20px}.copy-result strong{font-size:14px}.copy-result p{font-size:12px;color:var(--muted)}.copy-result img{display:block;width:100%;height:auto;margin-bottom:12px}
+@media(max-width:660px){.agent-render-toolbar>div{flex-wrap:wrap;justify-content:flex-end}.agent-copy{min-width:36px}.agent-render-toolbar{row-gap:6px}.agent-render-toolbar>div{flex-basis:100%;justify-content:space-between}}
+
+.device-preview-stage{position:relative;flex-shrink:0}.device-preview-stage>.device-frame{position:absolute;left:0;top:0}

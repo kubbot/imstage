@@ -16,7 +16,8 @@
     "dev:web": "vite --host 127.0.0.1 --port 4417 --strictPort",
     "dev:api": "node services/api/server.mjs",
     "start": "node tools/start-web.mjs",
-    "test:eval": "node --test tools/eval/test/*.test.mjs"
+    "test:eval": "node --test tools/eval/test/*.test.mjs",
+    "test:timeline": "node --test tests/timeline.test.mjs && node tools/eval/timeline.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",

@@ -104,7 +104,7 @@ test('keyboard selection, grouped typing undo and short viewport keep editing us
 
 test('element list reveals messages outside a standard screenshot', async ({ page }) => {
   await ready(page);
-  await page.evaluate(() => { const key = Object.keys(sessionStorage).find(k => k.startsWith('imstage.agent.') && k.endsWith('.draft'))!; const value = JSON.parse(sessionStorage.getItem(key)!); value.scene.deviceProfileId = 'iphone-17-pro'; value.scene.surface = 'ios'; value.scene.messages = Array.from({ length: 25 }, (_, n) => ({ id: `long-${n}`, participantId: n % 2 ? 'me' : 'friend', type: 'text', text: `合成对话第 ${n + 1} 条，今天去美术馆看展。`, time: `10:${String(n).padStart(2, '0')}` })); sessionStorage.setItem(key, JSON.stringify(value)); });
+  await page.evaluate(() => { const key = Object.keys(sessionStorage).find(k => k.startsWith('imstage.agent.') && !k.includes('.guest.') && k.endsWith('.draft'))!; const value = JSON.parse(sessionStorage.getItem(key)!); value.scene.deviceProfileId = 'iphone-17-pro'; value.scene.surface = 'ios'; value.scene.messages = Array.from({ length: 25 }, (_, n) => ({ id: `long-${n}`, participantId: n % 2 ? 'me' : 'friend', type: 'text', text: `合成对话第 ${n + 1} 条，今天去美术馆看展。`, time: `10:${String(n).padStart(2, '0')}` })); sessionStorage.setItem(key, JSON.stringify(value)); });
   await page.reload();
   await page.getByRole('button', { name: '元素 25', exact: true }).click();
   await page.locator('.element-item').filter({ hasText: '合成对话第 25 条' }).click();

@@ -23,11 +23,11 @@ const AgentStudio = lazy(() => import('./agent/AgentStudio'));
 const Studio = lazy(() => import('./studio/Studio'));
 
 type Theme = 'system' | 'light' | 'dark';
-type Route = { page: string; template?: TemplateId; sceneId?: string; project?: string; next: string };
+type Route = { page: string; template?: TemplateId; sceneId?: string; project?: string; caseId?: string; next: string };
 function parseRoute(): Route {
   const [pathname, query = ''] = location.hash.slice(1).split('?');
   const template = new URLSearchParams(query).get('template');
-  return { page: pathname || '/', sceneId: new URLSearchParams(query).get('scene') || undefined, project: new URLSearchParams(query).get('project') || undefined, next: safeNext(new URLSearchParams(query).get('next')), template: templates.some(t => t.id === template) ? template as TemplateId : undefined };
+  return { page: pathname || '/', caseId: new URLSearchParams(query).get('case') || undefined, sceneId: new URLSearchParams(query).get('scene') || undefined, project: new URLSearchParams(query).get('project') || undefined, next: safeNext(new URLSearchParams(query).get('next')), template: templates.some(t => t.id === template) ? template as TemplateId : undefined };
 }
 function getInitialTheme(): Theme {
   try { const stored = localStorage.getItem('imstage-theme'); return stored === 'light' || stored === 'dark' ? stored : 'system'; }
@@ -70,6 +70,6 @@ export default function App() {
   return <><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); mainRef.current?.focus(); }}>跳到主要内容</a><Header route={route} theme={theme} setTheme={updateTheme} />{themeError && <div className="theme-notice" role="status">当前浏览器无法保存主题偏好，本次切换仍然有效。</div>}<main id="main-content" tabIndex={-1} ref={mainRef} className={route.page === '/studio' || route.page === '/workspace' ? 'studio-main' : ''}>
     {['/login', '/register'].includes(route.page) && <AuthPage key={route.page} mode={route.page === '/register' ? 'register' : 'login'} next={route.next} />}
     {['/workspace', '/account', '/projects'].includes(route.page) && <AccountRoute route={route} />}
-    {route.page === '/' && <Home />}{route.page === '/create' && <Suspense fallback={<p className="page-loading">正在打开创作台…</p>}><AgentStudio key={user?.id || 'guest'} accountAction={(scene, locked, projectId) => <AccountSave projectId={projectId} key={user?.id || 'guest'} scene={scene} disabled={locked} />} /></Suspense>}{route.page === '/templates' && <Templates />}{route.page === '/docs' && <Docs />}{route.page === '/studio' && <Suspense fallback={<div className="page-loading" role="status"><Mark />正在准备你的创作台…</div>}><Studio key={route.template || 'default'} initialTemplate={route.template} accountAction={scene => <AccountSave key={user?.id || 'guest'} scene={scene} />} /></Suspense>}{!valid && <div className="not-found section-shell"><h1>这个场景还没有开场。</h1><p>页面不存在，回到首页继续创作。</p><LinkButton href="#/">返回首页</LinkButton></div>}
+    {route.page === '/' && <Home />}{route.page === '/create' && <Suspense fallback={<p className="page-loading">正在打开创作台…</p>}><AgentStudio key={`${user?.id || 'guest'}:${route.caseId || 'draft'}`} accountAction={(scene, locked, projectId) => <AccountSave projectId={projectId} key={user?.id || 'guest'} scene={scene} disabled={locked} />} /></Suspense>}{route.page === '/templates' && <Templates />}{route.page === '/docs' && <Docs />}{route.page === '/studio' && <Suspense fallback={<div className="page-loading" role="status"><Mark />正在准备你的创作台…</div>}><Studio key={route.template || 'default'} initialTemplate={route.template} accountAction={scene => <AccountSave key={user?.id || 'guest'} scene={scene} />} /></Suspense>}{!valid && <div className="not-found section-shell"><h1>这个场景还没有开场。</h1><p>页面不存在，回到首页继续创作。</p><LinkButton href="#/">返回首页</LinkButton></div>}
   </main>{!['/studio', '/create', '/workspace', '/account', '/projects', '/login', '/register'].includes(route.page) && <Footer theme={theme} setTheme={updateTheme} />}</>;
 }
