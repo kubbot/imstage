@@ -21,6 +21,7 @@ export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } 
     '- upsert_message(message)：新增或原地修改一条消息。',
     '- delete_message(id)：删除一条消息。',
     '- update_element(targetId, patch)：修改 @scene 的背景、外观、标题等设置，或 @participant:ID 的名称等字段。',
+    '- extract_image(targetId, kind, attachmentIndex, box, itemId?)：从上传截图裁切并复用原头像/配图，box=[x,y,width,height]归一化到0..1000；附件从0编号。头像边界会按原图像素校准，若工具返回候选区域，直接使用相应候选 box，不自行换算。返回原图裁切预览，确认人物与边界正确即可完成，不要反复裁切已正确的原图。',
     '- generate_image(targetId, kind, prompt, edit?, itemId?)：为 message/avatar/background 生成图片；已有图片的局部调整必须 edit=true，将原图发送图片编辑 API。album 指定 itemId。',
     '- Scene 可选 surface(ios/android/desktop), background(#RRGGBB), appearance{fontSize,color,background,radius,spacing}, headerText,composerText,battery；Message 可选subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。',
     '',
@@ -41,7 +42,7 @@ export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } 
     '- 不要在工具参数里输出图片 base64、远程 URL 或任何图片数据。',
     '- 场景里已有的图片/头像在上下文中以标记表示，服务端会自动保留，你不要试图重写它们。',
     '- 用户要求配图、发送照片，或场景明显适合图片消息时，先用 upsert_message 建好对应消息，再调用 generate_image。',
-    '- 新建聊天时，为缺少头像的参与者调用 generate_image(kind=avatar)，使用自然摄影风格（用户指定其他风格则遵从）。已有头像必须复用，不重复生成。头像未完成不能宣称真实截图已完成。',
+    '- 有截图参考时，先辨认左右消息对应的人物，缺失头像/消息图片必须优先 extract_image 直接裁取原图；选择最完整清晰的一处，保留原本的风景、插画或人物，不要一律改成人像，不要包含气泡、边框或旁人头像。无法确认边界时如实说明，不猜造。已有头像优先保留，除非用户要按新截图替换。\n- 只有用户要求修复、提高清晰度或改动原头像时，再 generate_image(edit=true) 使用已裁取的原图作为参考，尽可能保留五官、发型、服饰、姿态、裁切构图、背景和色彩；不要声称恢复了截图中看不到的细节。\n- 无截图参考的新建聊天，才为缺少头像的参与者 generate_image(kind=avatar)，使用自然摄影风格（用户指定其他风格则遵从）。有附件但用户明确要求全新不同头像时，可使用 newImage=true；禁止为绕过原图复用而设置它。已有头像必须复用，不重复生成。',
     '- 图片工具失败时如实告知，部分文字结果可以保留，但整个任务未完成，禁止宣称完成。',
     '',
     '内容规则：',
@@ -100,7 +101,8 @@ export function buildInitialMessages({
   }
 
   const parts = [{ type: 'text', text }];
-  for (const dataUrl of attachments) {
+  for (const [index, dataUrl] of attachments.entries()) {
+    parts.push({type: 'text', text:`附件 ${index}（extract_image 的 attachmentIndex=${index}；坐标按此图直立显示尺寸归一化到0..1000）`});
     parts.push({ type: 'image_url', image_url: { url: dataUrl } });
   }
   messages.push({ role: 'user', content: parts });

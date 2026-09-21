@@ -24,7 +24,7 @@ import './agent.css';
 type Props = { initialScene?: Scene; initialProjectId?:string; onProjectChange?:(id:string)=>void; onSceneChange?: (scene: Scene) => void; accountAction?: (scene: Scene, locked: boolean, projectId?:string) => ReactNode; persistLocal?: boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void; onStorageError?: (error: boolean) => void };
 type Turn = ChatEntry & { id: string; tools?: ToolEvent[]; target?: string; failed?: boolean; attachments?: string[] };
 const ideas = ['和朋友约周末去上海看展，聊得轻松一点', '生成一段 WhatsApp 英文旅行对话，最后发一个地点', '根据截图重建聊天，把对方名字改成小满'];
-const labels: Record<string,string> = { update_element:'调整元素', read_text:'读取文字位置',inspect_region:'查看局部',set_edits:'修改编辑层',render_preview:'检查渲染', create_scene: '编排对话', upsert_message: '更新消息', delete_message: '移除消息', generate_image: '生成图片' };
+const labels: Record<string,string> = { extract_image:'保留截图原图', update_element:'调整元素', read_text:'读取文字位置',inspect_region:'查看局部',set_edits:'修改编辑层',render_preview:'检查渲染', create_scene: '编排对话', upsert_message: '更新消息', delete_message: '移除消息', generate_image: '生成图片' };
 export default function AgentStudio({ initialScene, initialProjectId, onProjectChange, onSceneChange, accountAction, persistLocal = true, disabled = false, onBusyChange, onStorageError }: Props) {
   const { user } = useAuth();
   const sample = new URLSearchParams(location.hash.split('?')[1]).get('case') === 'loan-anniversary' ? loanCase : null;

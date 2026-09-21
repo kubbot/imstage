@@ -364,6 +364,7 @@ test('POST /api/agent/run streams admitted NDJSON with the exact event union', a
     'upsert_message',
     'delete_message',
     'generate_image',
+    'extract_image',
   ]);
   assert.match(JSON.stringify(provider.calls[0].messages), /用户请求/);
 });

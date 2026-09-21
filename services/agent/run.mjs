@@ -252,6 +252,7 @@ export async function runAgent({
               scene,
               targetId,
               imageProvider,
+              attachments,
               signal: combined,
               maxAttachmentChars,
               generatedAssetIds: [...generatedAssets],
@@ -269,7 +270,7 @@ export async function runAgent({
         // scene or emit a terminal/scene event.
         throwIfAborted(combined);
 
-        if (call.name === 'generate_image') { const key = JSON.stringify([parsed.value?.kind, parsed.value?.targetId, parsed.value?.itemId,parsed.value?.assetId]); if (outcome.ok) {failedImages.delete(key);if(scene.reference&&parsed.value?.replacesFailedAssetId&&outcome.result?.assetId)failedImages.delete(JSON.stringify([undefined,undefined,undefined,parsed.value.replacesFailedAssetId]));} else if (outcome.dependencyFailure) failedImages.add(key); }
+        if (['generate_image','extract_image'].includes(call.name)) { const key = JSON.stringify([parsed.value?.kind, parsed.value?.targetId, parsed.value?.itemId,parsed.value?.assetId]); if (outcome.ok) {failedImages.delete(key);if(scene.reference&&parsed.value?.replacesFailedAssetId&&outcome.result?.assetId)failedImages.delete(JSON.stringify([undefined,undefined,undefined,parsed.value.replacesFailedAssetId]));} else if (outcome.dependencyFailure || call.name==='extract_image') failedImages.add(key); }
         if (call.name === 'generate_image' && outcome.ok && scene.reference && outcome.result?.assetId) generatedAssets.add(outcome.result.assetId);
         const sceneChanged = outcome.ok && outcome.scene !== scene;
         if (outcome.ok) {

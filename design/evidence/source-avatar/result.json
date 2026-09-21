@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "source": "../visible-crop/export.png",
+  "model": "deepseek-flash",
+  "ok": true,
+  "mutations": 1,
+  "tools": [
+    "extract_image"
+  ],
+  "cropSize": [
+    120,
+    120
+  ],
+  "pixelExact": true,
+  "imageGenerationCalls": 0
+}
