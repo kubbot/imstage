@@ -1468,6 +1468,95 @@ test('resolveAgentConfig reads the documented server-only env and degrades safel
   });
 });
 
+test('resolveAgentConfig selects the image provider and fails closed for unknown names', () => {
+  // Default stays OpenAI-compatible and requires an explicit base URL.
+  const openai = resolveAgentConfig({
+    IMSTAGE_IMAGE_API_KEY: 'k',
+    IMSTAGE_IMAGE_MODEL: 'm',
+  });
+  assert.equal(openai.imageProvider, 'openai');
+  assert.equal(openai.imageProviderValid, true);
+  assert.equal(openai.imageConfigured, false);
+  assert.equal(
+    resolveAgentConfig({
+      IMSTAGE_IMAGE_API_KEY: 'k',
+      IMSTAGE_IMAGE_MODEL: 'm',
+      IMSTAGE_IMAGE_BASE_URL: 'https://images.example/v1',
+      IMSTAGE_IMAGE_PROVIDER: 'openai',
+    }).imageConfigured,
+    true,
+  );
+
+  // Tencent WAND defaults to the domestic TokenHub base URL and the existing
+  // image key/model env vars.
+  const tencent = resolveAgentConfig({
+    IMSTAGE_IMAGE_PROVIDER: 'tencent-wand',
+    IMSTAGE_IMAGE_API_KEY: 'wand-key',
+    IMSTAGE_IMAGE_MODEL: 'wand-vega-image-lite',
+  });
+  assert.equal(tencent.imageProvider, 'tencent-wand');
+  assert.equal(tencent.imageBaseUrl, 'https://tokenhub.tencentmaas.com/v1');
+  assert.equal(tencent.imageConfigured, true);
+  assert.equal(tencent.imagePollIntervalMs, 3_000);
+  assert.ok(tencent.imageDeadlineMs > 0);
+
+  // An unknown provider must never silently fall back to another provider.
+  const unknown = resolveAgentConfig({
+    IMSTAGE_IMAGE_PROVIDER: 'anthropic-images',
+    IMSTAGE_IMAGE_API_KEY: 'k',
+    IMSTAGE_IMAGE_MODEL: 'm',
+    IMSTAGE_IMAGE_BASE_URL: 'https://images.example/v1',
+  });
+  assert.equal(unknown.imageProvider, 'anthropic-images');
+  assert.equal(unknown.imageProviderValid, false);
+  assert.equal(unknown.imageConfigured, false);
+});
+
+test('the runtime routes Tencent WAND configs through the async provider', async () => {
+  const config = resolveAgentConfig({
+    DEEPSEEK_API_KEY: 'k',
+    IMSTAGE_IMAGE_PROVIDER: 'tencent-wand',
+    IMSTAGE_IMAGE_API_KEY: 'wand-secret',
+    IMSTAGE_IMAGE_MODEL: 'wand-vega-image-lite',
+  });
+  assert.equal(config.imageConfigured, true);
+  const pngBytes = Buffer.from(ASSET.slice(ASSET.indexOf(',') + 1), 'base64');
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const href = String(url);
+    calls.push({ href, init });
+    if (href.endsWith('/wand/vega-images/generations')) return jsonResponse({ task_id: 'task-1' });
+    if (href.includes('/wand/vega-images/tasks/')) {
+      return jsonResponse({ status: 'completed', data: [{ url: 'https://demo.cos.myqcloud.com/out.png' }] });
+    }
+    if (href.startsWith('https://demo.cos.myqcloud.com/')) {
+      return new Response(pngBytes, { status: 200, headers: { 'content-type': 'image/png' } });
+    }
+    throw new Error(`unexpected request: ${href}`);
+  };
+  const runtime = createAgentRuntime(config, {
+    chatProvider: scriptedProvider([
+      toolResponse('generate_image', { targetId: 'm-img', kind: 'message', prompt: '海边日落' }, { id: 'img' }),
+      finalResponse('已生成图片。'),
+    ]),
+    fetchImpl,
+  });
+  const collector = eventCollector();
+  const result = await runtime.run({
+    prompt: '给图片消息配一张海边日落',
+    scene: sceneWithImage(),
+    onEvent: collector.onEvent,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.scene.messages.find((message) => message.id === 'm-img').asset, ASSET);
+  const submit = calls.find((call) => call.href.endsWith('/wand/vega-images/generations'));
+  assert.equal(submit.init.headers.authorization, 'Bearer wand-secret');
+  assert.equal(JSON.parse(submit.init.body).input, undefined);
+  const download = calls.find((call) => call.href.startsWith('https://demo.cos.myqcloud.com/'));
+  assert.equal(download.init.headers.authorization, undefined);
+});
+
 test('createChatProvider posts the documented DeepSeek tool-calling request', async () => {
   const requests = [];
   const provider = createChatProvider({

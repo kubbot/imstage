@@ -11,6 +11,30 @@ export const DEFAULT_AGENT_BASE_URL = 'https://api.deepseek.com';
 export const AGENT_CHAT_PATH = '/chat/completions';
 export const AGENT_IMAGE_PATH = '/images/generations';
 
+/**
+ * Image provider selection. `openai` keeps the existing OpenAI-compatible
+ * `/images/generations` + `/images/edits` behaviour; `tencent-wand` uses the
+ * Tencent TokenHub WAND-Vega async task API. An unknown value fails closed
+ * (image generation is reported as not configured) instead of silently
+ * falling back to another provider.
+ */
+export const IMAGE_PROVIDER_OPENAI = 'openai';
+export const IMAGE_PROVIDER_TENCENT_WAND = 'tencent-wand';
+export const DEFAULT_IMAGE_PROVIDER = IMAGE_PROVIDER_OPENAI;
+export const IMAGE_PROVIDERS = Object.freeze([IMAGE_PROVIDER_OPENAI, IMAGE_PROVIDER_TENCENT_WAND]);
+
+/** Domestic TokenHub base; the create/task paths are appended by the client. */
+export const DEFAULT_TENCENT_IMAGE_BASE_URL = 'https://tokenhub.tencentmaas.com/v1';
+
+/**
+ * Bounded async polling for the Tencent WAND-Vega task API. The provider polls
+ * every 3 s until `completed`/a terminal failure, and never resubmits a task.
+ */
+export const AGENT_IMAGE_POLL_INTERVAL_MS = 3_000;
+export const AGENT_IMAGE_TASK_DEADLINE_MS = 120_000;
+/** Cap for the completed-image COS download (decoded bytes). */
+export const AGENT_IMAGE_MAX_DOWNLOAD_BYTES = 16 * 1024 * 1024;
+
 export const AGENT_DEADLINE_MS = 120_000;
 export const AGENT_MAX_ROUNDS = 8;
 export const AGENT_MAX_TOOL_CALLS = 24;
@@ -100,8 +124,9 @@ function mergeLimits(overrides) {
  *
  * @param {Record<string, string|undefined>} [env]
  * @param {object} [overrides] Test/integration overrides. Recognised keys:
- *   `apiKey`, `baseUrl`, `model`, `imageApiKey`, `imageBaseUrl`, `imageModel`,
- *   `deadlineMs`, `maxRounds`, `maxCalls`, `limits`.
+ *   `apiKey`, `baseUrl`, `model`, `imageProvider`, `imageApiKey`, `imageBaseUrl`,
+ *   `imageModel`, `deadlineMs`, `maxRounds`, `maxCalls`, `imageDeadlineMs`,
+ *   `imagePollIntervalMs`, `limits`.
  */
 export function resolveAgentConfig(env = {}, overrides = {}) {
   const apiKey = firstNonEmpty(overrides.apiKey, env.IMSTAGE_AI_API_KEY, env.DEEPSEEK_API_KEY);
@@ -111,19 +136,28 @@ export function resolveAgentConfig(env = {}, overrides = {}) {
   const model = firstNonEmpty(overrides.model, env.IMSTAGE_AI_MODEL, DEFAULT_AGENT_MODEL);
 
   const imageApiKey = firstNonEmpty(overrides.imageApiKey, env.IMSTAGE_IMAGE_API_KEY);
+  const requestedImageProvider = firstNonEmpty(overrides.imageProvider, env.IMSTAGE_IMAGE_PROVIDER);
+  const imageProvider = requestedImageProvider ?? DEFAULT_IMAGE_PROVIDER;
+  // Unknown providers fail closed: no outbound image request is ever made.
+  const imageProviderValid = IMAGE_PROVIDERS.includes(imageProvider);
   const imageBaseUrl = normalizeBaseUrl(
-    firstNonEmpty(overrides.imageBaseUrl, env.IMSTAGE_IMAGE_BASE_URL),
+    firstNonEmpty(overrides.imageBaseUrl, env.IMSTAGE_IMAGE_BASE_URL) ??
+      (imageProviderValid && imageProvider === IMAGE_PROVIDER_TENCENT_WAND
+        ? DEFAULT_TENCENT_IMAGE_BASE_URL
+        : null),
   );
   const imageModel = firstNonEmpty(overrides.imageModel, env.IMSTAGE_IMAGE_MODEL);
 
   const configured = Boolean(apiKey) && Boolean(baseUrl);
-  const imageConfigured = Boolean(imageApiKey && imageBaseUrl && imageModel);
+  const imageConfigured = imageProviderValid && Boolean(imageApiKey && imageBaseUrl && imageModel);
 
   return {
     apiKey,
     baseUrl,
     model,
     configured,
+    imageProvider,
+    imageProviderValid,
     imageApiKey,
     imageBaseUrl,
     imageModel,
@@ -131,6 +165,9 @@ export function resolveAgentConfig(env = {}, overrides = {}) {
     deadlineMs: positiveInt(overrides.deadlineMs, AGENT_DEADLINE_MS),
     maxRounds: positiveInt(overrides.maxRounds, AGENT_MAX_ROUNDS),
     maxCalls: positiveInt(overrides.maxCalls, AGENT_MAX_TOOL_CALLS),
+    imageDeadlineMs: positiveInt(overrides.imageDeadlineMs, AGENT_IMAGE_TASK_DEADLINE_MS),
+    imagePollIntervalMs: positiveInt(overrides.imagePollIntervalMs, AGENT_IMAGE_POLL_INTERVAL_MS),
+    maxImageDownloadBytes: positiveInt(overrides.maxImageDownloadBytes, AGENT_IMAGE_MAX_DOWNLOAD_BYTES),
     maxResponseBytes: positiveInt(overrides.maxResponseBytes, AGENT_MAX_RESPONSE_BYTES),
     maxImageResponseBytes: positiveInt(overrides.maxImageResponseBytes, AGENT_MAX_IMAGE_RESPONSE_BYTES),
     limits: mergeLimits(overrides.limits),

@@ -10,11 +10,13 @@
 import {
   AGENT_BODY_LIMIT,
   AGENT_MAX_ATTACHMENT_CHARS,
+  IMAGE_PROVIDER_TENCENT_WAND,
   capabilitiesFromConfig,
   resolveAgentConfig,
 } from './config.mjs';
 import { runAgent } from './run.mjs';
 import { createChatProvider, createImageProvider } from './providers.mjs';
+import { createTencentImageProvider } from './tencent-images.mjs';
 
 export { AGENT_BODY_LIMIT, AGENT_MAX_ATTACHMENT_CHARS, resolveAgentConfig, capabilitiesFromConfig };
 export { createAgentLimiter } from './limits.mjs';
@@ -33,6 +35,7 @@ export { writeNdjsonLine, finishNdjsonResponse, abortedError, isResponseGone } f
 export { AGENT_TOOL_SCHEMAS, TOOL_NAMES } from './tools.mjs';
 export { runAgent } from './run.mjs';
 export { ProviderError, createChatProvider, createImageProvider } from './providers.mjs';
+export { createTencentImageProvider } from './tencent-images.mjs';
 
 /**
  * Build the agent runtime from resolved configuration.
@@ -61,14 +64,26 @@ export function createAgentRuntime(config, deps = {}) {
   const imageProvider =
     deps.imageProvider ??
     (config.imageConfigured
-      ? createImageProvider({
-          baseUrl: config.imageBaseUrl,
-          apiKey: config.imageApiKey,
-          model: config.imageModel,
-          fetchImpl,
-          maxResponseBytes: config.maxImageResponseBytes,
-          maxDataUrlChars: AGENT_MAX_ATTACHMENT_CHARS,
-        })
+      ? config.imageProvider === IMAGE_PROVIDER_TENCENT_WAND
+        ? createTencentImageProvider({
+            baseUrl: config.imageBaseUrl,
+            apiKey: config.imageApiKey,
+            model: config.imageModel,
+            fetchImpl,
+            maxResponseBytes: config.maxImageResponseBytes,
+            maxDownloadBytes: config.maxImageDownloadBytes,
+            maxDataUrlChars: AGENT_MAX_ATTACHMENT_CHARS,
+            pollIntervalMs: config.imagePollIntervalMs,
+            deadlineMs: config.imageDeadlineMs,
+          })
+        : createImageProvider({
+            baseUrl: config.imageBaseUrl,
+            apiKey: config.imageApiKey,
+            model: config.imageModel,
+            fetchImpl,
+            maxResponseBytes: config.maxImageResponseBytes,
+            maxDataUrlChars: AGENT_MAX_ATTACHMENT_CHARS,
+          })
       : null);
 
   return {

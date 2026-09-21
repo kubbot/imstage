@@ -6,7 +6,8 @@ execution, scene invariants and the NDJSON event stream, while the UI owns
 rendering and presentation.
 
 Scope boundary: real AI-assisted scene creation/editing only. No arbitrary
-URLs, no shell, no network tool, no browser access, no image downloads.
+URLs, no shell, no network tool and no browser access. The Tencent image
+provider alone downloads completed results from validated COS hosts over HTTPS.
 
 ## Endpoints
 
@@ -19,8 +20,9 @@ Public, non-secret status. No session, no mutation headers.
 ```
 
 `configured` means a DeepSeek-compatible chat key + base URL resolved;
-`imageConfigured` means an explicit OpenAI-compatible images key/base/model
-resolved. The response never contains a key, base URL or token.
+`imageConfigured` means a valid image provider (`openai` or `tencent-wand`)
+with its key/base/model resolved. The response never contains a key, base URL or
+token.
 
 ### `POST /api/agent/run`
 
@@ -113,11 +115,30 @@ untrusted data.
 - The loop is bounded to **8 rounds**, **24 tool calls** and a **120 s** wall
   deadline; the chat/image responses are read with a byte cap; client abort is
   propagated to `fetch`.
-- Image: native `fetch` to `{IMSTAGE_IMAGE_BASE_URL}/images/generations` with
-  `response_format:"b64_json"`. The returned base64 is decoded only to sniff the
-  raster mime type; nothing is downloaded and there is no fake fallback. Missing
-  image configuration yields a failed tool result + `tool` error event while
-  text generation keeps working.
+- Image: `IMSTAGE_IMAGE_PROVIDER` selects the client. `openai` (default) uses
+  native `fetch` to `{IMSTAGE_IMAGE_BASE_URL}/images/generations` with
+  `response_format:"b64_json"`; reference edits use `POST /images/edits`
+  multipart. The returned base64 is decoded only to sniff the raster mime type;
+  nothing is downloaded and there is no fake fallback. Missing image
+  configuration yields a failed tool result + `tool` error event while text
+  generation keeps working.
+- Image: `tencent-wand` uses the Tencent TokenHub WAND-Vega async task API
+  (`POST {base}/wand/vega-images/generations` → `task_id`, then
+  `GET {base}/wand/vega-images/tasks/{task_id}` every **3 s** until a terminal
+  status). `completed` returns temporary signed COS URLs; live responses have
+  returned those over plain HTTP, so the runtime validates the URL as an
+  allowlisted Tencent COS host and **upgrades it to HTTPS before fetching**, then
+  validates the actual decoded raster before returning the usual
+  `{dataUrl,mime,bytes}` contract. A plain-HTTP request is never issued, and
+  other protocols are rejected. Reference editing sends the real inline
+  `data:image/png|jpeg` URL in `input[].content[].image_url` (never silently
+  dropped); WebP or malformed references fail before any submission. Polling is
+  bounded by a deadline, abortable, and a failed/timed-out task is never
+  resubmitted. The auth-bearing submit and poll requests use
+  `redirect:'error'`, so an `Authorization` header is never forwarded to a
+  redirect target. An unknown `IMSTAGE_IMAGE_PROVIDER` value fails closed (image
+  generation is reported as not configured) instead of falling back to another
+  provider.
 
 ## Environment (server-only)
 
@@ -126,9 +147,10 @@ untrusted data.
 | Chat key | `IMSTAGE_AI_API_KEY` or `DEEPSEEK_API_KEY` | — |
 | Chat base URL | `IMSTAGE_AI_BASE_URL` | `https://api.deepseek.com` |
 | Chat model | `IMSTAGE_AI_MODEL` | `deepseek-flash` |
+| Image provider | `IMSTAGE_IMAGE_PROVIDER` | `openai` |
 | Image key | `IMSTAGE_IMAGE_API_KEY` | — |
-| Image base URL | `IMSTAGE_IMAGE_BASE_URL` | — |
-| Image model | `IMSTAGE_IMAGE_MODEL` | — |
+| Image base URL | `IMSTAGE_IMAGE_BASE_URL` | none for `openai`; `https://tokenhub.tencentmaas.com/v1` for `tencent-wand` |
+| Image model | `IMSTAGE_IMAGE_MODEL` | none for `openai`; e.g. `wand-vega-image-lite` for `tencent-wand` |
 
 A non-http(s) base URL degrades to "not configured" instead of ever producing an
 arbitrary outbound request. Keys are read from the process environment only and
@@ -160,15 +182,16 @@ Run limits:
 ## Tests
 
 ```bash
-node --test tests/agent.test.mjs tests/agent-api.test.mjs
+node --test tests/agent.test.mjs tests/agent-api.test.mjs tests/tencent-images.test.mjs
 ```
 
-Both suites inject fake providers/fetch — **no network call and no credential**
+All suites inject fake providers/fetch — **no network call and no credential**
 is used. They cover: genuine multi-round tool sequences, invalid-tool
 feedback/recovery, no-op-is-not-success, incomplete/refused/unknown provider
 finish reasons (provider-level and run-level), selected-only invariants,
 id/asset preservation, image targets that must be `type:"image"`, batch abort
 (is rethrow + no later mutation/emit), disabled-image failure, image success,
+provider selection (default OpenAI, explicit Tencent WAND, unknown fail-closed),
 scene resource limits on input and mutations, O(n) bounded context with the
 target preserved under truncation, bounds, abort/timeout, round/call caps, the
 NDJSON wire format, provider request/response shape and error-message
@@ -176,12 +199,24 @@ sanitisation, abortable NDJSON backpressure writes with bounded socket
 finish/destroy, per-user/global active limits, bounded rate limiting, auth
 denial and admitted NDJSON, and lease cleanup on finish/disconnect.
 
+`tests/tencent-images.test.mjs` also covers the WAND async flow end to end with
+fake fetch: single submission, 3 s polling to `completed`, presence of the actual
+inline reference bytes, abortable deadline without resubmission, terminal
+`failed`/`cancelled`/`incomplete` handling, unknown status fail-closed, sanitized
+HTTP errors, COS download allowlisting (host/credentials/port checks, plain-HTTP
+result URLs upgraded to HTTPS with no insecure request, no private/other hosts),
+redirect rejection on both downloads and auth-bearing submit/poll, byte limits
+and actual image decoding.
+
 ## Limitations
 
 - Streaming from the model is not used (`stream:false`); events are emitted per
   completed turn/tool, not token-by-token.
 - Thinking mode is intentionally disabled; `reasoning_content` is not handled.
-- Image generation only accepts `b64_json`; remote image URLs are rejected.
+- OpenAI-compatible image generation only accepts `b64_json`; that client never
+  downloads remote image URLs. The Tencent WAND client downloads only the
+  completed task's first URL, and only from allowlisted Tencent COS hosts over
+  HTTPS (a plain-HTTP result URL is upgraded, never fetched insecurely).
 - The server runs agent runs in-process; long runs occupy a Node request
   handler until completion or the 120 s deadline.
 - Not a managed cloud service: no billing, quotas, persistence of run history or
@@ -193,9 +228,11 @@ Generated image tools additionally require actual PNG/JPEG/WebP decoding through
 
 `update_element` supports `@scene` settings and `@participant:ID` identity.
 Message targets include image, video-thumbnail, contact, location, link and
-album slots. Image `kind` also accepts `background`. `edit:true` sends existing
-asset bytes to `/images/edits` as multipart data, rather than regenerating from
-text alone. No live image-provider acceptance is claimed without credentials.
+album slots. Image `kind` also accepts `background`. `edit:true` sends the
+selected element's existing bytes as the reference (multipart `/images/edits`
+for the OpenAI-compatible client, inline `input[].content[].image_url` for
+Tencent WAND) instead of regenerating from text alone. No live image-provider
+acceptance is claimed without credentials.
 
 `Scene.reference` contains a verified source raster, normalized editing plan
 and owned assets. It switches the same `runAgent` loop to `read_text`,
