@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createScene } from '../../apps/web/src/studio/model';
 
-async function ready(page: Page) {
+async function ready(page: Page, long = false) {
   await page.goto('/#/create');
   const origin = new URL(page.url()).origin;
   const result = await page.request.post('/api/auth/register', { headers: { Origin: origin, 'X-IMStage-Request': '1' }, data: { email: `editor-${crypto.randomUUID()}@example.test`, name: '合成测试', password: 'synthetic-editor-password-2026' } });
@@ -13,9 +13,10 @@ async function ready(page: Page) {
     { id: 'two', participantId: 'me', type: 'text', text: '有空！看完展再找家咖啡馆坐坐？', time: '10:07' },
     { id: 'three', participantId: 'friend', type: 'text', text: '好呀，那我们下午两点见。', time: '10:08' },
   ] };
+  if(long){scene.deviceProfileId='iphone-17-pro';scene.surface='ios';scene.messages=Array.from({length:25},(_,n)=>({id:`long-${n}`,participantId:n%2?'me':'friend',type:'text',text:`合成对话第 ${n+1} 条，今天去美术馆看展。`,time:`10:${String(n).padStart(2,'0')}`}));}
   await page.evaluate(({ user, scene }) => sessionStorage.setItem(`imstage.agent.${user.id}.draft`, JSON.stringify({ scene })), { user, scene });
   await page.route('**/api/agent/capabilities', r => r.fulfill({ json: { configured: true, model: '测试模型', imageConfigured: false } }));
-  await page.reload(); await expect(page.locator('.agent-phone')).toContainText('周六有空吗');
+  await page.reload(); await expect(page.locator('.agent-phone')).toContainText(long?'合成对话第 1 条':'周六有空吗');
 }
 
 test('canvas fits and properties, ordering, undo, redo and element navigator stay connected', async ({ page }) => {
@@ -103,9 +104,7 @@ test('keyboard selection, grouped typing undo and short viewport keep editing us
 });
 
 test('element list scrolls to offscreen messages without changing screenshot mode', async ({ page }) => {
-  await ready(page);
-  await page.evaluate(() => { const key = Object.keys(sessionStorage).find(k => k.startsWith('imstage.agent.') && !k.includes('.guest.') && k.endsWith('.draft'))!; const value = JSON.parse(sessionStorage.getItem(key)!); value.scene.deviceProfileId = 'iphone-17-pro'; value.scene.surface = 'ios'; value.scene.messages = Array.from({ length: 25 }, (_, n) => ({ id: `long-${n}`, participantId: n % 2 ? 'me' : 'friend', type: 'text', text: `合成对话第 ${n + 1} 条，今天去美术馆看展。`, time: `10:${String(n).padStart(2, '0')}` })); sessionStorage.setItem(key, JSON.stringify(value)); });
-  await page.reload();
+  await ready(page, true);
   await page.getByRole('button', { name: '元素 25', exact: true }).click();
   await page.locator('.element-item').filter({ hasText: '合成对话第 25 条' }).click();
   await expect(page.getByLabel('导出图片范围')).toHaveValue('standard');

@@ -49,3 +49,7 @@ React + Vite、Node + SQLite 账号会话已实现。密钥仅由后端读取。
 结构化 Scene 支持人物、消息、背景、颜色、尺寸、圆角、时间和设备外观编辑。同一 Scene 切换平台只改变渲染。原图精确编辑使用 Scene.reference 编辑层，通过同一 Agent runtime 调用 OCR、局部观察、图片服务和渲染工具；Web 预览、导出与 dataset benchmark 共享编辑层 HTML 和文字排版实现。原图模式不等于整张截图已自动拆成所有可编辑元素，跨平台须重新生成结构化场景。
 
 当前验收事实见 [agent-project-acceptance.md](agent-project-acceptance.md)。完整 11/11 尚未通过。2026-09-21 腾讯云 WAND 文生图与传入原图的参考编辑已通过真实 DeepSeek 工具调用；不得据此表述为截图数据集全量通过。
+
+## 创作会话管理
+
+`/#/create` 支持独立会话的新建、命名、搜索、复制、删除和切换。每份本机会话保存画面、AI 记录、参考图、未发送内容和截取位置，旧标签页草稿自动迁移；多标签页冲突不会静默覆盖。会话历史仅存当前浏览器，账号“我的作品”仍只保存 Scene。实现与验收见 [session-management-acceptance.md](../design/session-management-acceptance.md)。

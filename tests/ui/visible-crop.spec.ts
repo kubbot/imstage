@@ -5,10 +5,11 @@ const out=process.env.IMSTAGE_ARTIFACT_DIR!;
 // SVG icon antialiasing can vary by one pixel between canvas rasterizations.
 function mismatchFraction(a:Buffer,b:Buffer){expect(a.length).toBe(b.length);let n=0;for(let i=0;i<a.length;i+=4)if(!a.subarray(i,i+4).equals(b.subarray(i,i+4)))n++;return n/(a.length/4);}
 async function ready(page:Page){
+ const fixture=JSON.parse(await fs.readFile(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
+ const scene={...fixture.scene,messages:Array.from({length:22},(_,i)=>({id:`line-${i}`,participantId:i%2?'me':'achuan',type:'text',text:`合成消息 ${i+1}：这是一段用于验证可见窗口截取位置的对话。`,date:i<11?'2025-09-21':'2026-09-21',time:`10:${String(i).padStart(2,'0')}`}))};
+ await page.addInitScript(scene=>sessionStorage.setItem('imstage.agent.guest.case-loan-anniversary',JSON.stringify({scene})),scene);
  await page.setViewportSize({width:1800,height:1400});await page.goto('/#/create?case=loan-anniversary');
- await expect(page.locator('.agent-phone')).toContainText('这笔借款结清了');
- await page.evaluate(()=>{const key=Object.keys(sessionStorage).find(k=>k.endsWith('.case-loan-anniversary'))!;const value=JSON.parse(sessionStorage.getItem(key)!);value.scene.messages=Array.from({length:22},(_,i)=>({id:`line-${i}`,participantId:i%2?'me':'achuan',type:'text',text:`合成消息 ${i+1}：这是一段用于验证可见窗口截取位置的对话。`,date:i<11?'2025-09-21':'2026-09-21',time:`10:${String(i).padStart(2,'0')}`}));sessionStorage.setItem(key,JSON.stringify(value));});
- await page.reload();await page.getByLabel('导出图片范围').selectOption('standard');
+ await page.getByLabel('导出图片范围').selectOption('standard');
  await expect(page.locator('.agent-phone .scene-row')).toHaveCount(22);
 }
 async function png(page:Page,name:string){const event=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const download=await event;const file=`${out}/${name}.png`;await download.saveAs(file);return fs.readFile(file);}

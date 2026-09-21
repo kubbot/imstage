@@ -5,20 +5,22 @@ import { api, ApiError, errorText, loginLink, type SavedScene } from './api';
 import { setNavigationGuard } from './navigation';
 import { createScene, validateScene, type Scene } from '../studio/model';
 const Studio = lazy(() => import('../agent/AgentStudio'));
-export function AccountSave({ scene, disabled = false, projectId }: { scene: Scene; disabled?: boolean; projectId?:string }) {
+export function AccountSave({ scene, disabled = false, projectId, localSessionId }: { scene: Scene; disabled?: boolean; projectId?:string; localSessionId?:string }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
-  const id = useRef(crypto.randomUUID());
-  const [revision, setRevision] = useState(0);
+  const id = useRef(localSessionId || crypto.randomUUID());
+  const linkKey = localSessionId ? `imstage.work-link.${user?.id}.${localSessionId}` : null;
+  const [conflict,setConflict]=useState(false);
+  const [revision, setRevision] = useState(() => { try { const value=linkKey?Number(localStorage.getItem(linkKey)):0;return Number.isSafeInteger(value)&&value>0?value:0; } catch { return 0; } });
   const snapshot = useRef('');
   if (!user) return <a className="studio-btn" href={loginLink('/studio')}>登录保存作品</a>;
   async function save() {
     if (busy) return; setBusy(true); setStatus(''); const raw = JSON.stringify({scene,projectId});
-    try { const data = await api<{ item: SavedScene }>(`/scenes/${id.current}`, { method: 'PUT', body: { scene: { ...scene, id: id.current }, revision, projectId } }); setRevision(data.item.revision); snapshot.current = raw; setStatus('已保存到我的作品'); }
-    catch (error) { setStatus(errorText(error)); } finally { setBusy(false); }
+    try { const data = await api<{ item: SavedScene }>(`/scenes/${id.current}`, { method: 'PUT', body: { scene: { ...scene, id: id.current }, revision, projectId } }); setRevision(data.item.revision); snapshot.current = raw; setConflict(false); setStatus('已保存到我的作品');if(linkKey)try{localStorage.setItem(linkKey,String(data.item.revision));}catch{setStatus('作品已保存，但本机无法记录版本。下次请从我的作品打开。');} }
+    catch (error) { setConflict(error instanceof ApiError && error.status===409);setStatus(errorText(error)); } finally { setBusy(false); }
   }
-  return <div className="account-save"><button className="studio-btn" onClick={save} disabled={disabled || busy || snapshot.current === JSON.stringify({scene,projectId})}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存到我的作品'}</button>{status && <span className="account-save-message" role="status">{status} {revision > 0 && <a href={`#/workspace?scene=${id.current}`}>打开作品 →</a>}</span>}</div>;
+  return <div className="account-save"><button className="studio-btn" onClick={save} disabled={disabled || busy || snapshot.current === JSON.stringify({scene,projectId})}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存到我的作品'}</button>{(status || revision>0) && <span className="account-save-message" role="status">{status || '已关联我的作品'} {(revision > 0 || conflict) && <a href={`#/workspace?scene=${id.current}`}>打开作品 →</a>}</span>}</div>;
 }
 export default function AccountEditor({ sceneId }: { sceneId: string }) {
   const { user } = useAuth();

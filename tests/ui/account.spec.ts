@@ -72,8 +72,8 @@ test('guest draft survives login and is only imported by explicit save', async (
 test('unsaved account editing recovers on same-tab navigation, never writes guest draft', async ({ page }) => {
   await register(page); await createWork(page);
   const savedURL = page.url();
-  await page.locator('.agent-phone .scene-selectable').first().click();
-  await expect(page.getByText('元素与外观', {exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'选择消息：今天的日落很好看。',exact:true}).click();
+  await expect(page.getByRole('textbox', {name:'消息文字',exact:true})).toBeVisible();
   await page.getByRole('textbox', { name: '消息文字', exact: true }).fill('还没保存，但可以恢复');
   await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).some(k => k.startsWith('imstage.account.')))).toBe(true);
   expect(await page.evaluate(() => localStorage.getItem('imstage.studio.draft.v1'))).toBeNull();
@@ -91,8 +91,8 @@ test('stale revision preserves edits and can save a separate copy', async ({ pag
   const result = await (await page.request.get(`/api/scenes/${id}`)).json();
   const origin = new URL(page.url()).origin;
   await page.request.put(`/api/scenes/${id}`, { headers: { Origin: origin, 'X-IMStage-Request': '1' }, data: { scene: { ...result.item.scene, title: '另一个窗口的标题' }, revision: result.item.revision } });
-  await page.locator('.agent-phone .scene-selectable').first().click();
-  await expect(page.getByText('元素与外观', {exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'选择消息：今天的日落很好看。',exact:true}).click();
+  await expect(page.getByRole('textbox', {name:'消息文字',exact:true})).toBeVisible();
   await page.getByRole('textbox', { name: '消息文字', exact: true }).fill('保留当前修改');
   await page.getByRole('button', { name: '保存作品', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('版本已经改变');
