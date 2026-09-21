@@ -66,7 +66,7 @@ deviceProfile(scene): DeviceProfile
 
 `SceneView` 输出 `data-device="<id>"`，父级预览/导出 frame 负责实际宽高（渲染器不内联写死尺寸）。
 
-- **iPhone 15 Pro**：iOS 状态栏与安全区（顶部时间区、底部 home indicator 区域），微信使用更接近原生的字号、头像尺寸与气泡间距。
+- **iPhone 17 Pro / 15 Pro**：iOS 状态栏与安全区，微信使用更接近原生的字号、头像尺寸与气泡间距。17 Pro 微信按参考截图保留底部安全区但隐藏静止状态的 home indicator；15 Pro 保留原来的指示条。
 - **Pixel 8**：Android 状态栏与底部手势导航条，微信同样使用更接近原生的排版指标。
 - **macOS 窗口**：桌面标题栏（交通灯）与更宽松的桌面输入栏，**不显示**移动端状态栏。
 - **legacy 回退**：没有任何设备专属选择器命中，保持原有通用外观。
@@ -79,7 +79,7 @@ deviceProfile(scene): DeviceProfile
 
 ## 评估用例
 
-`tools/eval/fixtures/device-fidelity.json` 用同一份 `semanticContent`（同一组人物、同顺序、同时间的消息）描述三台设备（iPhone 15 Pro / Pixel 8 / macOS 窗口），并声明必需的人工复核项：
+`tools/eval/fixtures/device-fidelity.json` 用同一份 `semanticContent`（同一组人物、同顺序、同时间的消息）描述三台设备（iPhone 17 Pro / Pixel 8 / macOS 窗口），并声明必需的人工复核项：
 
 - avatar 类：头像可读、不拉伸、朝向正确。
 - realism 类：微信排版/气泡间距、桌面标题栏与输入栏、无移动状态栏。

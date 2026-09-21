@@ -142,7 +142,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-status-icons" aria-hidden="true">
           <span className="scene-signal" aria-hidden="true"><i/><i/><i/><i/></span>
           <IconWifi size={15} stroke={1.8} />
-          
+
           <span className="scene-battery" aria-hidden="true"><i style={{width:`${scene.battery??80}%`}}/>{scene.battery!==undefined&&<b className="scene-battery-number">{scene.battery}</b>}</span>
         </span>
       </div>

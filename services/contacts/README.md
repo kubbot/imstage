@@ -76,8 +76,10 @@ Validation:
 - `autoSave` must be a boolean.
 - `avatar`, when present, must be a local
   `data:image/(png|jpeg|webp);base64,...` string. Remote URLs, SVG and other
-  MIME types are rejected without any provider/network call. Each image is
-  actually decoded with `sharp` (forged headers fail), must stay within
+  MIME types are rejected without any provider/network call. New images are
+  actually decoded with `sharp` (forged headers fail); exact avatar strings
+  already validated in this account’s database skip repeated decoding. Every
+  image must stay within
   `4,000,000` pixels and `2 MiB` of encoded string, and the decoded bytes of
   all avatars together must stay within `8 MiB`.
 

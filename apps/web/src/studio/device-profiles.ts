@@ -8,7 +8,9 @@
  * is a pure resolver so the editor, the renderer and the tests agree on the
  * same preset without importing any UI framework.
  *
- * Official hardware references used for the two phone presets:
+ * Official hardware references used for the phone presets:
+ * - iPhone 17 Pro: 1206 × 2622 native pixels (Apple, support.apple.com/125090)
+ *   → 402 × 874 logical points at 3x; the default for new scenes.
  * - iPhone 15 Pro: 1179 × 2556 native pixels (Apple, support.apple.com/111829)
  *   → 393 × 852 logical points at 3x, the value this project renders and
  *   captures. This is a project-chosen logical scale, not an app-version claim.
