@@ -201,7 +201,7 @@ test('runAgent performs a genuine multi-round tool sequence and feeds results ba
   assert.equal(JSON.parse(toolResult.content).ok, true);
 
   // The initial turn carries the tool schemas and no base64 asset from the scene.
-  assert.equal(provider.calls[0].toolNames.length, 4);
+  assert.equal(provider.calls[0].toolNames.length, 5);
 });
 
 test('runAgent recovers from invalid tool arguments via truthful error feedback', async () => {
@@ -631,12 +631,12 @@ test('missing image configuration yields a truthful failed tool result and keeps
     onEvent: collector.onEvent,
   });
 
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   const error = collector.toolEvents().find((event) => event.state === 'error');
   assert.match(error.detail, /未配置/);
   assert.equal(result.scene.messages.find((message) => message.id === 'm-img').asset, undefined);
   assert.equal(result.scene.messages.find((message) => message.id === 'm-4').text, '没有图片也可以');
-  assert.equal(collector.types().includes('done'), true);
+  assert.equal(collector.types().includes('done'), false);
 });
 
 test('an image provider failure is surfaced and does not fake success', async () => {
@@ -662,7 +662,7 @@ test('an image provider failure is surfaced and does not fake success', async ()
     config: testConfig(),
     onEvent: collector.onEvent,
   });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   const error = collector.toolEvents().find((event) => event.state === 'error');
   assert.match(error.detail, /图片生成失败/);
   assert.equal(result.scene.messages.find((message) => message.id === 'm-img').asset, undefined);
@@ -1399,10 +1399,10 @@ test('serializeAgentEvent emits exactly the documented union', () => {
   );
 });
 
-test('AGENT_TOOL_SCHEMAS only exposes the four scene tools with JSON schemas', () => {
+test('AGENT_TOOL_SCHEMAS exposes the five scene tools with JSON schemas', () => {
   assert.deepEqual(
     AGENT_TOOL_SCHEMAS.map((tool) => tool.function.name),
-    ['create_scene', 'upsert_message', 'delete_message', 'generate_image'],
+    ['update_element', 'create_scene', 'upsert_message', 'delete_message', 'generate_image'],
   );
   for (const tool of AGENT_TOOL_SCHEMAS) {
     assert.equal(tool.type, 'function');

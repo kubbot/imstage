@@ -1,0 +1,62 @@
+/* Projects & batch generation — reuses the restrained account visual system. */
+.projects-shell{max-width:1120px;width:calc(100% - 96px);margin:0 auto;padding:42px 0 80px}
+.projects-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:28px}
+.projects-heading h1{font-size:31px;margin:12px 0 10px;overflow-wrap:anywhere}
+.projects-heading p{font-size:13px;margin:0}
+.projects-back{margin:0 0 18px}
+.projects-error{margin:0 0 20px}
+.project-create,.project-panel{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:26px 28px;margin-bottom:24px}
+.project-create h2,.project-panel h2{font-size:18px;display:flex;gap:9px;align-items:center;margin-bottom:16px}
+.project-panel h2 span{font:11px var(--mono);color:var(--muted)}
+.project-create label,.project-form label,.project-attach label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:500;margin-bottom:16px}
+.project-create input,.project-create select,.project-create textarea,.project-form input,.project-form select,.project-form textarea,.project-attach select{width:100%;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);padding:10px 12px;font-size:13px}
+.project-create textarea,.project-form textarea{resize:vertical;min-height:74px;line-height:1.7}
+.project-create button{align-self:flex-start}
+.projects-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.project-card{position:relative;min-width:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);transition:outline .2s}
+.project-card:hover{outline:1px solid var(--accent)}
+.project-card-body{display:flex;flex-direction:column;gap:7px;padding:22px;color:var(--muted)}
+.project-card-body svg{color:var(--accent)}
+.project-card-body strong{font-size:16px;color:var(--text);overflow-wrap:anywhere}
+.project-card-body small{font-size:11px}
+.project-card-body p{font-size:12px;margin:0;color:var(--muted);min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.project-delete{position:absolute;right:8px;top:8px;color:var(--muted)}
+.projects-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+.project-form-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.project-status{font-size:12px;color:var(--muted)}
+.project-muted{font-size:12px;line-height:1.9}
+.project-scene-list{list-style:none;margin:0 0 18px;padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.project-scene-list li{display:flex;align-items:center;gap:10px;padding:11px 13px}
+.project-scene-list li+li{border-top:1px solid var(--line)}
+.project-scene-list a{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.project-scene-list strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-scene-list small{font-size:11px;color:var(--muted)}
+.project-attach{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.project-attach label{flex:1;min-width:190px;margin-bottom:0}
+.project-platforms{border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin:0 0 16px;display:flex;gap:16px;flex-wrap:wrap}
+.project-platforms legend{font-size:12px;color:var(--muted);padding:0 6px}
+.project-checkbox{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.project-checkbox input{width:auto}
+.project-batch{margin-top:4px}
+.project-job{margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+.project-job-head{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:12px}
+.project-job-head span{color:var(--muted);font-size:12px}
+.project-progress{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-bottom:14px}
+.project-progress span{display:block;height:100%;background:var(--accent);transition:width .3s}
+.project-task-list{list-style:none;margin:0 0 16px;padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.project-task-list li{display:grid;grid-template-columns:24px 1fr auto auto;gap:10px;align-items:center;padding:10px 13px;font-size:12px}
+.project-task-list li+li{border-top:1px solid var(--line)}
+.task-index{font:11px var(--mono);color:var(--muted)}
+.task-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-platform{font-size:11px;color:var(--muted)}
+.task-status{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.task-status a{display:flex;align-items:center;gap:5px;color:var(--accent);font-weight:600}
+.task-failed .task-status,.task-interrupted .task-status{color:var(--accent)}
+.project-history summary{cursor:pointer;font-size:12px;color:var(--muted);padding:8px 0}
+.project-history ul{list-style:none;margin:0;padding:0}
+.project-history li{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;padding:8px 0;border-top:1px solid var(--line)}
+.project-warning{border-color:color-mix(in srgb,var(--accent) 24%,var(--line));background:var(--soft)}
+.projects-spin{animation:projects-spin 1s linear infinite}
+@keyframes projects-spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){.projects-columns{grid-template-columns:1fr}.projects-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:590px){.projects-shell{width:calc(100% - 36px);padding:26px 0 60px}.projects-heading h1{font-size:24px}.projects-grid{grid-template-columns:1fr}.project-create,.project-panel{padding:20px 18px}.project-task-list li{grid-template-columns:20px 1fr;grid-auto-rows:auto}.task-platform,.task-status{grid-column:2}}

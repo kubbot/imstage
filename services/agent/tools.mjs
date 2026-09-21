@@ -1,3 +1,4 @@
+import { resolveTarget } from './targets.mjs';
 /**
  * IMStage Agent — scene tools.
  *
@@ -20,6 +21,7 @@ import {
 } from './scene-context.mjs';
 
 export const TOOL_NAMES = Object.freeze([
+  'update_element',
   'create_scene',
   'upsert_message',
   'delete_message',
@@ -27,6 +29,7 @@ export const TOOL_NAMES = Object.freeze([
 ]);
 
 export const RUNNING_DETAILS = Object.freeze({
+  update_element: '正在调整元素…',
   create_scene: '正在重建场景…',
   upsert_message: '正在更新消息…',
   delete_message: '正在删除消息…',
@@ -34,6 +37,7 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,background,appearance,headerText,composerText,battery,title,date,deviceTime,platform；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
@@ -46,7 +50,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 wechat/xiaohongshu/imessage/whatsapp/slack；message.type 只能是 text/image/location/system。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 wechat/xiaohongshu/imessage/whatsapp/slack/instagram；message.type 只能是 text/image/location/system/contact/transfer/voice/video/link/album。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery；消息可选subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。',
           },
         },
         required: ['scene'],
@@ -97,8 +101,10 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
         type: 'object',
         properties: {
           targetId: { type: 'string', description: '消息 id 或参与者 id' },
-          kind: { type: 'string', enum: ['message', 'avatar'], description: '生成目标类型' },
+          kind: { type: 'string', enum: ['message', 'avatar', 'background'], description: '生成目标类型' },
           prompt: { type: 'string', description: '用于图片生成的中文描述' },
+          edit: {type:'boolean',description:'true 表示将现有图片作为参考调用图片编辑 API，而非重新生成'},
+          itemId:{type:'string',description:'相册子图片 id；目标为 album 时必填'},
         },
         required: ['targetId', 'kind', 'prompt'],
         additionalProperties: false,
@@ -185,6 +191,7 @@ function applyUpsertMessage(args, context) {
   if (context.targetId && !existing) return fail(context, `找不到消息：${id}`);
   const sanitized = { ...input };
   delete sanitized.asset;
+  if (Array.isArray(sanitized.items)) sanitized.items = sanitized.items.map(raw => { if (!isPlainObject(raw)) return raw; const {asset,...item}=raw; const old = existing?.items?.find(i => i.id === item.id); return old?.asset ? {...item,asset:old.asset} : item; });
   if (existing?.asset) sanitized.asset = existing.asset;
   const messages = existing
     ? context.scene.messages.map((message) => (message.id === id ? sanitized : message))
@@ -211,7 +218,7 @@ function applyDeleteMessage(args, context) {
 
 async function applyGenerateImage(args, context) {
   const kind = args?.kind;
-  if (kind !== 'message' && kind !== 'avatar') {
+  if (!['message','avatar','background'].includes(kind)) {
     return fail(context, 'kind 必须是 message 或 avatar');
   }
   const targetId = args?.targetId;
@@ -230,29 +237,29 @@ async function applyGenerateImage(args, context) {
     if (context.targetId && targetId !== context.targetId) {
       return fail(context, `定向编辑只能为所选消息生成图片：${context.targetId}`);
     }
-    if (target.type !== 'image') {
+    if (!['image','video','album','contact','location','link'].includes(target.type)) {
       return fail(
         context,
         `消息 ${targetId} 的类型是 ${target.type}，图片只能放在 type=image 的消息上；请先用 upsert_message 把该消息改为 type=image，再调用 generate_image。`,
       );
     }
-  } else {
-    if (context.targetId) return fail(context, '定向编辑不允许修改头像');
+  } else if (kind === 'avatar') {
+    if (context.targetId && context.targetId !== `@participant:${targetId}`) return fail(context, '定向编辑不允许修改头像：只能修改选中人物');
     if (!context.scene.participants.some((participant) => participant.id === targetId)) {
       return fail(context, `找不到参与者：${targetId}`);
     }
   }
 
-  if (!context.imageProvider) {
-    return fail(
-      context,
-      '图片生成服务未配置，无法生成图片。文字修改不受影响，可以继续用文字完成场景。',
-    );
-  }
+  if (kind === 'background' && context.targetId && context.targetId !== '@scene') return fail(context,'定向编辑不允许修改背景');
+  const target = context.scene.messages.find(m => m.id === targetId);
+  if (kind === 'message' && target?.type === 'album' && !target.items?.some(i => i.id === args.itemId)) return fail(context,'请指定相册中的 itemId');
+  const referenceImage = kind === 'background' ? context.scene.backgroundImage : kind === 'avatar' ? context.scene.participants.find(p => p.id === targetId)?.avatar : target?.type === 'album' ? target.items.find(i => i.id === args.itemId)?.asset : target?.asset;
+  if (args.edit && !referenceImage) return fail(context,'所选元素还没有图片，无法基于原图修改，请先生成或上传');
+  if (!context.imageProvider) return {...fail(context,'图片生成服务未配置，无法生成图片。已保留部分结果。'),dependencyFailure:true};
 
   let generated;
   try {
-    generated = await context.imageProvider.generate({ prompt, signal: context.signal });
+    generated = await context.imageProvider.generate({ prompt, signal: context.signal, ...(args.edit ? {referenceImage} : {}) });
     await assertDecodableImage(generated?.dataUrl, context.signal);
   } catch (error) {
     // Cancellation must abort the whole run, not become a tool result that
@@ -264,15 +271,16 @@ async function applyGenerateImage(args, context) {
       throw abort;
     }
     const message = error instanceof Error ? error.message : String(error);
-    return fail(context, `图片生成失败：${message}`);
+    return {...fail(context, `图片生成失败：${message}`),dependencyFailure:true};
   }
   if (!isBoundedImageDataUrl(generated?.dataUrl, context.maxAttachmentChars)) {
-    return fail(context, '图片生成返回的数据无效或超出大小限制');
+    return {...fail(context, '图片生成返回的数据无效或超出大小限制'),dependencyFailure:true};
   }
   const dataUrl = generated.dataUrl;
+  if (kind === 'background') return buildCandidate(context,{...context.scene,backgroundImage:dataUrl},'背景图片已更新');
   if (kind === 'message') {
     const messages = context.scene.messages.map((message) =>
-      message.id === targetId ? { ...message, asset: dataUrl } : message,
+      message.id === targetId ? (message.type === 'album' ? {...message,items:message.items.map(i => i.id === args.itemId ? {...i,asset:dataUrl} : i)} : { ...message, asset: dataUrl }) : message,
     );
     return buildCandidate(context, { ...context.scene, messages }, `已为消息 ${targetId} 生成图片`);
   }
@@ -310,6 +318,14 @@ export async function executeTool(name, args, context) {
     maxAttachmentChars: context.maxAttachmentChars,
   };
   switch (name) {
+    case 'update_element': {
+      const target = resolveTarget(ctx.scene,args.targetId);
+      if (!target || target.kind === 'message' || !isPlainObject(args.patch)) return fail(ctx,'元素或 patch 无效');
+      if (ctx.targetId && ctx.targetId !== args.targetId) return fail(ctx,'只能调整所选元素');
+      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','watermark','surface','background','appearance','headerText','composerText','battery'] : ['name','subtitle'];
+      if (Object.keys(args.patch).some(k => !allowed.includes(k))) return fail(ctx,'patch 包含不允许的字段');
+      return buildCandidate(ctx,target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)},'元素已更新');
+    }
     case 'create_scene':
       return applyCreateScene(args, ctx);
     case 'upsert_message':

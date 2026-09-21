@@ -1,3 +1,4 @@
+import { resolveTarget } from './targets.mjs';
 /**
  * IMStage Agent — scene context + invariant helpers.
  *
@@ -41,6 +42,8 @@ function markMessage(message) {
     type: message.type,
     text: truncate(message.text, MESSAGE_CONTEXT_TEXT_CHARS),
     time: message.time,
+    subtitle: truncate(message.subtitle,400), quote: truncate(message.quote,800), width: message.width, height: message.height, appearance: message.appearance,
+    items: message.items?.map(item => ({...item, caption:truncate(item.caption,200), asset: item.asset ? ASSET_MARKER : undefined})),
   };
   if (message.asset) marked.asset = ASSET_MARKER;
   return marked;
@@ -71,6 +74,7 @@ export function buildSceneContext(scene, maxChars, targetId = null) {
     id: scene.id,
     title: truncate(scene.title, AGENT_MAX_SCENE_TITLE_CHARS),
     platform: scene.platform,
+    surface: scene.surface, background: scene.background, backgroundImage: scene.backgroundImage ? ASSET_MARKER : undefined, appearance: scene.appearance, headerText: truncate(scene.headerText,400), composerText: truncate(scene.composerText,200), battery: scene.battery,
     deviceTime: truncate(scene.deviceTime, AGENT_MAX_SCENE_TIME_CHARS),
     date: truncate(scene.date, AGENT_MAX_SCENE_DATE_CHARS),
     selfId: scene.selfId,
@@ -117,7 +121,12 @@ export function buildSceneContext(scene, maxChars, targetId = null) {
   let text = build(selected);
   if (text.length > limit) {
     // Only reachable when the required target alone exceeds the budget.
-    text = text.slice(0, limit);
+    const m = targetIndex !== -1 ? marked[targetIndex] : null;
+    const minimal = {id:scene.id,messages:m?[{id:m.id,type:m.type,participantId:m.participantId,text:''}]:[],truncated:true};
+    if(m) minimal.messages[0].text = m.text.slice(0, Math.max(0,limit-JSON.stringify(minimal).length-16));
+    text = JSON.stringify(minimal);
+    if(text.length>limit) text = JSON.stringify({targetId,truncated:true});
+    if(text.length>limit) text = '{}';
     truncated = true;
   }
   return { text, truncated };
@@ -136,7 +145,9 @@ export function checkSceneLimits(scene) {
   if (!isPlainObject(scene)) return '场景数据无效';
   const messages = Array.isArray(scene.messages) ? scene.messages : [];
   const participants = Array.isArray(scene.participants) ? scene.participants : [];
-  const assetChars = messages.reduce((n,m) => n + (typeof m?.asset === 'string' ? m.asset.length : 0), 0) + participants.reduce((n,p) => n + (typeof p?.avatar === 'string' ? p.avatar.length : 0), 0);
+  const albumChars = messages.reduce((n,m) => n + (m.items || []).reduce((s,i) => s + (i.asset?.length || 0),0),0);
+  const referenceChars = (scene.reference?.source?.length || 0) + (scene.reference?.assets || []).reduce((n,a)=>n+a.dataUrl.length,0);
+  const assetChars = referenceChars + (scene.backgroundImage?.length || 0) + albumChars + messages.reduce((n,m) => n + (typeof m?.asset === 'string' ? m.asset.length : 0), 0) + participants.reduce((n,p) => n + (typeof p?.avatar === 'string' ? p.avatar.length : 0), 0);
   if (assetChars > 12 * 1024 * 1024) return '图片素材总大小超过 12 MB，请减少图片';
 
   if (messages.length > AGENT_MAX_SCENE_MESSAGES) {
@@ -180,11 +191,14 @@ export function checkSceneLimits(scene) {
 export function stripSceneAssets(sceneLike) {
   if (!isPlainObject(sceneLike)) return sceneLike;
   const copied = { ...sceneLike };
+  delete copied.backgroundImage;
+  delete copied.reference;
   if (Array.isArray(copied.messages)) {
     copied.messages = copied.messages.map((message) => {
       if (!isPlainObject(message)) return message;
       const next = { ...message };
       delete next.asset;
+      if (Array.isArray(next.items)) next.items = next.items.map(item => {if (!isPlainObject(item)) return item; const {asset,...rest}=item; return rest;});
       return next;
     });
   }
@@ -207,8 +221,11 @@ export function preserveAssetsById(nextScene, currentScene) {
   );
   return {
     ...nextScene,
+    ...(currentScene.reference ? {reference:currentScene.reference} : {}),
+    ...(currentScene.backgroundImage ? {backgroundImage:currentScene.backgroundImage} : {}),
     messages: nextScene.messages.map((message) => {
       const existing = currentMessages.get(message.id);
+      if (message.items) message = {...message, items:message.items.map(item => { const old = existing?.items?.find(i => i.id === item.id); return old?.asset ? {...item,asset:old.asset} : item; })};
       if (existing?.asset && !message.asset) return { ...message, asset: existing.asset };
       return message;
     }),
@@ -229,24 +246,20 @@ const METADATA_KEYS = ['title', 'platform', 'deviceTime', 'date', 'selfId', 'wat
  * Returns a human-readable reason, or `null` when the invariant holds.
  */
 export function targetedChangeViolation(before, after, targetId) {
-  if (before.id !== after.id) return '场景 id 不能改变';
-  for (const key of METADATA_KEYS) {
-    if (before[key] !== after[key]) return `定向编辑不能修改场景字段：${key}`;
+  const target = resolveTarget(before, targetId);
+  if (!target) return '定向编辑目标不存在';
+  const a = structuredClone(before), b = structuredClone(after);
+  if (target.kind === 'scene') {
+    for (const key of ['title','platform','deviceTime','date','watermark','surface','background','backgroundImage','appearance','headerText','composerText','battery']) { delete a[key]; delete b[key]; }
+  } else if (target.kind === 'participant') {
+    const next = b.participants.find(p => p.id === target.id);
+    if (!next) return '定向编辑不能删除参与者';
+    b.participants = b.participants.map(p => p.id === target.id ? a.participants.find(p => p.id === target.id) : p);
+  } else {
+    if (a.messages.length !== b.messages.length) return '定向编辑不能新增或删除消息';
+    const index = a.messages.findIndex(m => m.id === target.id);
+    if (b.messages[index]?.id !== target.id) return '定向编辑不能改变消息顺序或 id';
+    b.messages[index] = a.messages[index];
   }
-  if (JSON.stringify(before.participants) !== JSON.stringify(after.participants)) {
-    return '定向编辑不能修改参与者或头像';
-  }
-  if (before.messages.length !== after.messages.length) {
-    return '定向编辑不能新增或删除消息';
-  }
-  for (let index = 0; index < before.messages.length; index += 1) {
-    const previous = before.messages[index];
-    const next = after.messages[index];
-    if (previous.id !== next.id) return '定向编辑不能改变消息顺序或 id';
-    if (previous.id === targetId) continue;
-    if (JSON.stringify(previous) !== JSON.stringify(next)) {
-      return `定向编辑不能修改其他消息：${previous.id}`;
-    }
-  }
-  return null;
+  return JSON.stringify(a) === JSON.stringify(b) ? null : '定向编辑不能修改其他元素、消息或参与者';
 }

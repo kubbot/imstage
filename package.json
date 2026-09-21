@@ -15,7 +15,8 @@
     "test:ui": "playwright test",
     "dev:web": "vite --host 127.0.0.1 --port 4417 --strictPort",
     "dev:api": "node services/api/server.mjs",
-    "start": "node tools/start-web.mjs"
+    "start": "node tools/start-web.mjs",
+    "test:eval": "node --test tools/eval/test/*.test.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -35,5 +36,8 @@
     "@vitejs/plugin-react": "6.1.1",
     "typescript": "7.0.2",
     "vite": "8.3.0"
-  }
+  },
+  "workspaces": [
+    "tools/eval"
+  ]
 }

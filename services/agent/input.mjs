@@ -1,3 +1,4 @@
+import { resolveTarget } from './targets.mjs';
 /**
  * IMStage Agent — request validation.
  *
@@ -58,7 +59,7 @@ export function validateAgentInput(body) {
     if (typeof body.targetId !== 'string' || body.targetId.trim() === '') {
       return fail('invalid_target', 'targetId 必须是非空字符串');
     }
-    if (!scene.messages.some((message) => message.id === body.targetId)) {
+    if (!resolveTarget(scene, body.targetId)) {
       return fail('invalid_target', 'targetId 对应的消息不存在');
     }
     targetId = body.targetId;

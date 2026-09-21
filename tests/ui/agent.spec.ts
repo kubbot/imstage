@@ -34,7 +34,7 @@ test('Agent creation, scoped Vibe Edit, undo and PNG export share the rendered s
   await expect(page.locator('.agent-phone')).toContainText('周末一起去看展吗？');
   await page.getByRole('button',{name:'关闭 AI 编辑'}).click();
   const download = page.waitForEvent('download'); await page.getByRole('button',{name:'导出 PNG'}).click();
-  expect((await download).suggestedFilename()).toBe('imstage-long.png');
+  expect((await download).suggestedFilename()).toBe('imstage-720x1280.png');
   await page.getByLabel('导出图片范围').selectOption('standard');
   const standardDownload=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
   const file=await(await standardDownload).path();const {data,info}=await sharp(file!).ensureAlpha().raw().toBuffer({resolveWithObject:true});

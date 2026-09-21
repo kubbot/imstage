@@ -1,7 +1,12 @@
-import type { Scene } from '../studio/model';
+import type { Platform, Scene } from '../studio/model';
 export type User = { id: string; email: string; name: string };
 export type SceneSummary = { id: string; title: string; platform: Scene['platform']; messageCount: number; updatedAt: string; revision: number };
-export type SavedScene = { id: string; scene: Scene; updatedAt: string; revision: number };
+export type SavedScene = { projectIds?:string[]; id: string; scene: Scene; updatedAt: string; revision: number };
+export type Project = { id: string; name: string; rules: string; platform: Platform; revision: number; updatedAt: string; sceneCount: number };
+export type BatchTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted';
+export type BatchJobStatus = 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
+export type BatchTask = { id: string; ordinal: number; prompt: string; platform: Platform; status: BatchTaskStatus; sceneId: string | null; error: string | null; errorCode: string | null; detail: string; updatedAt: string };
+export type BatchJob = { id: string; projectId: string; status: BatchJobStatus; rules: string; reason: string | null; cancelRequested: boolean; total: number; succeeded: number; failed: number; createdAt: string; updatedAt: string; tasks?: BatchTask[] };
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -37,7 +42,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 }
 export function errorText(error: unknown) { return error instanceof Error ? error.message : '操作未完成，请重试。'; }
 export function safeNext(value: string | null) {
-  return value && /^\/(workspace|account|studio|create)(\?[^#]*)?$/.test(value) ? value : '/workspace';
+  return value && /^\/(workspace|account|studio|create|projects)(\?[^#]*)?$/.test(value) ? value : '/workspace';
 }
 export function loginLink(next = '/workspace') { return `#/login?next=${encodeURIComponent(safeNext(next))}`; }
 export function clearAccountDrafts(userId: string) {

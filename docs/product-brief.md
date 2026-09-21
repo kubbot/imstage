@@ -40,4 +40,12 @@ React + Vite、Node + SQLite 账号会话已实现。密钥仅由后端读取。
 
 ## Agent 验收与边界
 
-主入口 `/#/create` 和账号新建作品使用真实 Agent。首页火星故事为明确标记的固定交互示例。支持文字、图片、定位、系统消息及五种现有平台皮肤；视频、语音、转账等复杂卡片仍待实现。图片服务适配为 OpenAI-compatible `images/generations`，必须配置且通过实际调用才算可用。参见 [Agent 服务说明](../services/agent/README.md)。
+主入口 `/#/create` 和账号新建作品使用真实 Agent。首页火星故事为明确标记的固定交互示例。支持六种平台皮肤和文字、图片、定位、系统、联系人、转账、语音卡片、视频缩略图、链接、相册。语音播放与视频生成未实现；这些卡片只用于静态截图。图片服务适配为 OpenAI-compatible `images/generations` / `images/edits`，必须配置且通过实际调用才算可用。参见 [Agent 服务说明](../services/agent/README.md)。
+
+## 项目、自由编辑与截图评测
+
+账号作品可归属一个项目，项目保存规则和默认平台，批量任务按提示词 × 平台生成独立作品。规则由服务端读取和快照，不能把模型遵循规则的能力当作确定性保证。
+
+结构化 Scene 支持人物、消息、背景、颜色、尺寸、圆角、时间和设备外观编辑。同一 Scene 切换平台只改变渲染。原图精确编辑使用 Scene.reference 编辑层，通过同一 Agent runtime 调用 OCR、局部观察、图片服务和渲染工具；Web 预览、导出与 dataset benchmark 共享编辑层 HTML 和文字排版实现。原图模式不等于整张截图已自动拆成所有可编辑元素，跨平台须重新生成结构化场景。
+
+当前验收事实见 [agent-project-acceptance.md](agent-project-acceptance.md)。完整 11/11 与三方图片 API 真实调用尚未通过，不把配置或单元测试表述为最终验收。

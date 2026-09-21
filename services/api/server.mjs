@@ -25,6 +25,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
+import * as projects from '../projects/index.mjs';
 import {
   AGENT_BODY_LIMIT,
   createAgentLimiter,
@@ -46,7 +47,10 @@ export const SESSION_COOKIE = 'imstage_session';
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, fixed
 export const AUTH_BODY_LIMIT = 16 * 1024; // 16 KiB
 export const SCENE_BODY_LIMIT = 16 * 1024 * 1024; // 16 MiB
-export const MAX_SCENES_PER_USER = 100;
+export const PROJECT_BODY_LIMIT = 64 * 1024; // 64 KiB (name + rules)
+export const BATCH_BODY_LIMIT = 256 * 1024; // 256 KiB (10 prompts × 4000 chars)
+/** Single source of truth lives in `services/projects/model.mjs`. */
+export const MAX_SCENES_PER_USER = projects.MAX_SCENES_PER_USER;
 export const REQUEST_MARKER_HEADER = 'x-imstage-request';
 export const REQUEST_MARKER_VALUE = '1';
 
@@ -386,6 +390,10 @@ function openDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_scenes_user_updated ON scenes(user_id, updated_at DESC);
   `);
 
+  // Projects add tables only (no data reset, no scene migration required for
+  // existing accounts): scenes associate through `scene_projects`.
+  db.exec(projects.PROJECT_SCHEMA_SQL);
+
   if (dbPath !== ':memory:') {
     for (const suffix of ['', '-wal', '-shm']) {
       try {
@@ -624,7 +632,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError) {
+  if (err instanceof HttpError || err instanceof projects.ProjectsError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -972,7 +980,7 @@ function handleSceneGet(ctx, req, res, sceneId) {
     .prepare('SELECT id, scene_json, revision, updated_at FROM scenes WHERE user_id = ? AND id = ?')
     .get(session.user.id, sceneId);
   if (!row) throw new HttpError(404, 'not_found', '场景不存在');
-  sendJson(req, res, 200, { item: sceneItemFromRow(row) });
+  sendJson(req, res, 200, { item: {...sceneItemFromRow(row),projectIds:ctx.db.prepare('SELECT project_id FROM scene_projects WHERE user_id=? AND scene_id=?').all(session.user.id,sceneId).map(r=>r.project_id)} });
 }
 
 async function handleScenePut(ctx, req, res, sceneId) {
@@ -995,6 +1003,9 @@ async function handleScenePut(ctx, req, res, sceneId) {
       detail ? `场景数据无效：${detail}` : '场景数据无效',
     );
   }
+  const projectId=body.projectId ? projects.validateProjectId(body.projectId) : null;
+  if(projectId&&!projects.getProjectContext(ctx.db,session.user.id,projectId))throw new HttpError(404,'not_found','项目不存在');
+  const attach=()=>{if(body.projectId === '')ctx.db.prepare('DELETE FROM scene_projects WHERE user_id=? AND scene_id=?').run(session.user.id,sceneId);else if(projectId)ctx.db.prepare('INSERT INTO scene_projects(user_id,scene_id,project_id,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id,scene_id) DO UPDATE SET project_id=excluded.project_id').run(session.user.id,sceneId,projectId,dateISO(ctx.nowMs()));};
   const scene = validation.scene;
   if (scene.id.toLowerCase() !== sceneId) {
     throw new HttpError(400, 'invalid_request', '场景 id 与请求路径不一致');
@@ -1035,6 +1046,7 @@ async function handleScenePut(ctx, req, res, sceneId) {
         }
         throw err;
       }
+      attach();
       return { id: sceneId, scene, updatedAt, revision: 1 };
     }
 
@@ -1056,6 +1068,7 @@ async function handleScenePut(ctx, req, res, sceneId) {
       throw new HttpError(404, 'not_found', '场景不存在');
     }
 
+    attach();
     return { id: sceneId, scene, updatedAt, revision: revision + 1 };
   });
 
@@ -1090,6 +1103,241 @@ async function handleSceneDelete(ctx, req, res, sceneId) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Project routes                                                      */
+/* ------------------------------------------------------------------ */
+
+function handleProjectList(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  const items = projects.listProjects(ctx.db, session.user.id);
+  sendJson(req, res, 200, { items });
+}
+
+async function handleProjectCreate(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const name = projects.validateProjectName(body.name);
+  const rules = projects.validateProjectRules(body.rules, '');
+  const platform = projects.validateProjectPlatform(body.platform, projects.DEFAULT_PROJECT_PLATFORM);
+  recheckSession(ctx, req, session);
+  const item = projects.createProject(ctx.db, {
+    userId: session.user.id,
+    projectId: crypto.randomUUID(),
+    name,
+    rules,
+    platform,
+    nowMs: ctx.nowMs(),
+  });
+  sendJson(req, res, 200, { item });
+}
+
+function handleProjectGet(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  const item = projects.getProjectItem(ctx.db, session.user.id, projectId);
+  if (!item) throw new HttpError(404, 'not_found', '项目不存在');
+  const scenes = projects.listProjectScenes(ctx.db, session.user.id, projectId);
+  sendJson(req, res, 200, { item, scenes });
+}
+
+async function handleProjectUpdate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const revision = projects.parseRevision(body.revision);
+  const existing = projects.getProjectRow(ctx.db, session.user.id, projectId);
+  if (!existing) throw new HttpError(404, 'not_found', '项目不存在');
+  const name = body.name === undefined ? existing.name : projects.validateProjectName(body.name);
+  const rules = body.rules === undefined
+    ? existing.rules
+    : projects.validateProjectRules(body.rules, existing.rules);
+  const platform = body.platform === undefined
+    ? existing.platform
+    : projects.validateProjectPlatform(body.platform, existing.platform);
+  recheckSession(ctx, req, session);
+  const item = projects.updateProject(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    name,
+    rules,
+    platform,
+    revision,
+    nowMs: ctx.nowMs(),
+  });
+  sendJson(req, res, 200, { item });
+}
+
+async function handleProjectDelete(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const revision = projects.parseRevision(body.revision);
+  const activeJobs = ctx.db
+    .prepare(
+      "SELECT id FROM batch_jobs WHERE user_id = ? AND project_id = ? AND status IN ('queued', 'running')",
+    )
+    .all(session.user.id, projectId);
+  recheckSession(ctx, req, session);
+  const result = projects.deleteProject(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    revision,
+    nowMs: ctx.nowMs(),
+  });
+  for (const job of activeJobs) ctx.projects.queue.cancel(job.id);
+  sendJson(req, res, 200, { ok: true, detachedScenes: result.detachedScenes });
+}
+
+async function handleProjectAttachScene(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const sceneId = typeof body.sceneId === 'string' ? parseSceneId(body.sceneId) : null;
+  if (!sceneId) throw new HttpError(400, 'invalid_scene_id', 'sceneId 无效');
+  recheckSession(ctx, req, session);
+  const result = projects.attachScene(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    sceneId,
+    nowMs: ctx.nowMs(),
+  });
+  sendJson(req, res, 200, { ok: true, alreadyAttached: result.alreadyAttached });
+}
+
+async function handleProjectDetachScene(ctx, req, res, projectId, sceneId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const result = projects.detachScene(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    sceneId,
+  });
+  sendJson(req, res, 200, { ok: true, detached: result.detached });
+}
+
+function handleBatchList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  if (!projects.getProjectContext(ctx.db, session.user.id, projectId)) {
+    throw new HttpError(404, 'not_found', '项目不存在');
+  }
+  const items = projects.listBatchJobs(ctx.db, session.user.id, projectId, 20);
+  sendJson(req, res, 200, { items });
+}
+
+function handleBatchGet(ctx, req, res, projectId, jobId) {
+  const session = requireSession(ctx, req);
+  const item = projects.getJobDetail(ctx.db, session.user.id, projectId, jobId);
+  if (!item) throw new HttpError(404, 'not_found', '生成任务不存在');
+  sendJson(req, res, 200, { item });
+}
+
+async function handleBatchCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, BATCH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const project = projects.getProjectContext(ctx.db, session.user.id, projectId);
+  if (!project) throw new HttpError(404, 'not_found', '项目不存在');
+  const tasks = projects.buildBatchTasks(body, project.platform);
+  const clientBatchId = projects.validateClientBatchId(body.clientBatchId);
+
+  if (!ctx.agent.runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务尚未配置，无法运行批量生成');
+  }
+
+  // Idempotent submit: a retried request with the same key returns the job
+  // created by the first (possibly timed-out) request instead of duplicating it.
+  if (clientBatchId) {
+    const existing = projects.findJobByClientId(ctx.db, session.user.id, projectId, clientBatchId);
+    if (existing) {
+      sendJson(req, res, 200, { item: projects.jobDetail(ctx.db, existing), deduplicated: true });
+      return;
+    }
+  }
+
+  if (projects.countActiveJobs(ctx.db, session.user.id) >= projects.MAX_ACTIVE_BATCH_JOBS) {
+    throw new HttpError(429, 'batch_limit_reached', '同时进行的批量生成任务过多，请等待或取消后再试');
+  }
+
+  recheckSession(ctx, req, session);
+  let job;
+  try {
+    job = projects.createBatchJob(ctx.db, {
+      userId: session.user.id,
+      projectId,
+      sessionId: session.sessionId,
+      rules: project.rules,
+      tasks,
+      clientBatchId,
+      nowMs: ctx.nowMs(),
+    });
+  } catch (err) {
+    if (clientBatchId && isUniqueConstraintError(err)) {
+      const existing = projects.findJobByClientId(ctx.db, session.user.id, projectId, clientBatchId);
+      if (existing) {
+        sendJson(req, res, 200, { item: projects.jobDetail(ctx.db, existing), deduplicated: true });
+        return;
+      }
+    }
+    throw err;
+  }
+  ctx.projects.queue.start();
+  ctx.projects.queue.wake();
+  sendJson(req, res, 200, { item: job, deduplicated: false });
+}
+
+async function handleBatchCancel(ctx, req, res, projectId, jobId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const item = projects.markJobCancelRequested(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    jobId,
+    reason: '用户已取消',
+    nowMs: ctx.nowMs(),
+  });
+  ctx.projects.queue.cancel(jobId);
+  sendJson(req, res, 200, { item });
+}
+
+async function handleBatchRetry(ctx, req, res, projectId, jobId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const existing = projects.getJobRow(ctx.db, session.user.id, projectId, jobId);
+  if (!existing) throw new HttpError(404, 'not_found', '生成任务不存在');
+  if (!ctx.agent.runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务尚未配置，无法运行批量生成');
+  }
+  const priorRetry=projects.findJobByClientId(ctx.db,session.user.id,projectId,'retry-'+jobId);
+  if(priorRetry){recheckSession(ctx,req,session);sendJson(req,res,200,{item:projects.jobDetail(ctx.db,priorRetry)});return;}
+  if (projects.countActiveJobs(ctx.db, session.user.id) >= projects.MAX_ACTIVE_BATCH_JOBS) {
+    throw new HttpError(429, 'batch_limit_reached', '同时进行的批量生成任务过多，请等待或取消后再试');
+  }
+  recheckSession(ctx, req, session);
+  const item = projects.createRetryJob(ctx.db, {
+    userId: session.user.id,
+    projectId,
+    jobId,
+    sessionId: session.sessionId,
+    nowMs: ctx.nowMs(),
+  });
+  ctx.projects.queue.start();
+  ctx.projects.queue.wake();
+  sendJson(req, res, 200, { item });
+}
+
+/* ------------------------------------------------------------------ */
 /* Agent routes                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -1114,6 +1362,19 @@ async function handleAgentRun(ctx, req, res) {
     throw new HttpError(400, validation.code, validation.message);
   }
   const input = validation.value;
+
+  // Optional project context. Rules are loaded server-side from a project that
+  // belongs to the caller, so an Agent prompt can never borrow another
+  // account's (or another project's) rules. The user prompt length was already
+  // validated above; the project rules are appended as a separate block.
+  if (body.projectId !== undefined && body.projectId !== null && body.projectId !== '') {
+    const projectId = projects.validateProjectId(body.projectId);
+    const context = projects.getProjectContext(ctx.db, session.user.id, projectId);
+    if (!context) throw new HttpError(404, 'not_found', '项目不存在');
+    if (typeof context.rules === 'string' && context.rules.trim() !== '') {
+      input.prompt = projects.buildTaskPrompt(context.rules, input.prompt);
+    }
+  }
 
   const runtime = ctx.agent.runtime;
   if (!runtime.capabilities.configured) {
@@ -1306,6 +1567,88 @@ async function route(ctx, req, res) {
     return;
   }
 
+  if (pathname === '/api/projects') {
+    if (method === 'GET') {
+      handleProjectList(ctx, req, res);
+      return;
+    }
+    if (method === 'POST') {
+      await handleProjectCreate(ctx, req, res);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const projectJobMatch = /^\/api\/projects\/([^/]+)\/batch-jobs\/([^/]+)(?:\/(cancel|retry))?$/.exec(pathname);
+  if (projectJobMatch) {
+    const projectId = projects.validateProjectId(projectJobMatch[1]);
+    const jobId = projects.validateJobId(projectJobMatch[2]);
+    const action = projectJobMatch[3];
+    if (action === 'cancel') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleBatchCancel(ctx, req, res, projectId, jobId);
+      return;
+    }
+    if (action === 'retry') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleBatchRetry(ctx, req, res, projectId, jobId);
+      return;
+    }
+    if (method === 'GET') {
+      handleBatchGet(ctx, req, res, projectId, jobId);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const projectBatchMatch = /^\/api\/projects\/([^/]+)\/batch-jobs$/.exec(pathname);
+  if (projectBatchMatch) {
+    const projectId = projects.validateProjectId(projectBatchMatch[1]);
+    if (method === 'GET') {
+      handleBatchList(ctx, req, res, projectId);
+      return;
+    }
+    if (method === 'POST') {
+      await handleBatchCreate(ctx, req, res, projectId);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const projectScenesMatch = /^\/api\/projects\/([^/]+)\/scenes(?:\/([^/]+))?$/.exec(pathname);
+  if (projectScenesMatch) {
+    const projectId = projects.validateProjectId(projectScenesMatch[1]);
+    const rawSceneId = projectScenesMatch[2];
+    if (rawSceneId === undefined) {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleProjectAttachScene(ctx, req, res, projectId);
+      return;
+    }
+    const sceneId = parseSceneId(rawSceneId);
+    if (!sceneId) throw new HttpError(404, 'not_found', '作品不存在');
+    if (method !== 'DELETE') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleProjectDetachScene(ctx, req, res, projectId, sceneId);
+    return;
+  }
+
+  const projectMatch = /^\/api\/projects\/([^/]+)$/.exec(pathname);
+  if (projectMatch) {
+    const projectId = projects.validateProjectId(projectMatch[1]);
+    if (method === 'GET') {
+      handleProjectGet(ctx, req, res, projectId);
+      return;
+    }
+    if (method === 'PUT') {
+      await handleProjectUpdate(ctx, req, res, projectId);
+      return;
+    }
+    if (method === 'DELETE') {
+      await handleProjectDelete(ctx, req, res, projectId);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
   if (pathname === '/api/scenes') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     handleSceneList(ctx, req, res);
@@ -1335,6 +1678,19 @@ async function route(ctx, req, res) {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     // Public, non-secret status so the UI can explain whether AI is configured.
     sendJson(req, res, 200, ctx.agent.runtime.capabilities);
+    return;
+  }
+
+  if (pathname === '/api/agent/render') {
+    if(method!=='POST') throw new HttpError(405,'method_not_allowed','方法不被允许');
+    guardMutation(req,ctx.config);const session=requireSession(ctx,req);requireJsonContentType(req);
+    const body=await readJsonBody(req,AGENT_BODY_LIMIT,AGENT_READ_DEADLINE_MS);recheckSession(ctx,req,session);
+    const validation=validateAgentInput({prompt:'render',scene:body.scene});
+    if(!validation.ok||!validation.value.scene.reference) throw new HttpError(400,'invalid_scene','需要有效截图编辑文档');
+    const lease=ctx.agent.limiter.tryStart(session.user.id,ctx.nowMs());if(!lease.ok)throw rateLimitedError(lease.retryAfterMs);
+    const controller=new AbortController();const close=()=>controller.abort();res.on('close',close);const timer=setTimeout(close,40000);
+    try {const {renderReference}=await import('../agent/screenshot-tools.mjs');const output=await renderReference(validation.value.scene.reference,controller.signal);recheckSession(ctx,req,session);if(!controller.signal.aborted){res.writeHead(200,{'Content-Type':'image/png','Content-Length':output.buffer.length,'Cache-Control':'no-store'});res.end(output.buffer);}}
+    finally {clearTimeout(timer);res.off('close',close);lease.release();}
     return;
   }
 
@@ -1458,6 +1814,18 @@ export function createApp(options = {}) {
     logger: config.logger,
   });
   const agentLimiter = createAgentLimiter(agentConfig.limits);
+  const batchQueue = projects.createBatchQueue({
+    db,
+    agent: { runtime: agentRuntime, limiter: agentLimiter },
+    nowMs: config.nowMs,
+    logger: config.logger,
+    ...(options.projects ?? {}),
+  });
+  // Truthful restart recovery runs before the worker may claim any job: a
+  // queued/running job from a previous process is marked interrupted, never
+  // silently resumed as if it had succeeded.
+  projects.markInterruptedJobs(db, config.nowMs());
+  batchQueue.start();
   const ctx = {
     config,
     db,
@@ -1466,6 +1834,7 @@ export function createApp(options = {}) {
     nowMs: config.nowMs,
     logger: config.logger,
     agent: { config: agentConfig, runtime: agentRuntime, limiter: agentLimiter },
+    projects: { queue: batchQueue },
   };
 
   const server = http.createServer((req, res) => {
@@ -1487,6 +1856,7 @@ export function createApp(options = {}) {
   const close = async () => {
     if (closed) return;
     closed = true;
+    await batchQueue.stop();
     await new Promise((resolve) => {
       if (!server.listening) {
         resolve();

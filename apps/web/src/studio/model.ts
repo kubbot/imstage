@@ -1,3 +1,4 @@
+import { validateReference, type ReferenceDocument } from '../../../../packages/schema/reference.ts';
 /**
  * IMStage studio scene model.
  *
@@ -7,14 +8,23 @@
  * changed). This keeps undo/redo predictable.
  */
 
-export type Platform = 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack';
+export type Platform = 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram';
 export type TemplateId = 'weekend' | 'launch' | 'welcome';
-export type MessageType = 'text' | 'image' | 'location' | 'system';
+export type MessageType = 'text' | 'image' | 'location' | 'system' | 'contact' | 'transfer' | 'voice' | 'video' | 'link' | 'album';
 
+export interface Appearance {
+  background?: string;
+  color?: string;
+  fontSize?: number;
+  radius?: number;
+  spacing?: number;
+}
+export interface MediaItem { id: string; asset?: string; caption: string; kind: 'image' | 'video'; }
 export interface Participant {
   id: string;
   name: string;
   avatar?: string;
+  subtitle?: string;
 }
 
 export interface Message {
@@ -24,6 +34,12 @@ export interface Message {
   text: string;
   time: string;
   asset?: string;
+  subtitle?: string;
+  quote?: string;
+  width?: number;
+  height?: number;
+  appearance?: Appearance;
+  items?: MediaItem[];
 }
 
 export interface Scene {
@@ -36,6 +52,14 @@ export interface Scene {
   participants: Participant[];
   messages: Message[];
   watermark: string;
+  reference?: ReferenceDocument;
+  surface?: 'ios' | 'android' | 'desktop';
+  background?: string;
+  backgroundImage?: string;
+  appearance?: Appearance;
+  composerText?: string;
+  headerText?: string;
+  battery?: number;
 }
 
 export const PLATFORMS: readonly Platform[] = [
@@ -44,11 +68,12 @@ export const PLATFORMS: readonly Platform[] = [
   'imessage',
   'whatsapp',
   'slack',
+  'instagram',
 ];
 
 export const TEMPLATE_IDS: readonly TemplateId[] = ['weekend', 'launch', 'welcome'];
 
-export const MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'location', 'system'];
+export const MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album'];
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
   wechat: '微信',
@@ -56,6 +81,7 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   imessage: 'iMessage',
   whatsapp: 'WhatsApp',
   slack: 'Slack',
+  instagram: 'Instagram',
 };
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
@@ -63,6 +89,7 @@ export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
   image: '图片',
   location: '定位',
   system: '系统提示',
+  contact: '联系人', transfer: '转账', voice: '语音', video: '视频', link: '链接', album: '相册',
 };
 
 export const TEMPLATE_LABELS: Record<TemplateId, string> = {
@@ -87,6 +114,35 @@ function nonEmptyString(value: unknown): string | undefined {
 
 function isLocalImage(value: unknown): boolean {
   return typeof value === 'string' && value.length <= 6 * 1024 * 1024 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(value);
+}
+
+function extraFields(raw: Record<string, unknown>, target: Record<string, unknown>, errors: string[]) {
+  for (const key of ['subtitle','quote','composerText','headerText']) {
+    if (raw[key] === undefined) continue;
+    if (typeof raw[key] !== 'string' || raw[key].length > 4000) errors.push(`${key} 必须是不超过 4000 字的文本`);
+    else target[key] = raw[key];
+  }
+  for (const [key, min, max] of [['width',40,1200],['height',24,1800],['battery',0,100]] as const) {
+    if (raw[key] === undefined) continue;
+    if (typeof raw[key] !== 'number' || !Number.isFinite(raw[key]) || raw[key] < min || raw[key] > max) errors.push(`${key} 超出允许范围`);
+    else target[key] = raw[key];
+  }
+  if (raw.appearance !== undefined) {
+    if (!isRecord(raw.appearance)) errors.push('appearance 必须是对象');
+    else {
+      const style: Record<string, unknown> = {};
+      for (const key of ['background','color']) if (raw.appearance[key] !== undefined) {
+        if (typeof raw.appearance[key] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(raw.appearance[key])) errors.push(`${key} 必须是六位颜色`);
+        else style[key] = raw.appearance[key];
+      }
+      for (const [key,min,max] of [['fontSize',10,40],['radius',0,40],['spacing',0,48]] as const) if (raw.appearance[key] !== undefined) {
+        const n = raw.appearance[key];
+        if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max) errors.push(`${key} 超出允许范围`);
+        else style[key] = n;
+      }
+      target.appearance = style;
+    }
+  }
 }
 
 export function cloneScene(scene: Scene): Scene {
@@ -315,6 +371,7 @@ export function validateScene(value: unknown): ValidationResult {
       participantIds.add(pid);
       const participant: Participant = { id: pid, name };
       if (typeof raw.avatar === 'string' && raw.avatar !== '') participant.avatar = raw.avatar;
+      if (typeof raw.subtitle === "string" && raw.subtitle.length <= 4000) participant.subtitle = raw.subtitle;
       participants.push(participant);
     });
   }
@@ -371,6 +428,17 @@ export function validateScene(value: unknown): ValidationResult {
         time: typeof raw.time === 'string' ? raw.time : '',
       };
       if (typeof raw.asset === 'string' && raw.asset !== '') message.asset = raw.asset;
+      extraFields(raw, message as unknown as Record<string, unknown>, errors);
+      if (raw.items !== undefined) {
+        if (!Array.isArray(raw.items) || raw.items.length > 9) errors.push('相册最多 9 项');
+        else {
+          const seenItems = new Set(); message.items = [];
+          for (const item of raw.items) {
+            if (!isRecord(item) || typeof item.id !== 'string' || !item.id || item.id.length > 128 || seenItems.has(item.id) || !['image','video'].includes(String(item.kind)) || typeof item.caption !== 'string' || item.caption.length > 4000 || (item.asset && !isLocalImage(item.asset))) { errors.push('相册内容无效'); continue; }
+            seenItems.add(item.id); message.items.push({id:item.id,caption:item.caption,kind:item.kind as 'image'|'video',...(item.asset ? {asset:item.asset as string} : {})});
+          }
+        }
+      }
       messages.push(message);
     });
   }
@@ -378,6 +446,21 @@ export function validateScene(value: unknown): ValidationResult {
   const watermark = typeof value.watermark === 'string' ? value.watermark : '';
   if (typeof value.watermark !== 'string') errors.push('水印必须是字符串');
 
+  const extras: Record<string, unknown> = {};
+  if (value.reference !== undefined) { try {extras.reference = validateReference(value.reference);} catch(e) {errors.push(e instanceof Error ? e.message : '截图文档无效');} }
+  extraFields(value, extras, errors);
+  if (value.surface !== undefined) {
+    if (!['ios','android','desktop'].includes(String(value.surface))) errors.push('设备平台无效');
+    else extras.surface = value.surface;
+  }
+  if (value.background !== undefined) {
+    if (typeof value.background !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value.background)) errors.push('背景必须是六位颜色');
+    else extras.background = value.background;
+  }
+  if (value.backgroundImage !== undefined && value.backgroundImage !== '') {
+    if (!isLocalImage(value.backgroundImage)) errors.push('背景必须是本地图片');
+    else extras.backgroundImage = value.backgroundImage;
+  }
   if (errors.length > 0 || !id || !platform) {
     return { ok: false, errors };
   }
@@ -385,7 +468,7 @@ export function validateScene(value: unknown): ValidationResult {
   return {
     ok: true,
     errors: [],
-    scene: { id, title, platform, deviceTime, date, selfId, participants, messages, watermark },
+    scene: { id, title, platform, deviceTime, date, selfId, participants, messages, watermark, ...extras },
   };
 }
 
@@ -464,6 +547,12 @@ export interface NewMessageInput {
   text?: string;
   time?: string;
   asset?: string;
+  subtitle?: string;
+  quote?: string;
+  width?: number;
+  height?: number;
+  appearance?: Appearance;
+  items?: MediaItem[];
 }
 
 export function addMessage(scene: Scene, input: NewMessageInput = {}): Scene {

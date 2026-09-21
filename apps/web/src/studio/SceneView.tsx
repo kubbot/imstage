@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import {
   IconBattery3,
   IconCellSignal4,
@@ -18,6 +19,7 @@ export interface SceneViewProps {
   onSelect?: (id: string) => void;
   exportMode?: boolean;
   pendingAssets?: boolean;
+  onSelectElement?: (id: string) => void;
 }
 
 const AVATAR_COLORS = ['#5b8def', '#e3874f', '#4fb286', '#b06fd6', '#d6607a', '#4aa3c7'];
@@ -56,7 +58,15 @@ function Avatar({ participant }: { participant: Participant | undefined }) {
   );
 }
 
+function media(message: Message) {
+  return message.asset ? <img src={message.asset} alt={message.text || '图片'} /> : <span className="scene-media-empty">图片未设置</span>;
+}
 function MessageBody({ message, pending = false }: { message: Message; pending?: boolean }) {
+  if (message.type === 'album') return <div className="scene-album">{message.items?.map(item => <div key={item.id} className="scene-album-item">{item.asset ? <img src={item.asset} alt={item.caption} /> : <span>{item.caption || '图片未设置'}</span>}{item.kind === 'video' && <span className="scene-play">▶</span>}</div>)}</div>;
+  if (message.type === 'video') return <div className="scene-video">{media(message)}<span className="scene-play">▶</span><small>{message.subtitle || '0:10'}</small></div>;
+  if (message.type === 'voice') return <div className="scene-bubble">◖ ıııııııııııı {message.text || '语音'} <small>{message.subtitle}</small></div>;
+  if (message.type === 'transfer') return <div className="scene-transfer"><strong>✓ {message.text}</strong><span>{message.subtitle || '模拟转账'}</span></div>;
+  if (message.type === 'contact' || message.type === 'link') return <div className="scene-card">{message.asset && media(message)}<strong>{message.text}</strong><span>{message.subtitle || (message.type === 'contact' ? 'Contact Card' : '链接')}</span></div>;
   if (message.type === 'system') {
     return <div className="scene-system">{message.text}</div>;
   }
@@ -64,12 +74,13 @@ function MessageBody({ message, pending = false }: { message: Message; pending?:
     return (
       <div className="scene-location" data-world={/火星|mars/i.test(message.text) ? 'mars' : undefined}>
         <div className="scene-location-map">
+          {message.asset && <img src={message.asset} alt="位置缩略图" />}
           <IconMapPin size={26} stroke={1.6} aria-hidden="true" />
           <span className="scene-location-pin" />
         </div>
         <div className="scene-location-info">
           <span className="scene-location-title">{message.text || '位置'}</span>
-          <span className="scene-location-sub">{/火星|mars/i.test(message.text) ? '火星 · 示意定位' : '示意位置'}</span>
+          <span className="scene-location-sub">{message.subtitle || (/火星|mars/i.test(message.text) ? '火星 · 示意定位' : '示意位置')}</span>
         </div>
       </div>
     );
@@ -93,6 +104,7 @@ function MessageBody({ message, pending = false }: { message: Message; pending?:
 }
 
 function headerTitle(scene: Scene): string {
+  if (scene.headerText !== undefined) return scene.headerText;
   const self = scene.participants.find((participant) => participant.id === scene.selfId);
   if (scene.participants.length <= 2) {
     const other = scene.participants.find((participant) => participant.id !== scene.selfId);
@@ -105,24 +117,25 @@ function headerTitle(scene: Scene): string {
  * Reusable chat renderer. The same DOM is used for the landing preview, the
  * editor canvas and the PNG export — never a separate canvas renderer.
  */
-export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false }: SceneViewProps) {
+export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement }: SceneViewProps) {
   const selectable = typeof onSelect === 'function' && !exportMode;
   const participantMap = new Map(scene.participants.map((participant) => [participant.id, participant]));
   const title = headerTitle(scene);
   const group = scene.participants.length > 2;
 
   return (
-    <div className="scene-view" data-platform={scene.platform} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
-      <div className="scene-status">
+    <div className="scene-view" data-platform={scene.platform} data-surface={scene.surface || 'ios'} style={{'--scene-font':`${scene.appearance?.fontSize || 15}px`,'--scene-radius':`${scene.appearance?.radius ?? 8}px`,'--scene-spacing':`${scene.appearance?.spacing ?? 10}px`,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
+      <div className="scene-status" data-element="@scene" onClick={() => onSelectElement?.("@scene")}>
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
           <IconCellSignal4 size={15} stroke={1.8} />
           <IconWifi size={15} stroke={1.8} />
+          {scene.battery !== undefined && <small>{scene.battery}%</small>}
           <IconBattery3 size={17} stroke={1.6} />
         </span>
       </div>
 
-      <div className="scene-header">
+      <div className="scene-header" onClick={() => onSelectElement?.("@scene")}>
         <IconChevronLeft size={22} stroke={2} aria-hidden="true" className="scene-header-back" />
         <div className="scene-header-title">
           <span className="scene-header-name">{title}</span>
@@ -131,7 +144,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />
       </div>
 
-      <div className="scene-messages">
+      <div className="scene-messages" style={{backgroundColor:scene.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:"cover",backgroundPosition:"center"}}>
         {scene.date && <div className="scene-date">{scene.date}</div>}
         {scene.messages.length === 0 ? <div className="scene-empty">还没有消息</div> : null}
         {scene.messages.map((message, index) => {
@@ -151,14 +164,15 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
             <div className={rowClass} data-message-id={message.id}>
               {showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
               <div className="scene-line">
-                {!isSelf && message.type !== 'system' ? <Avatar participant={participant} /> : null}
-                <div className="scene-bubble-wrap">
+                {!isSelf && message.type !== 'system' ? <span onClick={event => { if (onSelectElement) { event.stopPropagation(); onSelectElement(`@participant:${participant?.id}`); } }}><Avatar participant={participant} /></span> : null}
+                <div className="scene-bubble-wrap" style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
                   {!isSelf && message.type !== 'system' && group ? (
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
+                  {message.quote && <div className="scene-quote">{message.quote}</div>}
                   <MessageBody message={message} pending={pendingAssets} />
                 </div>
-                {isSelf ? <Avatar participant={participant} /> : null}
+                {isSelf ? <span onClick={event => { if (onSelectElement) { event.stopPropagation(); onSelectElement(`@participant:${participant?.id}`); } }}><Avatar participant={participant} /></span> : null}
               </div>
             </div>
           );
@@ -185,11 +199,11 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         })}
       </div>
 
-      <div className="scene-composer">
+      <div className="scene-composer" onClick={() => onSelectElement?.("@scene")}>
         <span className="scene-composer-icon" aria-hidden="true">
           <IconMoodSmile size={22} stroke={1.7} />
         </span>
-        <span className="scene-composer-field">输入消息</span>
+        <span className="scene-composer-field">{scene.composerText ?? "输入消息"}</span>
         <span className="scene-composer-icon" aria-hidden="true">
           <IconPlus size={20} stroke={1.8} />
         </span>

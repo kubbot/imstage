@@ -198,22 +198,33 @@ export function createImageProvider({
   if (typeof fetchImpl !== 'function') throw new Error('createImageProvider 需要 fetch');
   return {
     model,
-    async generate({ prompt, signal }) {
+    async generate({ prompt, signal, referenceImage }) {
       const body = {
         model,
         prompt,
         n: 1,
         response_format: 'b64_json',
       };
+      if (/^gpt-image/.test(model || '')) delete body.response_format;
+      let requestBody = JSON.stringify(body);
+      let endpoint = AGENT_IMAGE_PATH;
+      let headers = {'content-type':'application/json', authorization:`Bearer ${apiKey}`};
+      if (referenceImage) {
+        const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(referenceImage);
+        if (!match || referenceImage.length > (maxDataUrlChars || 6*1024*1024)) throw new ProviderError('参考图片格式或大小无效。');
+        const form = new FormData();
+        form.set('model', model); form.set('prompt',prompt); form.set('n','1');
+        if (!/^gpt-image/.test(model || '')) form.set('response_format','b64_json');
+        form.set('image',new Blob([Buffer.from(match[2],'base64')],{type:match[1]}),'reference.' + match[1].split('/')[1]);
+        // multipart image edits: the runtime, not the model, supplies reference bytes.
+        requestBody = form; endpoint = '/images/edits'; headers = {authorization:`Bearer ${apiKey}`};
+      }
       let response;
       try {
-        response = await fetchImpl(joinUrl(baseUrl, AGENT_IMAGE_PATH), {
+        response = await fetchImpl(joinUrl(baseUrl, endpoint), {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
+          headers,
+          body: requestBody,
           signal,
         });
       } catch (error) {

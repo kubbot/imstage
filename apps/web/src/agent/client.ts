@@ -2,7 +2,7 @@ import { validateScene, type Scene } from '../studio/model';
 export type ToolEvent = { type: 'tool'; id: string; name: string; state: 'running' | 'done' | 'error'; detail: string };
 export type AgentEvent = ToolEvent | { type: 'scene'; scene: Scene } | { type: 'assistant'; text: string } | { type: 'done' };
 export type ChatEntry = { role: 'user' | 'assistant'; content: string };
-export async function* runAgent(input: { prompt: string; scene: Scene; targetId?: string; attachments: string[]; history: ChatEntry[] }, userId: string, signal: AbortSignal): AsyncGenerator<AgentEvent> {
+export async function* runAgent(input: { prompt: string; scene: Scene; projectId?: string; targetId?: string; attachments: string[]; history: ChatEntry[] }, userId: string, signal: AbortSignal): AsyncGenerator<AgentEvent> {
   const response = await fetch('/api/agent/run', { method: 'POST', credentials: 'same-origin', signal, headers: { 'Content-Type': 'application/json', 'X-IMStage-Request': '1', 'X-IMStage-User': userId }, body: JSON.stringify(input) });
   if (!response.ok) {
     const body = await response.json().catch(() => null);

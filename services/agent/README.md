@@ -78,13 +78,12 @@ Rules enforced after every mutation:
   (models never return base64); existing assets are re-attached server-side by
   message/participant id;
 - a mutation that changes nothing is reported as a failed tool result;
-- `generate_image` with `kind:"message"` requires the target message to already
-  have `type:"image"` (a text/location target gets a corrective tool error
-  telling the model to `upsert_message` it to `type:"image"` first), so no paid
+- `generate_image` with `kind:"message"` requires a media-capable message or album slot
+  (a plain-text target gets a corrective tool error), so no paid
   image call is made for a message the renderer would ignore;
-- on a **targeted** run (`targetId` present) only that message may change:
-  `create_scene`, `delete_message`, avatar generation, scene metadata changes,
-  participant changes and edits to any other message all fail.
+- on a **targeted** run (`targetId` present) only the selected element may change:
+  `create_scene` and `delete_message` fail; message, participant and scene
+  targets each restrict mutations to their own allowed fields.
 
 The model only ever sees a compact scene context in which existing images and
 avatars are replaced by `<已有图片…>` / `<已有头像…>` markers. The context is
@@ -189,3 +188,36 @@ denial and admitted NDJSON, and lease cleanup on finish/disconnect.
   cross-instance coordination (limits are process-local).
 
 Generated image tools additionally require actual PNG/JPEG/WebP decoding through sharp, with a 16-megapixel limit. Invalid/truncated image bytes never produce a successful tool result. Combined scene assets are capped at 12 MiB of data URL characters. The same check runs after each mutation.
+
+## Rich elements, image edits and reference screenshots
+
+`update_element` supports `@scene` settings and `@participant:ID` identity.
+Message targets include image, video-thumbnail, contact, location, link and
+album slots. Image `kind` also accepts `background`. `edit:true` sends existing
+asset bytes to `/images/edits` as multipart data, rather than regenerating from
+text alone. No live image-provider acceptance is claimed without credentials.
+
+`Scene.reference` contains a verified source raster, normalized editing plan
+and owned assets. It switches the same `runAgent` loop to `read_text`,
+`inspect_region`, `find_frame`, `list_assets`, `set_text`, `set_edits`,
+`place_image`, `generate_image`, `render_preview`, and `finish`. Only source,
+task and authorized asset descriptions enter the model; expected answers and
+scoring boxes do not. Web and evaluation use the same plan validator, HTML,
+font fitting and server PNG renderer. macOS OCR uses Vision; Linux uses
+Tesseract with Chinese, English and Russian language data.
+
+Reference inputs are decoded with an 8-megapixel cap and actual source
+width/height must equal the document. WebP is converted to PNG for rendering.
+`POST /api/agent/render` requires the existing session/CSRF gates and returns
+an original-resolution PNG. Source-backed editing and cross-platform Scene
+reconstruction are distinct modes; selecting another platform requests a new
+Scene rather than relabelling the original raster.
+
+Completion rejects unresolved image failures, missing message media and
+newly generated reference assets not placed in the output. Reference mode
+also requires a successful preview of the latest state. This proves execution,
+not semantic correctness; dataset scores and human reviews remain separate.
+
+Interactive runs use 8 rounds / 24 calls / 120 seconds; the bounded evaluation
+adapter allows 12 rounds / 40 calls / 180 seconds. Project batches share the
+interactive runtime, ownership checks and concurrency limiter.

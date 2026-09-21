@@ -73,13 +73,16 @@ export function createAgentRuntime(config, deps = {}) {
 
   return {
     capabilities: capabilitiesFromConfig(config, Boolean(chatProvider), Boolean(imageProvider)),
-    run(args) {
+    async run(args) {
       if (!chatProvider) {
         const error = new Error('AI 服务尚未配置，无法运行 Agent');
         error.code = 'ai_not_configured';
         throw error;
       }
-      return runAgent({ config, provider: chatProvider, imageProvider, ...args });
+      const screenshot = args.scene.reference ? await import('./screenshot-tools.mjs') : null;
+      if(screenshot) await screenshot.verifyReferenceSources(args.scene.reference,args.signal);
+      const toolset = screenshot?.screenshotToolset || null;
+      return runAgent({ config, provider: chatProvider, imageProvider, ...args, toolset });
     },
   };
 }

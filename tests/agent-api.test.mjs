@@ -359,6 +359,7 @@ test('POST /api/agent/run streams admitted NDJSON with the exact event union', a
   // The provider actually received the scene context and tool schemas.
   assert.equal(provider.calls.length, 2);
   assert.deepEqual(provider.calls[0].toolNames, [
+    'update_element',
     'create_scene',
     'upsert_message',
     'delete_message',
@@ -451,7 +452,7 @@ test('POST /api/agent/run surfaces an unconfigured image tool as a failed event,
   assert.ok(imageError, 'image failure must be visible');
   assert.match(imageError.detail, /未配置/);
   assert.ok(events.some((event) => event.type === 'tool' && event.state === 'done'));
-  assert.equal(events.at(-1).type, 'done');
+  assert.equal(events.at(-1).type, 'error');
 });
 
 /* ------------------------------------------------------------------ */
