@@ -1053,3 +1053,51 @@
 .scene-view[data-surface=android] .scene-header { justify-content:flex-start; }
 .scene-view[data-surface=android] .scene-header-title { text-align:left; }
 .scene-view[data-surface=desktop] .scene-bubble-wrap { max-width:75%; }
+
+/* Platform-owned chrome: content, avatar visibility and receipts vary by IM. */
+.scene-view[data-surface=ios] .scene-status { min-height:46px; padding:14px 25px 5px; font-size:16px; }
+.scene-view[data-surface=ios] .scene-header { min-height:51px; padding:8px 12px 12px; }
+.scene-header-actions { display:flex; align-items:center; gap:17px; }
+.scene-view[data-platform=whatsapp][data-surface=ios] .scene-header,
+.scene-view[data-platform=instagram][data-surface=ios] .scene-header { grid-template-columns:25px 35px minmax(0,1fr) 65px; gap:8px; background:inherit; color:#111; }
+.scene-view[data-platform=whatsapp] .scene-header-title,
+.scene-view[data-platform=instagram] .scene-header-title { align-items:flex-start; }
+.scene-view[data-platform=whatsapp] .scene-header-sub,
+.scene-view[data-platform=instagram] .scene-header-sub { font-size:11px; line-height:1.2; }
+.scene-view[data-platform=whatsapp] .scene-bubble-wrap { max-width:85%; background:#fff; border-radius:13px; overflow:hidden; }
+.scene-view[data-platform=whatsapp] .is-self .scene-bubble-wrap { background:#d9fdd3; }
+.scene-view[data-platform=whatsapp] .scene-bubble { background:transparent; padding:8px 11px 1px; }
+.scene-view[data-platform=whatsapp] .scene-message-meta { align-self:flex-end; display:flex; align-items:center; gap:3px; padding:0 8px 4px 16px; font-size:10px; color:#64776b; }
+.scene-view[data-platform=whatsapp] .scene-message-meta svg { color:#219bfa; }
+.scene-view[data-platform=whatsapp] .scene-date { align-self:center; padding:3px 10px; border-radius:8px; background:#fffffff0; color:#111; font-weight:600; margin:6px 0 12px; }
+.scene-view[data-platform=whatsapp] .scene-composer { background:#f4f0e7; }
+.scene-view[data-platform=whatsapp] .scene-composer-icon:last-child { border-radius:50%; background:#13bd69; color:white; padding:6px; }
+.scene-view[data-platform=instagram] .scene-avatar { border-radius:50%; width:28px; height:28px; }
+.scene-view[data-platform=instagram] .scene-header .scene-avatar { width:35px; height:35px; }
+.scene-view[data-platform=instagram] .scene-line { align-items:flex-end; }
+.scene-view[data-platform=instagram] .scene-bubble { border-radius:20px; background:#f1f1f4; }
+.scene-view[data-platform=instagram] .scene-composer { border-radius:28px; margin:6px; background:#f5f5f5; border:0; }
+.scene-view[data-platform=instagram] .scene-composer-field { background:transparent; }
+.scene-view[data-platform=wechat] .scene-system { background:transparent; color:#626870; font-size:12px; }
+.scene-view[data-platform=wechat] .scene-bubble::before { content:''; position:absolute; left:-4px; top:14px; width:8px; height:8px; transform:rotate(45deg); background:inherit; }
+.scene-view[data-platform=wechat] .is-self .scene-bubble::before { left:auto; right:-4px; }
+.scene-view[data-platform=wechat] .scene-location { display:flex; flex-direction:column; }
+.scene-view[data-platform=wechat] .scene-location-info { order:-1; }
+.scene-view[data-platform=wechat] .scene-location-map { color:#09bd67; }
+.scene-view[data-platform=wechat] .scene-composer { background:#f7f7f7; min-height:66px; padding:8px 10px 18px; gap:8px; }
+.scene-composer-field { min-width:0; }
+.scene-view[data-platform=whatsapp] .scene-messages {
+  background-size:180px 180px;
+  background-repeat:repeat;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cg fill='none' stroke='%23988f7d' stroke-width='1.1' opacity='.14'%3E%3Cpath d='M15 22q12-16 24 0q-1 10-12 19Q15 31 15 22zM87 16h33v24H99l-8 6v-6h-4zM137 85h23v18h-23zM143 85l3-5h8l3 5M19 116q8-14 15 0t15 0M65 72l8-7 13 16-7 7zM74 81q8 17 20 17M113 142l8-13 8 13 14 2-10 10 3 14-15-7-13 7 3-14-10-10zM42 152a10 10 0 1 0 0 1M157 22l6 5-5 6-6-5z'/%3E%3Ccircle cx='149' cy='94' r='5'/%3E%3Cpath d='M62 28l5 2m-4 0 2-5M102 106l5 2m-4 0 2-5M164 146l5 2m-4 0 2-5'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.scene-profile-select { padding:0; border:0; background:transparent; display:flex; cursor:pointer; border-radius:50%; }
+.scene-profile-select:focus-visible { outline:2px solid #267bdb; outline-offset:3px; }
+.scene-contact { width:226px; max-width:100%; padding:10px 10px 7px; gap:8px; }
+.scene-contact-main { display:flex; align-items:center; gap:10px; min-height:42px; }
+.scene-contact-main img { width:42px; height:42px; flex:none; object-fit:cover; border-radius:4px; }
+.scene-contact-main strong { font-size:var(--scene-font); line-height:1.35; font-weight:500; overflow-wrap:anywhere; }
+.scene-contact > span { color:#6d6d6d; font-size:12px; }
+
+.scene-composer-icon[hidden] { display:none; }

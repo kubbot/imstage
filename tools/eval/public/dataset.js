@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 let data=null, selected=location.hash.slice(1), reviewKind='actual',verdict=null,busy=false;
 const list=value=>Array.isArray(value)?value:[];
 const text=(id,value)=>{$(id).textContent=value??'';};
-const badge=v=>v?.review?.golden?'已确认金标':v?.review?.verdict==='good'?'你已标为好':v?.review?.verdict==='bad'?'需要改进':v?.staleReview?'旧标注已过期':'待你确认';
+const badge=v=>v?.partial?'未完成 · 中间结果':v?.review?.golden?'已确认金标':v?.review?.verdict==='good'?'你已标为好':v?.review?.verdict==='bad'?'需要改进':v?.staleReview?'旧标注已过期':'待你确认';
 function current(){return data?.cases.find(c=>c.id===selected);}
 async function request(url,options={}){const res=await fetch(url,{...options,headers:{'Content-Type':'application/json',...options.headers}});const result=await res.json();if(!res.ok)throw new Error(result.error??'请求失败');return result;}
 async function load(){try{data=await request('/api/dataset');$('dataset-error').hidden=true;$('loading').hidden=true;$('content').hidden=false;if(!current())selected=data.cases[0]?.id;render();}catch(e){text('dataset-error',e.message);$('dataset-error').hidden=false;$('loading').hidden=true;}}
@@ -16,7 +16,7 @@ function render(){
  for(const kind of ['source','expected','actual']){
    const v=c.variants[kind];$(kind).hidden=!v;$(kind+'-link').hidden=!v;
    if(v){$(kind).src=v.url;$(kind+'-link').href=v.url;}else{$(kind).removeAttribute('src');$(kind+'-link').removeAttribute('href');}
-   if(kind!=='source'){$(kind+'-empty').hidden=!!v;text(kind+'-badge',v?badge(v):(kind==='actual'?c.run?.errorCode??'未运行':'未生成'));document.querySelector(`[data-kind="${kind}"]`).disabled=!v;}
+   if(kind!=='source'){$(kind+'-empty').hidden=!!v;text(kind+'-badge',v?badge(v):(kind==='actual'?c.run?.errorCode??'未运行':'未生成'));document.querySelector(`[data-kind="${kind}"]`).disabled=!v||v.partial;}
  }
  $('analysis').replaceChildren();for(const s of [...list(c.analysis.observed),...list(c.analysis.unchanged).map(s=>'保持：'+s),...list(c.analysis.risks).map(s=>'检查：'+s)]){const li=document.createElement('li');li.textContent=s;$('analysis').append(li);}
  const entry=report?.cases?.find(e=>e.id===c.id||e.caseId===c.id);const checks=c.run?.scoring?.checks??c.run?.checks??entry?.checks??[];text('score-summary',entry?`${entry.passed?'通过':'未通过'} · ${Math.round((entry.score??0)*100)} 分`:'待运行');

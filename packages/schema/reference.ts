@@ -1,5 +1,5 @@
 import { validatePlan } from './edit-plan.mjs';
-export interface ReferenceEdit { id:string; kind:'text'|'image';box:number[];text?:string;assetId?:string;background:string;color:string;fontSize:number;fontWeight:number;align:string;radius:number;fit:string; }
+export interface ReferenceEdit { id:string; kind:'text'|'image';box:number[];text?:string;assetId?:string;background:string;color:string;fontSize:number;fontWeight:number;align:string;radius:number;fit:string;mask?:"circle"|"rounded"|"none";minFontSize?:number;lineHeight?:number;backgroundMode?:"source"|"solid";corners?:number[];eraseBox?:number[];metadataBox?:number[]; }
 export interface ReferenceDocument { source:string; plan:{schemaVersion:1;im:string;surface:string;width:number;height:number;edits:ReferenceEdit[];warnings:string[]};assets:{id:string;dataUrl:string;description:string}[]; }
 const image=(v:unknown):v is string=>typeof v==='string'&&v.length<=6*1024*1024&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(v);
 export function validateReference(raw:unknown):ReferenceDocument {

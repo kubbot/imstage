@@ -307,3 +307,35 @@ test(`dataset UI renders schema-valid analysis ${JSON.stringify(analysis)}`, asy
   assert.equal(element('content').hidden, false);
 });
 }
+
+
+test('dataset hides reports produced by a different runtime', async (t) => {
+  const f = await fixture(t);
+  await f.run({ generatePlan: providerProbe().generatePlan });
+  assert.ok((await f.request()).report);
+  const file = path.join(f.outDir, 'report.json');
+  const report = JSON.parse(await fs.readFile(file, 'utf8'));
+  report.runtimeVersion = 'obsolete-runtime';
+  await fs.writeFile(file, JSON.stringify(report));
+  assert.equal((await f.request()).report, null);
+});
+
+test('failed run partial PNG is visible but cannot receive a quality approval', async (t) => {
+  const f = await fixture(t);
+  await f.run({ generatePlan: providerProbe().generatePlan });
+  const file = path.join(f.outDir, 'private', 'C01.json');
+  const record = JSON.parse(await fs.readFile(file, 'utf8'));
+  record.status = 'error'; record.partial = true; record.partialRender = true;
+  record.partialPngSha256 = record.pngSha256;
+  delete record.pngSha256;
+  await fs.writeFile(file, JSON.stringify(record));
+  const actual = (await f.request()).cases[0].variants.actual;
+  assert.equal(actual.partial, true);
+  assert.equal(actual.review, null);
+  await assert.rejects(f.request('/api/dataset/C01/review', {
+    kind: 'actual', verdict: 'good', note: '', revision: 0, hash: actual.hash,
+  }), error => error.code === 'partial_output');
+  record.partialPngSha256 = 'wrong-hash';
+  await fs.writeFile(file, JSON.stringify(record));
+  assert.equal((await f.request()).cases[0].variants.actual, null);
+});

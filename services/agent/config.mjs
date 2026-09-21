@@ -35,9 +35,9 @@ export const AGENT_IMAGE_TASK_DEADLINE_MS = 120_000;
 /** Cap for the completed-image COS download (decoded bytes). */
 export const AGENT_IMAGE_MAX_DOWNLOAD_BYTES = 16 * 1024 * 1024;
 
-export const AGENT_DEADLINE_MS = 120_000;
-export const AGENT_MAX_ROUNDS = 8;
-export const AGENT_MAX_TOOL_CALLS = 24;
+export const AGENT_DEADLINE_MS = 240_000;
+export const AGENT_MAX_ROUNDS = 16;
+export const AGENT_MAX_TOOL_CALLS = 64;
 export const AGENT_MAX_PROMPT_CHARS = 4000;
 export const AGENT_MAX_ATTACHMENTS = 3;
 export const AGENT_MAX_HISTORY = 12;
@@ -155,6 +155,7 @@ export function resolveAgentConfig(env = {}, overrides = {}) {
     apiKey,
     baseUrl,
     model,
+    thinkingEnabled: overrides.thinkingEnabled ?? env.IMSTAGE_AI_THINKING === 'enabled',
     configured,
     imageProvider,
     imageProviderValid,

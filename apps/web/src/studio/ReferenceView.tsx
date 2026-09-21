@@ -4,7 +4,7 @@ import type { ReferenceDocument } from '../../../../packages/schema/reference';
 /** The exact benchmark HTML is embedded at original source resolution. */
 export default function ReferenceView({document:doc,onSelect}:{document:ReferenceDocument;onSelect?:(id:string)=>void}) {
   const html=buildEditPlanHtml(doc.plan,{width:doc.plan.width,height:doc.plan.height,sourceDataUri:doc.source,assetDataUris:new Map(doc.assets.map(a=>[a.id,a.dataUrl]))});
-  const script=`<script>document.fonts.ready.then(${fitDocumentText.toString()});</script>`;
+  const script=`<script>Promise.all([document.fonts.ready,...Array.from(document.images).map(i=>i.decode().catch(()=>{}))]).then(${fitDocumentText.toString()});</script>`;
   const scale=360/doc.plan.width;
   return <div className="reference-preview" style={{width:360,height:doc.plan.height*scale,position:'relative'}}>
     <iframe title="原截图精确编辑画面" sandbox="allow-scripts" srcDoc={html.replace('</body>',`${script}</body>`)} style={{border:0,width:doc.plan.width,height:doc.plan.height,transform:`scale(${scale})`,transformOrigin:'top left',position:'absolute',pointerEvents:'none'}}/>

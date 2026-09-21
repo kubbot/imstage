@@ -7,6 +7,7 @@ import {buildSceneContext,checkSceneLimits} from '../services/agent/scene-contex
 import {createImageProvider} from '../services/agent/providers.mjs';
 import {screenshotToolset,renderReference,verifyReferenceSources} from '../services/agent/screenshot-tools.mjs';
 import {runAgent} from '../services/agent/run.mjs';
+import {rememberFrame} from '../services/agent/image-slots.mjs';
 const png=await sharp({create:{width:80,height:120,channels:3,background:'#eeeeee'}}).png().toBuffer();
 const image='data:image/png;base64,'+png.toString('base64');
 const doc={source:image,assets:[],plan:{schemaVersion:1,im:'wechat',surface:'ios',width:80,height:120,edits:[],warnings:[]}};
@@ -81,9 +82,10 @@ test('an earlier text edit cannot hide a generated image that was never placed',
 });
 
 test('generated screenshot image placed in a layer and previewed can complete',async()=>{
+ const frame=rememberFrame(doc,{box:[0,0,1000,1000],pixels:[0,0,80,120],kind:'content_region'});
  const {result,events}=await runScreenshotCalls([
   screenshotCall('generate_image',{assetId:'food',prompt:'美食'}),
-  screenshotCall('place_image',{id:'photo',assetId:'food',box:[0,0,1000,1000]}),
+  screenshotCall('place_image',{id:'photo',assetId:'food',frameId:frame.frameId}),
   screenshotCall('render_preview'),screenshotCall('finish'),
  ]);
  assert.equal(result.ok,true);

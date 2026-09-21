@@ -33,6 +33,11 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
         if: runner.os == 'Linux'
+      - name: Install screenshot OCR and CJK fonts
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-rus
       - run: npm test
       - run: npm run build
       - run: npm run test:ui

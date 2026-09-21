@@ -39,7 +39,7 @@ export const FITS = Object.freeze(['cover', 'contain']);
 export const MIN_FONT_SIZE = 10; // source pixels, schema bound
 export const MAX_FONT_SIZE = 160; // source pixels, schema bound
 export const MIN_RENDER_FONT_SIZE = 12; // renderer never shrinks below this
-export const MAX_RADIUS = 80; // actual source pixels
+export const MAX_RADIUS = 4096; // actual source pixels
 export const MAX_TEXT_LENGTH = 4000;
 export const DEFAULT_FONT_SIZE = 16;
 export const MAX_WARNINGS = 50;
@@ -61,6 +61,13 @@ const MODEL_EDIT_KEYS = new Set([
   'align',
   'radius',
   'fit',
+  'mask',
+  'minFontSize',
+  'lineHeight',
+  'backgroundMode',
+  'corners',
+  'eraseBox',
+  'metadataBox',
 ]);
 const EXPECTED_EDIT_KEYS = new Set([...MODEL_EDIT_KEYS, 'textVariants', 'minIoU']);
 const MODEL_PLAN_KEYS = new Set(['schemaVersion', 'im', 'surface', 'width', 'height', 'edits', 'warnings']);
@@ -306,6 +313,19 @@ export function validateEdit(raw, { label = 'edit', mode = 'model', authorizedAs
   }
 
   const edit = { id, kind, box, background, color };
+  if(raw.eraseBox!==undefined){if(kind!=='text')fail('invalid_field','eraseBox仅用于文字',422);edit.eraseBox=validateBox(raw.eraseBox,'eraseBox');}
+  if(raw.metadataBox!==undefined){
+    if(kind!=='text')fail('invalid_field','metadataBox仅用于文字',422);
+    const m=validateBox(raw.metadataBox,'metadataBox');
+    if(m[0]<box[0]-1e-6||m[1]<box[1]-1e-6||m[0]+m[2]>box[0]+box[2]+1e-6||m[1]+m[3]>box[1]+box[3]+1e-6)fail('invalid_field','metadataBox必须位于文字布局内部',422);
+    edit.metadataBox=m;
+  }
+  if(raw.metadataBox && raw.backgroundMode==='source')fail('invalid_field','受保护时间区域不能用于背景采样，请使用solid背景模式',422);
+  if(raw.backgroundMode!==undefined){if(!['source','solid'].includes(raw.backgroundMode))fail('invalid_enum','backgroundMode 无效',422);edit.backgroundMode=raw.backgroundMode;}
+  if(raw.corners!==undefined){if(!Array.isArray(raw.corners)||raw.corners.length!==4||raw.corners.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<0||n>4096))fail('invalid_field','corners 无效',422);edit.corners=raw.corners;}
+  if(raw.mask!==undefined){if(!['circle','rounded','none'].includes(raw.mask))fail('invalid_enum','mask 无效',422);edit.mask=raw.mask;}
+  if(raw.minFontSize!==undefined){const n=assertFiniteNumber(raw.minFontSize,'minFontSize');if(n<10||n>160)fail('out_of_range','minFontSize 无效',422);edit.minFontSize=n;}
+  if(raw.lineHeight!==undefined){const n=assertFiniteNumber(raw.lineHeight,'lineHeight');if(n<1||n>2)fail('out_of_range','lineHeight 无效',422);edit.lineHeight=n;}
   if (kind === 'text') {
     edit.text = text;
     edit.fontSize = fontSize ?? DEFAULT_FONT_SIZE;
@@ -386,6 +406,9 @@ export function validatePlan(raw, { mode = 'model', authorizedAssetIds = null } 
         field: 'id',
         reasonCode: 'duplicate_id',
       });
+    }
+    if(normalized.mask === 'circle' && Math.abs(normalized.box[2]*width/1000-normalized.box[3]*height/1000)>2+BOX_EPSILON){
+      fail('invalid_circle', `${normalized.id}: 圆形头像的源像素宽高必须相同；当前宽 ${normalized.box[2]*width/1000}px、高 ${normalized.box[3]*height/1000}px。box为归一化坐标，不是像素。`,422);
     }
     seen.add(normalized.id);
     return normalized;

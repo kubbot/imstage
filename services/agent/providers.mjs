@@ -114,6 +114,7 @@ export function createChatProvider({
   fetchImpl = globalThis.fetch,
   maxResponseBytes = AGENT_MAX_RESPONSE_BYTES,
   endpointPath = null,
+  thinkingEnabled = false,
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('createChatProvider 需要 fetch');
   const path = endpointPath ?? AGENT_CHAT_PATH;
@@ -122,12 +123,13 @@ export function createChatProvider({
     async complete({ messages, tools, signal }) {
       const body = {
         model,
-        messages,
+        messages: thinkingEnabled ? messages.map(m => m.role === 'assistant' ? {...m,reasoning_content:m.reasoning_content ?? ''} : m) : messages,
         tools,
         tool_choice: 'auto',
         stream: false,
-        // The product contract is deterministic, non-thinking tool calling.
-        thinking: { type: 'disabled' },
+        // DeepSeek tool reasoning must be round-tripped privately between calls.
+        // https://api-docs.deepseek.com/guides/thinking_mode/
+        thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' },
       };
       let response;
       try {
@@ -177,6 +179,7 @@ export function createChatProvider({
       return {
         content: typeof message.content === 'string' ? message.content : '',
         toolCalls,
+        ...(typeof message.reasoning_content === 'string' ? {reasoningContent:message.reasoning_content} : {}),
         finishReason,
       };
     },

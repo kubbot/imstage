@@ -301,7 +301,8 @@ test('a narrated-only run is an error, never a success', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'no_mutation');
   assert.equal(collector.types().includes('done'), false);
-  assert.deepEqual(collector.types(), ['scene', 'assistant', 'error']);
+  assert.equal(collector.types().includes('assistant'), false, 'unverified completion prose must not be emitted');
+  assert.deepEqual(collector.types(), ['scene', 'error']);
 });
 
 test('a tool call that changes nothing is a failed tool result', async () => {

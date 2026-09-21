@@ -1,4 +1,4 @@
-import { callDeepSeekAgent } from './agent.mjs';
+import { callDeepSeekAgent, collectAssetRegistry } from './agent.mjs';
 // Screenshot-edit benchmark runner.
 //
 // runDataset({datasetDir, outDir, env, limit, resume, generatePlan, renderPlan})
@@ -32,7 +32,7 @@ import { scorePlan } from './score.mjs';
 export { readDataset, loadVerifiedFile };
 
 export const BENCHMARK_PROMPT_VERSION = 'screenshot-agent-v5';
-export const BENCHMARK_RUNTIME_VERSION = 'agent-edit-render-score-v5';
+export const BENCHMARK_RUNTIME_VERSION = 'agent-edit-render-score-v9';
 export const BENCHMARK_MAX_TOKENS = 7000;
 export const BENCHMARK_TIMEOUT_MS = 90_000;
 export const DEFAULT_LIMIT = 11;
@@ -213,7 +213,7 @@ function stripCodeFences(value) {
   return match ? match[1].trim() : trimmed;
 }
 
-export function parsePlanResponse(rawContent, { caseData }) {
+export function parsePlanResponse(rawContent, { caseData, authorizedAssetIds = caseData?.assetIds ?? null } = {}) {
   let parsed;
   try {
     parsed = JSON.parse(stripCodeFences(rawContent));
@@ -221,13 +221,86 @@ export function parsePlanResponse(rawContent, { caseData }) {
     throw new AppError('plan_invalid_json', '模型未返回合法 JSON', 502);
   }
   try {
-    const { plan, warnings } = planFromModel(parsed, { authorizedAssetIds: caseData.assetIds });
+    const { plan, warnings } = planFromModel(parsed, { authorizedAssetIds });
     return { plan, warnings };
   } catch (err) {
     if (err instanceof AppError) {
       throw new AppError('plan_invalid', `模型 plan 不合法: ${err.message}`, 502, { reasonCode: err.code, field: err.details?.field });
     }
     throw err;
+  }
+}
+
+/**
+ * Resolve the runtime-returned asset registry at the runner boundary.
+ *
+ * `generated.assets` / `assetRegistry` is the full runtime registry (with
+ * preprovided assets included); `generatedAssets` is the legacy/partial list.
+ * Every entry is re-validated for shape, decodable bytes and preprovided
+ * ownership before it can be rendered or scored, even when an injected seam
+ * returns it. Model-claimed ids never enter this path by themselves.
+ */
+async function resolveRuntimeAssets(generated, inputAssets, signal) {
+  const registrySource = Array.isArray(generated?.assets) && generated.assets.length
+    ? generated.assets
+    : Array.isArray(generated?.assetRegistry) && generated.assetRegistry.length
+      ? generated.assetRegistry
+      : Array.isArray(generated?.generatedAssets)
+        ? generated.generatedAssets
+        : [];
+  if (registrySource.length === 0) return { registry: [], generated: [], provenance: {} };
+  return collectAssetRegistry({ reference: { assets: registrySource }, inputAssets, signal, strict: true });
+}
+
+/** Merge verified input assets with generated assets, de-duplicating by id. */
+function mergeRenderAssets(inputAssets, generatedAssets) {
+  const merged = [];
+  const seen = new Set();
+  for (const asset of [...inputAssets, ...generatedAssets]) {
+    if (!asset || typeof asset.id !== 'string' || seen.has(asset.id) || !Buffer.isBuffer(asset.buffer)) continue;
+    seen.add(asset.id);
+    merged.push({ id: asset.id, mime: asset.mime, buffer: asset.buffer });
+  }
+  return merged;
+}
+
+/**
+ * Render a partial plan from a failed runtime when it is still renderable.
+ * Returns the validated plan plus whether a PNG was produced; it never throws so
+ * the failure record is always written with unmistakable error status.
+ */
+async function renderPartialRecord({ callRender, caseData, sourceBuffer, inputAssets, partial, outRoot }) {
+  try {
+    const partialAssets = Array.isArray(partial.assets)
+      ? partial.assets
+      : Array.isArray(partial.generatedAssets)
+        ? partial.generatedAssets
+        : [];
+    const registry = await collectAssetRegistry({
+      reference: { assets: partialAssets },
+      inputAssets,
+      strict: false,
+    });
+    const generatedIds = registry.generated.map((asset) => asset.id);
+    const authorizedAssetIds = new Set([...caseData.assetIds, ...generatedIds]);
+    const { plan } = parsePlanResponse(JSON.stringify(partial.plan), { caseData, authorizedAssetIds });
+    const renderAssets = mergeRenderAssets(inputAssets, registry.generated);
+    const rendered = await renderCase({ callRender, caseData, sourceBuffer, assets: renderAssets, plan });
+    await fs.promises.writeFile(path.join(outRoot, 'private', `${caseData.id}.png`), rendered.buffer, { mode: 0o600 });
+    return {
+      plan,
+      rendered: true,
+      pngSha256: sha256Hex(rendered.buffer),
+      generatedIds,
+      provenance: registry.provenance,
+    };
+  } catch {
+    return {
+      plan: partial.plan ?? null,
+      rendered: false,
+      generatedIds: [],
+      provenance: partial.provenance ?? {},
+    };
   }
 }
 
@@ -561,9 +634,11 @@ export async function runDataset({
       await fs.promises.rm(path.join(outRoot,'expected',`${caseData.id}.png`),{force:true});
       await fs.promises.rm(path.join(outRoot,'expected',`${caseData.id}.json`),{force:true});
     }
+    let sourceBuffer = null;
+    let assets = [];
     try {
-      const sourceBuffer = await loadCaseSource(resolved, caseData);
-      const assets = await loadCaseAssets(resolved, caseData);
+      sourceBuffer = await loadCaseSource(resolved, caseData);
+      assets = await loadCaseAssets(resolved, caseData);
 
       if (writeExpected) {
         const expectedPlan = planFromExpected(caseData);
@@ -585,10 +660,29 @@ export async function runDataset({
       }
       const model = typeof generated.model === 'string' && generated.model ? generated.model : config.model;
       const usage = normalizeUsage(generated.usage);
-      const { plan, warnings } = parsePlanResponse(generated.rawContent, { caseData });
 
-      const rendered = await renderCase({ callRender, caseData, sourceBuffer, assets:generated.generatedAssets || assets, plan });
-      const score = scorePlan(caseData, plan, {
+      // Accept generated assets ONLY from the actual runtime-returned registry
+      // with validated image bytes and ownership. A static case allowlist or a
+      // model-claimed id that never entered the registry is not sufficient.
+      const runtimeAssets = await resolveRuntimeAssets(generated, assets, undefined);
+      const generatedIds = runtimeAssets.generated.map((asset) => asset.id);
+      const conflicts = generatedIds.filter((id) => caseData.assetIds.includes(id));
+      if (conflicts.length > 0) {
+        throw new AppError(
+          'asset_ownership_violation',
+          `生成素材复用了预置素材 id: ${conflicts.join(', ')}`,
+          502,
+          { reasonCode: 'asset_ownership_violation' },
+        );
+      }
+      const authorizedAssetIds = new Set([...caseData.assetIds, ...generatedIds]);
+      const { plan, warnings } = parsePlanResponse(generated.rawContent, { caseData, authorizedAssetIds });
+      const renderAssets = mergeRenderAssets(assets, runtimeAssets.generated);
+      const caseDataForScore =
+        generatedIds.length > 0 ? { ...caseData, assetIds: [...caseData.assetIds, ...generatedIds] } : caseData;
+
+      const rendered = await renderCase({ callRender, caseData, sourceBuffer, assets: renderAssets, plan });
+      const score = scorePlan(caseDataForScore, plan, {
         sourcePng,
         actualPng: rendered.buffer,
         renderInfo: rendered,
@@ -615,6 +709,8 @@ export async function runDataset({
         warnings: [...warnings, ...(plan.warnings ?? [])],
         rawAnswer: generated.rawContent,
         toolTrace:generated.trace || [],
+        generatedAssetIds: generatedIds,
+        assetProvenance: runtimeAssets.provenance,
         pngSha256:sha256Hex(rendered.buffer),
         providerModel: model,
         usage,
@@ -643,6 +739,17 @@ export async function runDataset({
       });
     } catch (err) {
       const errorCode = safeErrorCode(err);
+      let partialRecord = null;
+      if (err && err.partial && err.partial.plan && sourceBuffer) {
+        partialRecord = await renderPartialRecord({
+          callRender,
+          caseData,
+          sourceBuffer,
+          inputAssets: assets,
+          partial: err.partial,
+          outRoot,
+        });
+      }
       const privateRecord = {
         caseId: caseData.id,
         binding: {
@@ -662,6 +769,16 @@ export async function runDataset({
         errorCode,
         errorMessage: toErrorMessage(err),
         toolTrace:err.trace || [],
+        ...(partialRecord
+          ? {
+              partial: true,
+              plan: partialRecord.plan,
+              partialRender: partialRecord.rendered,
+              partialPngSha256: partialRecord.pngSha256 ?? null,
+              generatedAssetIds: partialRecord.generatedIds,
+              assetProvenance: partialRecord.provenance,
+            }
+          : {}),
         status: 'error',
         passed: false,
         durationMs: Date.now() - caseStarted,
@@ -705,6 +822,7 @@ export async function runDataset({
 
   const report = {
     schemaVersion: REPORT_SCHEMA_VERSION,
+    runtimeVersion: BENCHMARK_RUNTIME_VERSION,
     kind: REPORT_KIND,
     generatedAt: nowIso(),
     startedAt,

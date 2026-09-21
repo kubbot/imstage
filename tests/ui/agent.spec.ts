@@ -108,3 +108,20 @@ test('unsaved Agent request in an account scene is protected when recovery stora
   const before=page.url();await page.getByRole('link',{name:'使用与接入',exact:true}).click();
   await expect.poll(()=>dialogs).toBe(1);await expect(page).toHaveURL(before);await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('这条创作需求还没有提交');
 });
+
+test('one conversation uses platform-owned chrome and survives platform switching and export',async({page})=>{
+  await ready(page);await generate(page);
+  const phone=page.locator('.agent-phone');
+  for(const platform of ['wechat','whatsapp','instagram']){
+    await page.getByLabel('目标聊天平台',{exact:true}).selectOption(platform);
+    await expect(phone.locator('.scene-view')).toHaveAttribute('data-platform',platform);
+    await expect(phone).toContainText('周末一起去看展吗？');await expect(phone).toContainText('好呀，上海见！');
+    expect(await phone.locator('.scene-row').count()).toBe(2);
+    expect(await phone.locator('.scene-message-meta').count()).toBe(platform==='whatsapp'?2:0);
+    expect(await phone.locator('.scene-line .scene-avatar').count()).toBe(platform==='wechat'?2:platform==='instagram'?1:0);
+    await page.getByLabel('导出图片范围').selectOption('standard');
+    const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+    const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([720,1280]);
+    await phone.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR||'.local'}/template-${platform}.png`});
+  }
+});

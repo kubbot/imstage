@@ -56,6 +56,7 @@ export function createAgentRuntime(config, deps = {}) {
           baseUrl: config.baseUrl,
           apiKey: config.apiKey,
           model: config.model,
+          thinkingEnabled: config.thinkingEnabled,
           fetchImpl,
           maxResponseBytes: config.maxResponseBytes,
         })

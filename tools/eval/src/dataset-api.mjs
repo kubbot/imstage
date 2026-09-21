@@ -24,10 +24,11 @@ export function createDatasetApi({dataDir, datasetDir=process.env.IMSTAGE_EVAL_D
     if(!['expected','actual'].includes(kind))throw new AppError('not_found','未知图像类型',404);
     const folder=kind==='actual'?'private':'expected';
     const record=await optionalJson(path.join(outDir,folder,c.id+'.json'));
-    if(!record || (kind==='actual' && !['pass','fail'].includes(record.status)))return null;
+    const partial=kind==='actual'&&record?.status==='error'&&record.partial===true&&record.partialRender===true;
+    if(!record || (kind==='actual' && !['pass','fail'].includes(record.status)&&!partial))return null;
     if(record.binding?.datasetInputHash!==computeDatasetInputHash(manifest)||record.binding?.caseInputHash!==computeCaseInputHash(c)||record.binding?.runtimeVersion!==BENCHMARK_RUNTIME_VERSION)return null;
     const bytes=await optionalFile(path.join(outDir,folder,c.id+'.png'));
-    if(!bytes||record.pngSha256!==sha256Hex(bytes))return null;
+    if(!bytes||(partial?record.partialPngSha256:record.pngSha256)!==sha256Hex(bytes))return null;
     try { const dims=decodePng(bytes);if(dims.width!==c.source.width||dims.height!==c.source.height)return null; } catch{return null;}
     return bytes;
   }
@@ -43,7 +44,7 @@ export function createDatasetApi({dataDir, datasetDir=process.env.IMSTAGE_EVAL_D
     const {manifest}=ctx.dataset;
     if(req.method==='GET'&&p.length===2){
       const savedReport=await optionalJson(path.join(outDir,'report.json'));
-      const report=savedReport?.dataset?.inputHash===ctx.dataset.datasetInputHash?savedReport:null;
+      const report=!execution.running&&savedReport?.dataset?.inputHash===ctx.dataset.datasetInputHash&&savedReport.runtimeVersion===BENCHMARK_RUNTIME_VERSION?savedReport:null;
       const cases=await Promise.all(manifest.cases.map(async c=>{
         const variants={};
         for(const kind of ['source','expected','actual']){
@@ -53,6 +54,7 @@ export function createDatasetApi({dataDir, datasetDir=process.env.IMSTAGE_EVAL_D
         }
         const savedRun=await optionalJson(path.join(outDir,'private',c.id+'.json'));
         const run=savedRun?.binding?.datasetInputHash===ctx.dataset.datasetInputHash&&savedRun?.binding?.caseInputHash===computeCaseInputHash(c)&&savedRun?.binding?.runtimeVersion===BENCHMARK_RUNTIME_VERSION?savedRun:null;
+        if(variants.actual&&run?.status==='error')variants.actual={...variants.actual,partial:true,review:null};
         return {...c,variants,run:run?{status:run.status,passed:run.passed,score:run.score?.score,scoring:run.score,checks:run.score?.checks,errorCode:run.errorCode,model:run.model,usage:run.usage,toolTrace:run.toolTrace||[]}:null};
       }));
       sendJson(res,200,{id:manifest.id,version:manifest.version,private:manifest.private,revision:ctx.reviews.revision,cases,report});return true;
@@ -82,6 +84,10 @@ export function createDatasetApi({dataDir, datasetDir=process.env.IMSTAGE_EVAL_D
         if(body.revision!==fresh.reviews.revision)throw new AppError('revision_conflict','标注已更新，请刷新后重试',409);
         const file=await fingerprint(current,body.kind,fresh.dataset.manifest);
         if(!file||body.hash!==file.hash)throw new AppError('artifact_changed','图片或用例已变化，请刷新后重新判断',409);
+        if(body.kind==='actual'){
+          const record=await optionalJson(path.join(outDir,'private',c.id+'.json'));
+          if(record?.status==='error')throw new AppError('partial_output','运行未完成的中间结果不能确认为金标，请先完成任务',422);
+        }
         const key=c.id+':'+body.kind;const old=fresh.reviews.items[key];
         if(body.verdict==='golden'&&!(old?.hash===file.hash&&old.verdict==='good'))throw new AppError('review_required','请先将这张图片标为好，再确认为金标',422);
         const next=structuredClone(fresh.reviews);next.revision++;
