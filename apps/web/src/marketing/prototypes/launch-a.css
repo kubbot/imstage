@@ -1,0 +1,376 @@
+/*
+ * Prototype A — Conversation Stage.
+ * Spatial language: a lit stage. Tall device on a warm pool of light, one
+ * oversized typographic opening, deep vertical rhythm, everything else quiet.
+ */
+.pa {
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+/* ------------------------------------------------------------------ hero */
+.pa-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  column-gap: 96px;
+  align-items: start;
+  padding-top: 64px;
+}
+.pa-copy {
+  max-width: 720px;
+}
+.pa-h1 {
+  margin: 22px 0 0;
+  font-family: var(--pf-display);
+  font-weight: 700;
+  font-size: clamp(46px, 6.4vw, 92px);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+.pa-h1 span {
+  display: block;
+}
+html[lang='en'] .pa-h1 {
+  font-size: clamp(30px, 4.9vw, 70px);
+}
+.pa-h1-em {
+  color: var(--pf-accent);
+}
+html[lang='zh-CN'] .pa-h1 {
+  letter-spacing: -0.015em;
+  line-height: 1.16;
+}
+.pa-lede {
+  margin-top: 26px;
+  max-width: 560px;
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--pf-muted);
+}
+.pa-lede-sm {
+  font-size: 14px;
+}
+
+/* the immediately editable line */
+.pa-edit {
+  margin-top: 34px;
+  max-width: 640px;
+}
+.pa-edit label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--pf-muted);
+}
+.pa-edit input {
+  width: 100%;
+  border: 0;
+  border-bottom: 2px solid var(--pf-line);
+  background: none;
+  padding: 4px 0 12px;
+  font-family: var(--pf-display);
+  font-size: clamp(22px, 2.3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  transition: border-color 0.25s;
+}
+.pa-edit input:focus {
+  outline: none;
+  border-bottom-color: var(--pf-accent);
+}
+.pa-edit input::placeholder {
+  color: color-mix(in srgb, var(--pf-muted) 70%, transparent);
+}
+.pa-edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 11px;
+  font-size: 12px;
+  color: var(--pf-muted);
+}
+.pa-edit-hint svg {
+  color: var(--pf-accent);
+}
+
+.pa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.pa-steps {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--pf-line);
+  max-width: 640px;
+  font-size: 12px;
+  color: var(--pf-muted);
+}
+.pa-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pa-steps li + li::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  margin-right: 8px;
+  background: var(--pf-line);
+}
+.pa-steps li span {
+  font-family: var(--pf-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--pf-muted);
+}
+.pa-steps li.is-active {
+  color: var(--pf-text);
+  font-weight: 500;
+}
+.pa-steps li.is-active span {
+  color: var(--pf-accent);
+}
+
+/* ----------------------------------------------------------------- stage */
+.pa-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -6px;
+}
+.pa-stage::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -30px -44px -30px -76px;
+  border-radius: 30px;
+  background: var(--pf-canvas);
+}
+.pa-stage::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -30px -44px auto -76px;
+  height: 58%;
+  border-radius: 30px 30px 48% 48%;
+  background: radial-gradient(72% 100% at 50% 0%, var(--pf-soft), transparent 74%);
+  pointer-events: none;
+}
+.pa-stage-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 26px 0 20px;
+}
+.pa-stage-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 0 24px 18px;
+  justify-content: space-between;
+}
+.pa-platform {
+  font-family: var(--pf-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--pf-text);
+  padding: 5px 9px;
+  border: 1px solid var(--pf-line);
+  border-radius: 999px;
+  background: var(--pf-surface);
+}
+.pa-stage .pf-device {
+  width: 348px;
+  height: 754px;
+}
+.pa-stage .pf-device-caption {
+  margin-top: 18px;
+}
+
+/* --------------------------------------------------------------- console */
+.pa-console {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  column-gap: 80px;
+  align-items: center;
+  padding-top: 130px;
+}
+.pa-console-copy {
+  max-width: 580px;
+}
+.pa-h2 {
+  margin: 16px 0 18px;
+  font-family: var(--pf-display);
+  font-weight: 700;
+  font-size: clamp(30px, 3.5vw, 46px);
+  line-height: 1.14;
+  letter-spacing: -0.045em;
+}
+html[lang='zh-CN'] .pa-h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.24;
+}
+.pa-fields {
+  display: grid;
+  gap: 6px;
+  margin-top: 32px;
+}
+.pa-field {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 12px 0 13px;
+  border-bottom: 1px solid var(--pf-line);
+  transition: border-color 0.2s;
+}
+.pa-field > span {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--pf-muted);
+}
+.pa-field input {
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.pa-field input:focus {
+  outline: none;
+}
+.pa-field:focus-within {
+  border-bottom-color: var(--pf-accent);
+}
+.pa-field input::placeholder {
+  color: color-mix(in srgb, var(--pf-muted) 65%, transparent);
+  font-weight: 400;
+}
+.pa-console-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+}
+.pa-status {
+  font-size: 12px;
+  color: var(--pf-muted);
+  min-height: 16px;
+}
+.pa-console-note {
+  margin-top: 16px;
+}
+.pa-console-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pa-console-stage::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -26px -34px;
+  border-radius: 28px;
+  background: var(--pf-surface-2);
+}
+.pa-console-stage .pf-device {
+  position: relative;
+  z-index: 1;
+  width: 348px;
+  height: 754px;
+}
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 1120px) {
+  .pa-hero {
+    grid-template-columns: 1fr;
+    row-gap: 60px;
+    padding-top: 48px;
+  }
+  .pa-copy {
+    max-width: 720px;
+  }
+  .pa-stage {
+    order: 2;
+    justify-self: center;
+  }
+  .pa-stage::before {
+    inset: -24px -34px;
+  }
+  .pa-stage::after {
+    inset: -24px -34px auto -34px;
+    height: 56%;
+  }
+  .pa-console {
+    grid-template-columns: 1fr;
+    row-gap: 56px;
+    padding-top: 100px;
+  }
+  .pa-console-copy {
+    max-width: none;
+  }
+  .pa-console-stage {
+    order: 2;
+  }
+}
+
+@media (max-width: 620px) {
+  .pa-h1 {
+    font-size: clamp(38px, 11vw, 56px);
+    margin-top: 18px;
+  }
+  html[lang='en'] .pa-h1 {
+    font-size: clamp(28px, 8.4vw, 44px);
+  }
+  .pa-lede {
+    font-size: 14px;
+  }
+  .pa-actions .pf-btn {
+    flex: 1 1 auto;
+  }
+  .pa-steps {
+    gap: 6px;
+    justify-content: space-between;
+  }
+  .pa-steps li + li::before {
+    width: 10px;
+    margin-right: 4px;
+  }
+  .pa-stage .pf-device {
+    width: 286px;
+    height: 620px;
+  }
+  .pa-console-stage .pf-device {
+    width: 286px;
+    height: 620px;
+  }
+  .pa-field {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding-top: 10px;
+  }
+  .pa-console-actions .pf-btn {
+    flex: 1 1 auto;
+  }
+  .pa-status {
+    flex-basis: 100%;
+  }
+}
