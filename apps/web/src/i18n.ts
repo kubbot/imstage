@@ -531,6 +531,17 @@ export interface ProjectsCopy {
   variantValuesHint: string;
   referencePlatformNote: (platform: string) => string;
   platformMismatch: (platform: string) => string;
+  autosaveLocal: string;
+  autosaveSaving: string;
+  autosaveSaved: string;
+  autosaveConflict: string;
+  autosaveDeleted: string;
+  autosaveError: string;
+  autosaveRetry: string;
+  autosaveRecovered: string;
+  autosaveCacheFailed: string;
+  autosaveDiscard: string;
+  batchBlockedSync: string;
 }
 
 export interface ElementCopy {
@@ -955,6 +966,12 @@ const zh: AppCopy = {
     templateSummary: (name, revision) => `${name} · 版本 ${revision}`, variantValuesHint: '只显示所选模板声明的变量；图片变量请粘贴数据 URL 或选择文件。',
     referencePlatformNote: (platform) => `这是保留原截图的模板，只能使用源平台「${platform}」生成；不会把截图转换成其他平台。`,
     platformMismatch: (platform) => `保留原截图的模板只能用源平台「${platform}」生成；请切换平台或改用结构化模板。`,
+    autosaveLocal: '已存本机 · 待同步', autosaveSaving: '正在同步…', autosaveSaved: '所有修改已保存',
+    autosaveConflict: '版本冲突', autosaveError: '同步失败', autosaveRetry: '重试',
+    autosaveRecovered: '已恢复本机草稿', autosaveCacheFailed: '本机缓存不可用；同步完成前请勿离开。',
+    autosaveDeleted: '这个项目已在服务端删除，本机修改不会重新创建它。',
+    autosaveDiscard: '重新加载并放弃本机修改',
+    batchBlockedSync: '项目规则还有未同步的修改，同步完成后才能开始批量生成。',
 
   },
   templates: {
@@ -1232,6 +1249,12 @@ const en: AppCopy = {
     templateSummary: (name, revision) => `${name} · revision ${revision}`, variantValuesHint: 'Only variables declared by the selected template are shown; paste a data URL or choose a file for image variables.',
     referencePlatformNote: (platform) => `This template keeps its source screenshot and can only be generated on the source platform “${platform}”; it does not convert the screenshot to another platform.`,
     platformMismatch: (platform) => `A screenshot template can only be generated on its source platform “${platform}”. Switch platform or use a structured template.`,
+    autosaveLocal: 'Saved locally · pending sync', autosaveSaving: 'Syncing…', autosaveSaved: 'All changes saved',
+    autosaveConflict: 'Version conflict', autosaveError: 'Sync failed', autosaveRetry: 'Retry',
+    autosaveRecovered: 'Local draft recovered', autosaveCacheFailed: 'Local cache unavailable. Keep this page open until it syncs.',
+    autosaveDeleted: 'This project was deleted on the server; local edits will not recreate it.',
+    autosaveDiscard: 'Reload and discard local edits',
+    batchBlockedSync: 'Project rules have unsynced changes. Wait for sync before starting a batch.',
 
   },
   templates: {

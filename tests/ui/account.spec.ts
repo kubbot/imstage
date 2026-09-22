@@ -33,7 +33,7 @@ test('real registration, autosave, reopen, logout and password login', async ({ 
   const email = await register(page);
   await createWork(page);
   const savedURL = page.url();
-  await page.getByRole('link', { name: '← 我的作品', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: '我的作品', exact: true }).click();
   await expect(page.getByRole('link', { name: '编辑 新的对话' })).toBeVisible();
   await page.getByRole('link', { name: '编辑 新的对话' }).click();
   await expect(page.locator('.agent-phone .scene-view')).toContainText('今天的日落很好看。');
@@ -79,7 +79,7 @@ test('unsaved account editing is autosaved and still never writes the guest draf
   // The cloud write is debounced but durable; the tab recovery copy exists while dirty.
   const sceneId = new URL(savedURL.split('#')[1], 'http://unused').searchParams.get('scene');
   await expect.poll(async () => (await (await page.request.get(`/api/scenes/${sceneId}`)).json()).item.scene.messages[0].text).toBe('还没保存，但可以恢复');
-  await page.getByRole('link', { name: '← 我的作品', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: '我的作品', exact: true }).click();
   await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
   await page.goto(savedURL);
   await expect(page.locator('.agent-phone .scene-view')).toContainText('还没保存，但可以恢复');
@@ -127,7 +127,7 @@ test('different account cannot open another account scene; delete has cancel and
   await register(page); await page.goto(url);
   await expect(page.getByRole('heading', { name: '暂时打不开这份作品' })).toBeVisible();
   await page.getByRole('link', { name: '返回我的作品' }).click();
-  await createWork(page); await page.getByRole('link', { name: '← 我的作品', exact: true }).click();
+  await createWork(page); await page.getByRole('main').getByRole('link', { name: '我的作品', exact: true }).click();
   await page.getByRole('button', { name: '删除 新的对话' }).click();
   await page.getByRole('button', { name: '保留作品' }).click();
   await expect(page.getByRole('link', { name: '编辑 新的对话' })).toBeVisible();

@@ -5,7 +5,6 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
-  IconDeviceFloppy,
   IconFolder,
   IconLayoutGrid,
   IconLoader2,
@@ -29,7 +28,9 @@ import {
 } from '../account/api';
 import { PLATFORMS, type Platform } from '../studio/model';
 import { readImageFile } from '../studio/storage';
+import { useAuth } from '../account/Auth';
 import { useCopy } from '../i18n';
+import { useProjectAutosave } from './useProjectAutosave';
 import './projects.css';
 
 const MAX_PROMPTS = 10;
@@ -245,18 +246,13 @@ function ProjectList() {
 function ProjectDetail({ projectId }: { projectId: string }) {
   const PLATFORM_LABELS = useCopy().platforms;
   const platformLabel = (im: string | undefined) => (im && PLATFORM_LABELS[im as Platform]) || im || "";
+  const { user } = useAuth();
   const [item, setItem] = useState<Project | null>(null);
   const [scenes, setScenes] = useState<SceneSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-  const [name, setName] = useState('');
-  const [rules, setRules] = useState('');
-  const [platform, setPlatform] = useState<Platform>('wechat');
-  const [saved, setSaved] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const [conflict, setConflict] = useState(false);
+  const [remote, setRemote] = useState<Project | null>(null);
 
   const [available, setAvailable] = useState<SceneSummary[]>([]);
   const [attachId, setAttachId] = useState('');
@@ -277,12 +273,17 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const [batchError, setBatchError] = useState('');
   const clientBatchId = useRef('');
   const lastJobStatus = useRef('');
-  const initializedProject=useRef('');
-  const dirtyRef=useRef(false);dirtyRef.current=Boolean(item)&&saved!==JSON.stringify({name,rules,platform});
   const retrying=useRef(false);
   const [retryBusy,setRetryBusy]=useState(false);
   const p = useCopy().projects;
   const a = useCopy().account;
+  const autosave = useProjectAutosave({
+    userId: user?.id,
+    projectId,
+    remote,
+    onReload: () => setReload((value) => value + 1),
+  });
+  const projectKey = item?.id ?? projectId;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -294,14 +295,9 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       .then((data) => {
         if (controller.signal.aborted) return;
         setScenes(data.scenes);
-        if (initializedProject.current===projectId && dirtyRef.current) return;
-        initializedProject.current=projectId;
-        setItem(data.item);
-        setName(data.item.name);
-        setRules(data.item.rules);
-        setPlatform(data.item.platform);
         setPlatforms([data.item.platform]);
-        setSaved(JSON.stringify({ name: data.item.name, rules: data.item.rules, platform: data.item.platform }));
+        setItem(data.item);
+        setRemote(data.item);
       })
       .catch((err) => {
         if (!controller.signal.aborted) setError(errorText(err));
@@ -398,9 +394,16 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     }
   }, [job]);
 
-  const dirty = Boolean(item) && saved !== JSON.stringify({ name, rules, platform });
-  useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
-  useEffect(()=>dirty?setNavigationGuard(()=>window.confirm(p.leaveConfirm)):undefined,[dirty]);
+  // Local input is only guarded when the cache is unavailable and cloud has not
+  // caught up; otherwise a reload recovers the draft from the tab cache.
+  const guardLocalDraft = autosave.cacheFailed && autosave.dirty;
+  useEffect(() => {
+    if (!guardLocalDraft) return undefined;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [guardLocalDraft]);
+  useEffect(() => (guardLocalDraft ? setNavigationGuard(() => window.confirm(p.leaveConfirm)) : undefined), [guardLocalDraft, p.leaveConfirm]);
   const attachedIds = useMemo(() => new Set(scenes.map((scene) => scene.id)), [scenes]);
   const attachable = useMemo(() => available.filter((scene) => !attachedIds.has(scene.id)), [available, attachedIds]);
 
@@ -425,29 +428,15 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     setVariantValue(id, key, result.dataUrl);
   }
 
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    if (busy || !item || !dirty) return;
-    setBusy(true);
-    setStatus('');
-    try {
-      const data = await api<{ item: Project }>(`/projects/${item.id}`, {
-        method: 'PUT',
-        body: { name, rules, platform, revision: item.revision },
-      });
-      setItem(data.item);
-      setName(data.item.name);
-      setRules(data.item.rules);
-      setPlatform(data.item.platform);
-      setSaved(JSON.stringify({ name: data.item.name, rules: data.item.rules, platform: data.item.platform }));
-      setConflict(false);
-      setStatus(p.settingsSaved);
-    } catch (err) {
-      setStatus(errorText(err));
-      setConflict(err instanceof ApiError && err.status === 409);
-    } finally {
-      setBusy(false);
-    }
+  const autosaveLabel = autosave.status === 'local' ? p.autosaveLocal
+    : autosave.status === 'saving' ? p.autosaveSaving
+      : autosave.status === 'conflict' ? p.autosaveConflict
+        : autosave.status === 'error' ? p.autosaveError
+          : p.autosaveSaved;
+
+  function discardLocal() {
+    if (!window.confirm(p.reloadConfirm)) return;
+    autosave.discardLocal();
   }
 
   async function attach(event: FormEvent) {
@@ -456,7 +445,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     setAttaching(true);
     setError('');
     try {
-      await api(`/projects/${item?.id}/scenes`, { method: 'POST', body: { sceneId: attachId } });
+      await api(`/projects/${encodeURIComponent(projectKey)}/scenes`, { method: 'POST', body: { sceneId: attachId } });
       setAttachId('');
       setReload((value) => value + 1);
     } catch (err) {
@@ -470,7 +459,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (detachingId) return;
     setDetachingId(sceneId);
     try {
-      await api(`/projects/${item?.id}/scenes/${sceneId}`, { method: 'DELETE', body: {} });
+      await api(`/projects/${encodeURIComponent(projectKey)}/scenes/${sceneId}`, { method: 'DELETE', body: {} });
       setScenes((current) => current.filter((scene) => scene.id !== sceneId));
     } catch (err) {
       setError(errorText(err));
@@ -486,6 +475,11 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   async function startBatch(event: FormEvent) {
     event.preventDefault();
     if (submitting || !templateReady) return;
+    // The stored rules are only safe once every edit has been acknowledged.
+    if (autosave.syncBlocked) {
+      setBatchError(p.batchBlockedSync);
+      return;
+    }
     if (platforms.length === 0) {
       setBatchError(p.needPlatform);
       return;
@@ -521,7 +515,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     setSubmitting(true);
     setBatchError('');
     try {
-      const data = await api<{ item: BatchJob }>(`/projects/${item?.id}/batch-jobs`, {
+      const data = await api<{ item: BatchJob }>(`/projects/${encodeURIComponent(projectKey)}/batch-jobs`, {
         method: 'POST',
         body: payload,
       });
@@ -542,7 +536,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (!job) return;
     try {
       const data = await api<{ item: BatchJob }>(
-        `/projects/${item?.id}/batch-jobs/${job.id}/cancel`,
+        `/projects/${encodeURIComponent(projectKey)}/batch-jobs/${job.id}/cancel`,
         { method: 'POST', body: {} },
       );
       setJob(data.item);
@@ -555,7 +549,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (!job || retrying.current) return;retrying.current=true;setRetryBusy(true);
     try {
       const data = await api<{ item: BatchJob }>(
-        `/projects/${item?.id}/batch-jobs/${job.id}/retry`,
+        `/projects/${encodeURIComponent(projectKey)}/batch-jobs/${job.id}/retry`,
         { method: 'POST', body: {} },
       );
       lastJobStatus.current = '';
@@ -566,8 +560,8 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     } finally {retrying.current=false;setRetryBusy(false);}
   }
 
-  if (loading && !item) return <p role="status" className="page-loading">{p.loading}</p>;
-  if (!item) {
+  if (loading && !item && !autosave.recovered) return <p role="status" className="page-loading">{p.loading}</p>;
+  if (!item && !autosave.recovered) {
     return (
       <section className="account-gate">
         <h1>{p.openFailed}</h1>
@@ -586,8 +580,8 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       <header className="projects-heading">
         <div>
           <span className="account-kicker">PROJECT</span>
-          <h1>{item.name}</h1>
-          <p>{PLATFORM_LABELS[item.platform]} · {p.scenesVersion(scenes.length, item.revision)}</p>
+          <h1>{autosave.settings.name || item?.name || ''}</h1>
+          <p>{PLATFORM_LABELS[autosave.settings.platform]} · {p.scenesVersion(scenes.length, autosave.revision)}</p>
         </div>
       </header>
 
@@ -596,20 +590,20 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       <div className="projects-columns">
         <section className="project-panel">
           <h2><IconSettings size={18} /> {p.detailRules}</h2>
-          {conflict && (
+          {(autosave.conflict || autosave.deleted) && (
             <div className="account-error" role="alert">
-              {p.conflictNotice}
-              <button onClick={() => { if(window.confirm(p.reloadConfirm)){initializedProject.current="";setReload((value)=>value+1);} }}>{p.reload}</button>
+              {autosave.deleted ? p.autosaveDeleted : p.conflictNotice}
+              <button type="button" onClick={discardLocal}>{p.autosaveDiscard}</button>
             </div>
           )}
-          <form className="project-form" onSubmit={save}><fieldset disabled={busy} style={{border:0,padding:0,margin:0}}>
+          <fieldset className="project-form" style={{ border: 0, padding: 0, margin: 0 }}>
             <label>
               {p.nameLabel}
-              <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
+              <input value={autosave.settings.name} maxLength={80} onChange={(event) => autosave.setName(event.target.value)} />
             </label>
             <label>
               {p.platformLabel}
-              <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
+              <select value={autosave.settings.platform} onChange={(event) => autosave.setPlatform(event.target.value as Platform)}>
                 {PLATFORMS.map((value) => (
                   <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
                 ))}
@@ -618,20 +612,23 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             <label>
               {p.rulesLabel}
               <textarea
-                value={rules}
+                value={autosave.settings.rules}
                 maxLength={4000}
                 rows={5}
                 placeholder={p.rulesNote}
-                onChange={(event) => setRules(event.target.value)}
+                onChange={(event) => autosave.setRules(event.target.value)}
               />
             </label>
-            <div className="project-form-actions">
-              <button className="btn btn-primary" disabled={busy || !dirty}>
-                <IconDeviceFloppy size={16} /> {busy ? p.saving : p.saveProject}
-              </button>
-              {status && <span className="project-status" role="status">{status}</span>}
+            <div className="project-autosave" role="status" data-autosave={autosave.status}>
+              <span>{autosaveLabel}</span>
+              {autosave.recovered && <span>{p.autosaveRecovered}</span>}
+              {autosave.status === 'error' && autosave.error && <span>{autosave.error}</span>}
+              {autosave.status === 'error' && (
+                <button type="button" className="text-link" onClick={autosave.retry}>{p.autosaveRetry}</button>
+              )}
+              {autosave.cacheFailed && <span role="alert">{p.autosaveCacheFailed}</span>}
             </div>
-          </fieldset></form>
+          </fieldset>
         </section>
 
         <section className="project-panel">
@@ -725,12 +722,13 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             ))}
           </fieldset>
           <div className="project-form-actions">
-            <button className="btn btn-primary" disabled={submitting || running || !templateReady}>
+            <button className="btn btn-primary" disabled={submitting || running || !templateReady || autosave.syncBlocked}>
               {submitting ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
               {submitting ? p.generating : running ? p.taskRunning : `${p.generate} ${platforms.length ? batchItems : 0}`}
             </button>
             <span className="project-status">{batchMode === 'variants' ? `${p.promptCount(variants.length)}/${MAX_VARIANTS}` : `${p.promptCount(promptLines.length)}/${MAX_PROMPTS}`} · {p.sceneCount(batchItems)}/{MAX_ITEMS}</span>
           </div>
+          {autosave.syncBlocked && <p className="project-muted project-sync-note">{p.batchBlockedSync}</p>}
           {batchError && <p className="account-error" role="alert">{batchError}</p>}
         </form>
 
@@ -788,7 +786,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                   <span>{p.jobStatus[entry.status]}</span>
                   <span>{p.success} {entry.succeeded} · {p.failed} {entry.failed} · {p.total(entry.total)}</span>
                   <button className="text-link" type="button" onClick={async () => {
-                    const data = await api<{ item: BatchJob }>(`/projects/${item.id}/batch-jobs/${entry.id}`);
+                    const data = await api<{ item: BatchJob }>(`/projects/${encodeURIComponent(projectKey)}/batch-jobs/${entry.id}`);
                     lastJobStatus.current = '';
                     setJob(data.item);
                   }}>{p.view}</button>

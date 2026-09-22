@@ -24,6 +24,11 @@
 .projects-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
 .project-form-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .project-status{font-size:12px;color:var(--muted)}
+.project-autosave{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.project-autosave[data-autosave="error"],.project-autosave[data-autosave="conflict"]{color:#c0392b}
+.project-autosave[data-autosave="saved"]{color:var(--accent)}
+.project-autosave button{font-size:12px}
+.project-sync-note{margin:8px 0 0}
 .project-muted{font-size:12px;line-height:1.9}
 .project-scene-list{list-style:none;margin:0 0 18px;padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .project-scene-list li{display:flex;align-items:center;gap:10px;padding:11px 13px}

@@ -17,7 +17,7 @@ Start with an idea, edit the scene directly, and export the frame you need.
 
 Chinese examples use WeChat; English examples use WhatsApp. Scroll through a
 scene, change a line and explore variations. **Send & create** opens a fresh
-workspace and starts your request after sign-in. Your scenes and people save
+workspace and starts your request after sign-in. Your scenes, people and project settings save
 automatically; local drafts keep edits available when a cloud save fails.
 
 ## Run locally
@@ -43,7 +43,7 @@ PNG export work without provider keys.
 
 The hosted website uses Vercel for the frontend and a persistent server for
 accounts, saved scenes and Agent requests. Provider secrets stay on the server.
-Local sessions stay in the current browser. Signed-in scene and people edits
+Local sessions stay in the current browser. Signed-in scene, people and project-setting edits
 automatically sync to the server. AI requests send their scene, attachments and
 instruction to the configured providers.
 
