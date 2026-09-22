@@ -30,6 +30,8 @@ export interface SceneViewProps {
   interactiveViewport?: boolean;
   pendingAssets?: boolean;
   onSelectElement?: (id: string) => void;
+  /** Localise group count and empty state; WhatsApp defaults to English chrome. */
+  locale?: 'zh' | 'en';
 }
 
 const AVATAR_COLORS = ['#5b8def', '#e3874f', '#4fb286', '#b06fd6', '#d6607a', '#4aa3c7'];
@@ -128,7 +130,7 @@ function headerTitle(scene: Scene): string {
  * Reusable chat renderer. The same DOM is used for the landing preview, the
  * editor canvas and the PNG export — never a separate canvas renderer.
  */
-export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement, interactiveViewport = false }: SceneViewProps) {
+export function SceneView({ scene, selectedId, onSelect, exportMode = false, pendingAssets = false, onSelectElement, interactiveViewport = false, locale = scene.platform === 'whatsapp' ? 'en' : 'zh' }: SceneViewProps) {
   const viewportDrag = useViewportDrag(interactiveViewport && !exportMode);
   const selectable = typeof onSelect === 'function' && !exportMode;
   const elementProps = (label: string) => onSelectElement && !exportMode ? {
@@ -166,14 +168,14 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         {template.headerAvatar && (onSelectElement && !exportMode ? <button type="button" className="scene-profile-select" aria-label={`编辑 ${other?.name || "联系人"} 的头像`} onClick={event=>{event.stopPropagation();if(other)onSelectElement(`@participant:${other.id}`);}}><Avatar participant={other}/></button> : <Avatar participant={other}/>)}
         <div className="scene-header-title" {...elementProps("编辑会话标题")}>
           <span className="scene-header-name">{title}</span>
-          {group ? <span className="scene-header-sub">{scene.participants.length} 人</span> : template.headerAvatar ? <span className="scene-header-sub">{scene.platform === 'whatsapp' ? 'tap for contact info' : other?.name}</span> : null}
+          {group ? <span className="scene-header-sub">{locale === 'en' ? `${scene.participants.length} members` : `${scene.participants.length} 人`}</span> : template.headerAvatar ? <span className="scene-header-sub">{scene.platform === 'whatsapp' ? 'tap for contact info' : other?.name}</span> : null}
         </div>
         {template.headerAvatar ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
       </div>
 
       <div className="scene-messages" {...viewportDrag} data-scrollable={interactiveViewport || undefined} tabIndex={interactiveViewport ? 0 : undefined} role={interactiveViewport ? 'region' : undefined} aria-label={interactiveViewport ? '聊天内容，可滚动调整截取范围' : undefined} onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
         {timeline.header && <div className="scene-date" {...elementProps("编辑日期文字")}>{timeline.header}</div>}
-        {scene.messages.length === 0 ? <div className="scene-empty">还没有消息</div> : null}
+        {scene.messages.length === 0 ? <div className="scene-empty">{locale === 'en' ? 'No messages yet' : '还没有消息'}</div> : null}
         {scene.messages.map((message, index) => {
           const { dateLabel, showTime, hidden } = timeline.entries[index];
           if (hidden && !dateLabel) return null;

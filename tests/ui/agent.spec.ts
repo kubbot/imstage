@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import sharp from 'sharp';
+// Header navigation is localised; this suite asserts the Chinese labels.
+test.use({ locale: 'zh-CN' });
 async function ready(page: Page) {
   await page.goto('/#/create');
   const origin = new URL(page.url()).origin;

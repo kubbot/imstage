@@ -42,12 +42,17 @@ test('failed storage blocks switching, retains draft and retries without claimin
   await page.evaluate(()=>{const put=IDBObjectStore.prototype.put;(window as any).__restorePut=()=>IDBObjectStore.prototype.put=put;IDBObjectStore.prototype.put=function(){throw new DOMException('Synthetic quota failure','QuotaExceededError');};});
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('存储失败也要保留');await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('尚未保存');
   await page.getByRole('button',{name:'新建会话',exact:true}).click();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('存储失败也要保留');
+  // The failed create must settle before the storage method is restored, or the
+  // retry could race a still-running action.
+  await expect(page.getByRole('button',{name:'重试保存',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'新建会话',exact:true})).toBeEnabled();
+  await expect(page.getByText('尚未保存',{exact:false})).toBeVisible();
   await page.evaluate(()=>(window as any).__restorePut());await page.getByRole('button',{name:'重试保存',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);await page.reload();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('存储失败也要保留');
 });
 
 test('session list works on small screens in both themes and respects keyboard dismissal',async({page})=>{
   await seed(page);await page.setViewportSize({width:390,height:844});
-  for(const theme of ['light','dark'] as const){await page.emulateMedia({colorScheme:theme});await open(page);await expect(page.getByLabel('搜索会话')).toBeFocused();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
+  for(const theme of ['light','dark'] as const){await page.emulateMedia({colorScheme:theme,reducedMotion:'reduce'});await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.theme)).toBe(theme);await open(page);await expect(page.getByLabel('搜索会话')).toBeFocused();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
     const audit=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(audit.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
     await page.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR}/sessions-${theme}-mobile.png`});await page.keyboard.press('Escape');await expect(page.getByLabel('创作会话列表')).toHaveCount(0);await expect(page.getByRole('button',{name:'管理创作会话'})).toBeFocused();
   }

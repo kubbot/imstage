@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# No sitemap is committed: the production domain is not fixed in this repository.

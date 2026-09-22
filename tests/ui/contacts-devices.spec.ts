@@ -2,6 +2,9 @@ import {test,expect,type Page} from '@playwright/test';
 import sharp from 'sharp';
 import {readFile} from 'node:fs/promises';
 import {createScene} from '../../apps/web/src/studio/model';
+// New sessions follow the browser language; this suite asserts Chinese WeChat
+// defaults (message avatars, names), so it runs as a Chinese browser.
+test.use({ locale: 'zh-CN' });
 const artifact=process.env.IMSTAGE_ARTIFACT_DIR||'.local';
 async function ready(page:Page) {
  await page.goto('/#/create');const origin=new URL(page.url()).origin;
@@ -27,7 +30,9 @@ test('default avatar survives two fresh creations and contact deletion never mut
  const first=(await(await page.request.get('/api/contact-library')).json()).contacts[0];expect(first.avatar).toContain('data:image/png');
  await page.getByRole('button',{name:'关闭人物库'}).click();await generation(page,true);
  await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
- await page.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('imstage.agent.'))sessionStorage.removeItem(key);});await page.reload();await expect(page.locator('.agent-identity-summary')).toContainText('林小满');
+ await page.getByRole('button', { name:'新建会话', exact:true }).click();
+ await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
+ await expect(page.locator('.agent-identity-summary')).toContainText('林小满');
  await generation(page,true);await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
  expect((await(await page.request.get('/api/contact-library')).json()).contacts).toHaveLength(2);
  await page.getByRole('button',{name:'人物与头像',exact:true}).click();await panel.locator('.contact-row').filter({hasText:'林小满'}).getByRole('button',{name:'移除'}).click();await expect(panel.locator('.contact-row')).toHaveCount(1);

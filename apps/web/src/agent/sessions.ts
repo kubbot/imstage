@@ -1,5 +1,7 @@
 import { calendarToday } from '../../../../packages/schema/timeline.mjs';
 import { createScene, validateScene, type Scene } from '../studio/model';
+import { createScenario, isSceneKind } from '../marketing/scenes';
+import type { Locale } from '../marketing/locale';
 import type { ChatEntry, ToolEvent } from './client';
 
 export type Turn = ChatEntry & { id: string; tools?: ToolEvent[]; target?: string; failed?: boolean; attachments?: string[] };
@@ -9,8 +11,28 @@ export type SessionRecord = SessionMeta & { draft: SessionDraft };
 const DB = 'imstage-creation-sessions';
 export class SessionConflict extends Error { constructor() { super('这个会话已在其他标签页更新或删除。请将当前内容另存为新会话，避免覆盖。'); } }
 
-export function emptyDraft(projectId = ''): SessionDraft {
-  return { scene: { ...createScene(), id: crypto.randomUUID(), title:'新的对话', referenceDate:calendarToday(), surface:'ios', deviceProfileId:'iphone-17-pro', selfId:'me', participants:[{id:'me',name:'我'},{id:'other',name:'对方'}], messages:[] }, prompt:'', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false };
+/**
+ * Optional seed for a freshly created session. The landing hands off through
+ * an explicit query param, and only a new-session request may use it.
+ */
+export interface DraftSeed {
+  locale?: Locale;
+  scenario?: string;
+}
+
+export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
+  const locale: Locale = seed.locale === 'en' ? 'en' : 'zh';
+  const base = createScene();
+  let scene: Scene;
+  if (isSceneKind(seed.scenario)) {
+    // Seeded scenario: real authored content, platform chosen by language.
+    scene = { ...createScenario(seed.scenario, locale), id: crypto.randomUUID(), referenceDate: calendarToday() };
+  } else if (locale === 'en') {
+    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'whatsapp', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
+  } else {
+    scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
+  }
+  return { scene, prompt:'', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false };
 }
 export function recoverDraft(raw: Partial<SessionDraft> | null, fallback = emptyDraft()): SessionDraft {
   const scene = validateScene(raw?.scene);

@@ -3,13 +3,22 @@ import { IconChevronDown, IconPlus, IconSearch, IconPencil, IconCopy, IconTrash,
 import { useAuth } from '../account/Auth';
 import AgentStudio from './AgentStudio';
 import { setNavigationGuard } from '../account/navigation';
+import { useLocale } from '../marketing/LocaleContext';
+import { clearHandoffScene, readHandoffScene } from '../marketing/handoff';
 import loanCase from '../../../../tools/eval/fixtures/loan-anniversary.json';
 import { emptyDraft, recoverDraft, newSession, readSession, writeSession, listSessions, removeSession, type SessionDraft, type SessionMeta, type SessionRecord } from './sessions';
 import './sessions.css';
 
 export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>) {
   const {user}=useAuth();const owner=user?.id||'guest';
+  const {locale}=useLocale();
   const params=new URLSearchParams(location.hash.split('?')[1]);const sample=params.get('case')==='loan-anniversary';
+  // Explicit launch handoff from the public site. It is only honoured while
+  // creating a brand new session, so an existing draft can never be replaced.
+  const launchNew=params.get('new')==='1';
+  const requestedLocale=params.get('lang')==='en'?'en':params.get('lang')==='zh'?'zh':undefined;
+  const seedScenario=params.get('scenario')||undefined;
+  const handoffToken=params.get('handoff')||undefined;
   const origin=`${sample?'case-loan-anniversary':'draft'}:${params.get('project')||''}`;
   const pointer=`imstage.sessions.active.${owner}.${origin}`;
   const [record,setRecord]=useState<SessionRecord|null>(null),[items,setItems]=useState<SessionMeta[]>([]);
@@ -19,6 +28,10 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   const current=useRef<SessionRecord|null>(null),latest=useRef<SessionDraft|null>(null);
   const version=useRef(0),saved=useRef(0),queue=useRef(Promise.resolve()),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const mounted=useRef(true),boot=useRef<Promise<SessionRecord>|null>(null),operation=useRef(false);
+  // The current UI language seeds genuinely new sessions without re-running the
+  // load effect when the visitor switches language.
+  const localeRef=useRef(locale);localeRef.current=locale;
+  const seedLocale=requestedLocale??localeRef.current;
   const panel=useRef<HTMLDivElement>(null),toggle=useRef<HTMLButtonElement>(null);
   const refresh=useCallback(async()=>{const rows=await listSessions(owner);if(mounted.current)setItems(rows);},[owner]);
   const adopt=useCallback((next:SessionRecord)=>{
@@ -51,14 +64,26 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
       if(user){
         let handoff:Partial<SessionDraft>|null=null;
         try{handoff=JSON.parse(sessionStorage.getItem('imstage.agent.login-handoff')||'null');}catch{}
-        if(handoff){const next=await writeSession(newSession(owner,origin,recoverDraft(handoff,emptyDraft(params.get('project')||''))));try{sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}return next;}
+        if(handoff){const next=await writeSession(newSession(owner,origin,recoverDraft(handoff,emptyDraft(params.get('project')||'',{locale:seedLocale}))));try{sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}return next;}
+      }
+      if(launchNew){
+        const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale,scenario:seedScenario});
+        // A handed-off scene was written to sessionStorage before navigation and
+        // is validated here; invalid or missing payloads fall back to the seed.
+        const stored=readHandoffScene(handoffToken);
+        const draft=stored?recoverDraft({scene:stored} as Partial<SessionDraft>,fallback):fallback;
+        draft.scene.id=crypto.randomUUID();
+        const created=await writeSession(newSession(owner,origin,draft));
+        clearHandoffScene(handoffToken);
+        try{const [path,query='']=location.hash.slice(1).split('?');const p=new URLSearchParams(query);p.delete('new');p.delete('handoff');p.delete('scenario');history.replaceState(null,'',`${location.pathname}${location.search}#${path}${p.toString()?`?${p.toString()}`:''}`);}catch{/* The session exists; the URL hint is only a convenience. */}
+        return created;
       }
       let activeId:string|null=null;try{activeId=sessionStorage.getItem(pointer);}catch{}
       if(activeId){try{return await readSession(owner,activeId);}catch(e){if(!(e instanceof Error)||!e.message.startsWith('会话已被删除'))throw e;}}
       const key=`imstage.agent.${owner}.${sample?'case-loan-anniversary':'draft'}`;
       let legacy:Partial<SessionDraft>|null=null;
       try{legacy=JSON.parse(sessionStorage.getItem(key)||'null');if(legacy)legacy.turns=JSON.parse(sessionStorage.getItem(`${key}.chat`)||'[]');}catch{}
-      const fallback=emptyDraft(params.get('project')||'');if(sample){fallback.scene=loanCase.scene as SessionDraft['scene'];fallback.full=true;}
+      const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale});if(sample){fallback.scene=loanCase.scene as SessionDraft['scene'];fallback.full=true;}
       if(!legacy){const recent=(await listSessions(owner)).find(s=>s.origin===origin);if(recent)return readSession(owner,recent.id);}
       const created=await writeSession(newSession(owner,origin,recoverDraft(legacy,fallback),sample?'去年借款，今天归还':undefined));
       // Remove only after durable migration, never before a successful transaction.
@@ -93,7 +118,7 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   const create=(copy=false)=>action(async()=>{
     // Explicit recovery copy preserves local edits even after a stale-tab conflict.
     if(!copy)await persist();else{clearTimeout(timer.current);await queue.current.catch(()=>{});}
-    const draft=copy&&latest.current?structuredClone(latest.current):emptyDraft(latest.current?.projectId);
+    const draft=copy&&latest.current?structuredClone(latest.current):emptyDraft(latest.current?.projectId,{locale:localeRef.current});
     draft.scene.id=crypto.randomUUID();
     const next=await writeSession(newSession(owner,origin,draft,copy?`${current.current?.title||'会话'} · 副本`:undefined));adopt(next);
   });
@@ -101,7 +126,7 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   async function rename(id:string){await action(async()=>{if(!name.trim())return;await persist();const existing=await readSession(owner,id);const next=await writeSession({...existing,title:name.trim().slice(0,60),named:true});if(current.current?.id===id){current.current=next;setRecord(next);}setRenaming('');});}
   async function remove(id:string){await action(async()=>{
     await persist();const existing=await readSession(owner,id);await removeSession(existing);
-    if(current.current?.id===id){const rest=await listSessions(owner);const next=rest[0]?await readSession(owner,rest[0].id):await writeSession(newSession(owner,origin,emptyDraft()));adopt(next);}
+    if(current.current?.id===id){const rest=await listSessions(owner);const next=rest[0]?await readSession(owner,rest[0].id):await writeSession(newSession(owner,origin,emptyDraft('',{locale:localeRef.current})));adopt(next);}
     setDeleting('');
   });}
   if(!record)return <div className="page-loading" role="status">{error||'正在恢复创作会话…'}{error&&<button onClick={()=>{boot.current=null;setError('');setRetry(n=>n+1);}}>重试读取会话</button>}</div>;

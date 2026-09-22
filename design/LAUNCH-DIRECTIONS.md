@@ -2,6 +2,8 @@
 
 状态：2026-09-22。本轮只交付两个可本地运行的官网原型，用于视觉挑选，不是最终官网，也没有改动生产入口。
 
+**2026-09-22 后续：方向 A 已被选中并进入生产实现。** 生产页面不再引用原型 CSS，并取消了原型里重复的第二个手机（改为真实导出文件卡片）。实现范围、需求对照与验证记录见 [LAUNCH-ACCEPTANCE.md](LAUNCH-ACCEPTANCE.md)；本文件保留原型阶段的判断依据与二分品牌定理。
+
 - 原型 A：`apps/web/design/launch-a.html` → `apps/web/src/marketing/prototypes/launch-a.tsx`
 - 原型 B：`apps/web/design/launch-b.html` → `apps/web/src/marketing/prototypes/launch-b.tsx`
 - 共用：`shared.tsx`（语言/主题/按钮/品牌）、`scenes.ts`（合成日常场景）、`shared.css`
@@ -11,7 +13,7 @@
 
 **当且仅当访客能在 5 秒内改掉对话里的一句话、并看到真实渲染结果跟着变，IMStage 才成立。**
 
-漂亮的成品图可以被任何工具伪造；只有“改动沿同一条 Scene 传到真实渲染”不可伪造。因此两个方向的评判标准是二分的：
+静态成品图无法单独证明编辑能力。本轮用“改动沿同一条 Scene 传到真实渲染”作为可操作的验收标准，比较两个方向：
 
 1. 访客看清楚「写下 → 改一句 → 导出」，并愿意动手试 → 方向成立。
 2. 访客只看到一张好看但静止的聊天图 → 方向不成立，即使视觉更精致。

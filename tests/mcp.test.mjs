@@ -368,7 +368,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.equal(result.structuredContent.sceneId, sceneId);
       assert.equal(result.structuredContent.revision, latestRevision);
       assert.match(result.structuredContent.sha256, /^[0-9a-f]{64}$/);
-      assert.equal(result.structuredContent.rendererVersion, 'studio-32523b0-v1');
+      assert.equal(result.structuredContent.rendererVersion, 'studio-20260922-locale-v2');
       assert.equal(result.structuredContent.widgetUri, WIDGET_RESOURCE_URI);
       assert.match(result.structuredContent.downloadUri, /^imstage:\/\/renders\/rnd_[0-9a-f]{32}\.png$/);
       assert.match(result._meta.preview.dataUri, /^data:image\/png;base64,/);

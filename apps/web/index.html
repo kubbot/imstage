@@ -5,14 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#fafaf7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)" />
-    <meta name="description" content="IMStage，开源聊天场景创作工具。编排人物与对话、实时预览，导出属于你的故事。" />
+    <meta name="description" content="IMStage，开源聊天场景创作工具。改一句台词，用真实渲染器生成微信与 WhatsApp 画面，导出 PNG。IMStage is an open-source conversation staging tool." />
+    <meta property="og:title" content="IMStage · 让对话，成为作品" />
+    <meta property="og:description" content="改一句台词，导出真实聊天画面。Rewrite one line, export the frame." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:url" content="https://project-91bgj.vercel.app/" />
+    <meta property="og:image" content="https://project-91bgj.vercel.app/assets/share/website.jpg" />
+    <meta property="og:image:width" content="1440" />
+    <meta property="og:image:height" content="900" />
+    <meta property="og:image:alt" content="Edit a conversation in IMStage and export the rendered WhatsApp scene." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23fafaf7'/%3E%3Cpath d='M15 8H8v24h7M25 8h7v24h-7M15 15l10 5-10 5' fill='none' stroke='%23b63a22' stroke-width='2.6'/%3E%3C/svg%3E" />
     <title>IMStage · 让对话，成为作品</title>
     <script>
+      // Theme and language bootstraps run before React so the first paint uses
+      // the stored preference. Both keys are owned by this site.
       try {
         const preference = localStorage.getItem('imstage-theme');
         document.documentElement.dataset.theme = preference === 'light' || preference === 'dark'
           ? preference : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       } catch { document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      try {
+        const search = new URLSearchParams(location.search).get('lang');
+        const hashQuery = location.hash.indexOf('?') >= 0 ? new URLSearchParams(location.hash.slice(location.hash.indexOf('?'))).get('lang') : null;
+        const explicit = search || hashQuery;
+        const stored = localStorage.getItem('imstage-locale');
+        const tag = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+        const detected = explicit === 'zh' || explicit === 'en' ? explicit
+          : stored === 'zh' || stored === 'en' ? stored
+          : /^zh\b/i.test(tag) ? 'zh' : 'en';
+        document.documentElement.lang = detected === 'zh' ? 'zh-CN' : 'en';
+        document.documentElement.dataset.locale = detected;
+        localStorage.setItem('imstage-locale', detected);
+      } catch { /* Language still resolves in React. */ }
     </script>
   </head>
   <body>

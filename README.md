@@ -1,66 +1,67 @@
 # IMStage
 
-Open-source conversation scene creation for the Web, MCP, and API.
+Create an editable conversation scene. Export a crisp PNG.
 
-**Status: runnable React website/editor with email-password accounts and a self-hosted scene library. Live AI generation, managed cloud hosting and MCP are not connected.**
+[Try IMStage →](https://project-91bgj.vercel.app/?lang=en) · [简体中文](README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
 
-[简体中文](README.zh-CN.md) · [Product brief](docs/product-brief.md) · [Design brief](design/BRIEF.md) · [Contributing](CONTRIBUTING.md)
+![IMStage in English: edit a line and see it in a WhatsApp scene](docs/images/landing-en.png)
 
-## Direction
+Make product demos, teaching examples and fictional stories with chat scenes.
+Start with an example, change the details, and export exactly the frame you need.
 
-IMStage is planned as a shared conversation rendering service with a conversational Web editor and programmatic MCP/API access. Intended uses include product design, teaching, storytelling, and synthetic evaluation fixtures.
+- **Edit directly.** Change messages, people, avatars, timestamps and device settings. Undo mistakes and keep separate local sessions.
+- **Create with words.** The hosted Agent can draft and revise a scene after sign-in. Reference screenshots support reconstruction and focused edits.
+- **Export the result.** Download a normal frame or a long PNG, or keep the editable scene as JSON. Preview and export share one renderer.
+- **Use your own tools.** Self-host the account API and Agent, or connect a client to the authenticated MCP service.
 
-Planned capabilities include platform-specific conversation templates, individual and group conversations, editable participant profiles, message and device timestamps, media and location cards, normal and long screenshot export, and conversion of uploaded screenshots into editable structured data.
+Chinese examples use WeChat; English examples use WhatsApp. Light, dark and
+system themes are supported. Try editing and exporting the homepage example
+without an account.
 
-The public Web experience is intended to offer free use. Hosted MCP/API access is planned around account-bound keys and prepaid usage; exact quotas, AI costs, and pricing remain undecided. Self-hosting is part of the open-source direction.
+## Run locally
 
-## Repository map
-
-| Path | Reserved purpose |
-| --- | --- |
-| `apps/web/` | Official website and Web editor |
-| `packages/schema/` | Shared conversation data contracts |
-| `packages/renderer/` | Deterministic scene rendering |
-| `services/api/` | Hosted API boundary |
-| `services/mcp/` | MCP adapter |
-| `design/` | Open Design brief and future design handoff |
-| `docs/` | Product scope, setup, and planning context |
-
-`apps/web/` is runnable (React + TypeScript + Vite). The shared packages and MCP directory remain reserved boundaries; the API now provides local/self-hosted authentication and owned scenes; the frontend renderer is currently local to the web app.
-
-## Run and verify
-
-Requires Node.js >=22.18 <23 (verified with 22.23.2). Run from the repository root:
+Use Node.js **22.18–22.x**.
 
 ```sh
 npm ci
-npm run dev             # Web :4417 + account API :4419
-npm run build
-npm start               # built app + API, same port; stop dev first
-npm test
-npm run test:ui         # Google Chrome is the default test browser
+npm run dev
 ```
 
-For bundled Chromium: `npx playwright install chromium`, then `IMSTAGE_BROWSER=chromium npm run test:ui`. On this development Mac, use `dev-storage-guard new-artifact imstage-ui` and set `IMSTAGE_ARTIFACT_DIR` to the returned directory before UI tests.
+Open [localhost:4417](http://127.0.0.1:4417). To build and run the production app:
 
-Website: `/`; prompt-first creation: `/#/create`; editor: `/#/studio`; scene library: `/#/templates`; usage and integration status: `/#/docs`. The default theme follows the system; light/dark overrides persist locally. See [design review](design/REVIEW.md) and [verification](design/VERIFICATION.md).
+```sh
+npm run build
+npm start
+```
 
-See [prompt-first design and generation boundary](design/PROMPT-FIRST.md) for the new streaming Mars example, asset provenance and provider limitations. The local example replays authored content; arbitrary live AI generation is not connected.
+Configure server-side provider credentials to use the Agent. Manual editing and
+PNG export work without provider keys.
 
-## Current scope
+## Hosting and integrations
 
-The browser editor supports synthetic templates, per-message editing, participants and local images, undo/redo, versioned local drafts, and PNG/JSON downloads. Normal PNG export is 360×640 logical pixels at 2× resolution; long export includes all content. The scene data drives both preview and export.
+The hosted website uses Vercel for the frontend and a persistent server for
+accounts, saved scenes and Agent requests. Provider secrets stay on the server.
+Local drafts remain in the current browser; explicit account saves and AI
+requests send the relevant content to the server and configured providers.
 
-UI templates are **visual approximations**, not certified replicas of a specific platform version. Natural-language generation, screenshot recognition, managed cloud persistence, charging and live rendering MCP/API are future work. Local/self-hosted accounts and saved scenes are implemented. The static frontend is deployable to Vercel; see [deployment and verification](docs/deployment.md).
+MCP uses an **administrator-configured instance token and its own scene store**.
+It does not share Web account sessions or the Web saved-scene library. Managed
+per-customer API keys, billing and email password recovery are not implemented.
 
-## Responsible use
+[Deploy and operate](deploy/README.md) · [Account API](services/api/README.md) · [Agent configuration](services/agent/README.md) · [MCP tools](services/mcp/README.md)
 
-Generated scenes are intended to be simulations, not evidence of real conversations, identity, payments, or transactions. Use synthetic or authorized assets. Platform names and visual conventions belong to their respective owners; IMStage is an independent project.
+## Development
 
-## License
+```sh
+npm test
+npm run test:ui  # Playwright; installed Google Chrome by default
+```
 
-[MIT](LICENSE) © 2026 IMStage contributors.
+For bundled Chromium, run `npx playwright install chromium`, then
+`IMSTAGE_BROWSER=chromium npm run test:ui`. See [contributing](CONTRIBUTING.md).
 
-## Accounts and saved scenes
+Templates approximate platform UI; screenshot reconstruction can need manual
+correction. Built-in conversations and portraits are fictional. Use authorized
+assets and do not present generated scenes as evidence of real conversations.
 
-`/#/login`, `/#/register`, `/#/workspace`, and `/#/account` implement real sessions and an owner-isolated SQLite scene library. Guest drafts remain in the browser until explicitly saved to an account. Account data defaults to ignored `.local/app/`. The unified Node service is separate from Vercel static deployment; OAuth, email verification and email password recovery are not configured. See [core Web/auth design](docs/core-web-auth.md) and [API configuration](services/api/README.md).
+[MIT](LICENSE). Independent of the messaging platforms shown.
