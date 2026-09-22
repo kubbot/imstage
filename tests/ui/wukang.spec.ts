@@ -239,6 +239,33 @@ test.describe('story assets and export', () => {
 });
 
 test.describe('handoff to the real Agent', () => {
+  test('a late account response does not consume the scene as a guest', async ({ page, baseURL }) => {
+    const account = await page.request.post('/api/auth/register', {
+      headers: { Origin: baseURL!, 'X-IMStage-Request': '1' },
+      data: { email: `late-${crypto.randomUUID()}@example.test`, name: 'Late account', password: 'a-long-test-password-2026' },
+    });
+    expect(account.ok()).toBeTruthy();
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/api/auth/session', async route => {
+      await ready;
+      await route.continue();
+    });
+    await page.goto('/?lang=zh');
+    await expect(storyExport(page)).toBeEnabled();
+    await page.getByLabel('你的指令', { exact: true }).fill('保留武康路照片');
+    await cta(page).click();
+    // The payload must remain unconsumed while account ownership is unresolved.
+    await expect(page).toHaveURL(/handoff=/);
+    await expect(page.getByRole('status')).toBeVisible();
+    release();
+    await expect(page.locator('.agent-phone .scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
+    await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('保留武康路照片');
+    await page.reload();
+    await expect(page.locator('.agent-phone .scene-image img')).toBeVisible();
+    await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('保留武康路照片');
+  });
+
   test('Create with AI preloads the scene and typed instruction without generating', async ({ page }) => {
     // An existing draft must survive the new-session handoff.
     await page.goto('/#/create');
