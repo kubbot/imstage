@@ -76,3 +76,26 @@ export const NATIVE_MESSAGE_TYPES = Object.freeze(['text', 'image', 'location', 
 
 /** Resource MIME for MCP Apps widgets. */
 export const WIDGET_MIME_TYPE = 'text/html;profile=mcp-app';
+
+/** Instance project/template/batch bounds (deterministic, no model calls). */
+export const PROJECT_LIMITS = Object.freeze({
+  nameMax: 80,
+  rulesMax: 4000,
+  defaultsJsonMax: 4000,
+  defaultsKeysMax: 30,
+});
+
+export const TEMPLATE_LIMITS = Object.freeze({
+  nameMax: 80,
+  descriptionMax: 500,
+  variablesMax: 50,
+  keyMax: 48,
+  labelMax: 80,
+});
+
+export const BATCH_LIMITS = Object.freeze({
+  itemsMax: 20,
+  nameMax: 80,
+  promptMax: 4000,
+  valuesKeysMax: 50,
+});

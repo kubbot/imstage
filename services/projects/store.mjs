@@ -48,6 +48,9 @@ export const PROJECT_SCHEMA_SQL = `
     client_batch_id  TEXT,
     status           TEXT NOT NULL,
     rules            TEXT NOT NULL DEFAULT '',
+    template_id      TEXT,
+    template_revision INTEGER,
+    template_json    TEXT,
     reason           TEXT,
     cancel_requested INTEGER NOT NULL DEFAULT 0,
     total            INTEGER NOT NULL,
@@ -69,6 +72,8 @@ export const PROJECT_SCHEMA_SQL = `
     ordinal    INTEGER NOT NULL,
     prompt     TEXT NOT NULL,
     platform   TEXT NOT NULL,
+    variant_name TEXT,
+    values_json TEXT,
     status     TEXT NOT NULL,
     scene_id   TEXT,
     error      TEXT,
@@ -78,6 +83,24 @@ export const PROJECT_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS idx_batch_tasks_job ON batch_tasks(job_id, ordinal);
 `;
+
+/**
+ * Install the project/batch tables and apply additive column migrations.
+ * Existing rows and scenes are never rewritten or deleted; a legacy database
+ * simply gains NULL template/variant columns.
+ */
+export function installProjectSchema(db) {
+  db.exec(PROJECT_SCHEMA_SQL);
+  const columns = (table) => new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name));
+  const jobColumns = columns('batch_jobs');
+  for (const [name, ddl] of [['template_id', 'TEXT'], ['template_revision', 'INTEGER'], ['template_json', 'TEXT']]) {
+    if (!jobColumns.has(name)) db.exec(`ALTER TABLE batch_jobs ADD COLUMN ${name} ${ddl}`);
+  }
+  const taskColumns = columns('batch_tasks');
+  for (const [name, ddl] of [['variant_name', 'TEXT'], ['values_json', 'TEXT']]) {
+    if (!taskColumns.has(name)) db.exec(`ALTER TABLE batch_tasks ADD COLUMN ${name} ${ddl}`);
+  }
+}
 
 function withTransaction(db, fn) {
   db.exec('BEGIN IMMEDIATE');
@@ -306,6 +329,8 @@ function jobSummary(row) {
     projectId: row.project_id,
     status: row.status,
     rules: row.rules,
+    templateId: row.template_id ?? null,
+    templateRevision: row.template_revision === null || row.template_revision === undefined ? null : Number(row.template_revision),
     reason: row.reason ?? null,
     cancelRequested: Number(row.cancel_requested) === 1,
     total: Number(row.total),
@@ -317,11 +342,17 @@ function jobSummary(row) {
 }
 
 function taskItem(row) {
+  let values = {};
+  if (typeof row.values_json === 'string' && row.values_json !== '') {
+    try { values = JSON.parse(row.values_json); } catch { values = {}; }
+  }
   return {
     id: row.id,
     ordinal: Number(row.ordinal),
     prompt: row.prompt,
     platform: row.platform,
+    name: row.variant_name ?? '',
+    values,
     status: row.status,
     sceneId: row.scene_id ?? null,
     error: row.error ?? null,
@@ -394,21 +425,37 @@ export function countActiveJobs(db, userId) {
 
 /**
  * Persist a new job and its tasks atomically. Task scene ids are generated
- * up front so a retry/replace never reuses another account's scene id.
+ * up front so a retry/replace never reuses another account's scene id. A
+ * frozen template snapshot and every item's values are written in the same
+ * transaction, so later template/project edits cannot change queued output.
  */
-export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs }) {
+export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs, template = null }) {
   const jobId = crypto.randomUUID();
   const stamp = nowIso(nowMs);
+  const templateJson = template ? JSON.stringify(template.definition) : null;
   withTransaction(db, () => {
     db.prepare(
       `INSERT INTO batch_jobs
-         (id, user_id, project_id, session_id, client_batch_id, status, rules, total, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
-    ).run(jobId, userId, projectId, sessionId ?? null, clientBatchId, rules, tasks.length, stamp, stamp);
+         (id, user_id, project_id, session_id, client_batch_id, status, rules, template_id, template_revision, template_json, total, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      jobId,
+      userId,
+      projectId,
+      sessionId ?? null,
+      clientBatchId,
+      rules,
+      template ? template.id : null,
+      template ? template.revision : null,
+      templateJson,
+      tasks.length,
+      stamp,
+      stamp,
+    );
     const insertTask = db.prepare(
       `INSERT INTO batch_tasks
-         (id, job_id, user_id, ordinal, prompt, platform, status, scene_id, detail, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, '', ?)`,
+         (id, job_id, user_id, ordinal, prompt, platform, variant_name, values_json, status, scene_id, detail, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, '', ?)`,
     );
     tasks.forEach((task, index) => {
       insertTask.run(
@@ -418,6 +465,8 @@ export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks,
         index,
         task.prompt,
         task.platform,
+        task.name || null,
+        JSON.stringify(task.values ?? {}),
         crypto.randomUUID(),
         stamp,
       );
@@ -556,7 +605,7 @@ export function createRetryJob(db, { userId, projectId, jobId, sessionId, nowMs 
   }
   const retryable = db
     .prepare(
-      `SELECT prompt, platform FROM batch_tasks
+      `SELECT prompt, platform, variant_name, values_json FROM batch_tasks
        WHERE job_id = ? AND status IN ('failed', 'interrupted', 'cancelled')
        ORDER BY ordinal ASC, id ASC`,
     )
@@ -565,13 +614,23 @@ export function createRetryJob(db, { userId, projectId, jobId, sessionId, nowMs 
   if (retryable.length === 0) {
     throw projectsError(400, 'nothing_to_retry', '没有需要重试的任务');
   }
+  let template = null;
+  if (source.template_id && typeof source.template_json === 'string' && source.template_json !== '') {
+    try { template = { id: source.template_id, revision: Number(source.template_revision ?? 1), definition: JSON.parse(source.template_json) }; }
+    catch { template = null; }
+  }
   return createBatchJob(db, {
     userId,
     projectId,
     sessionId,
     rules: source.rules,
-    tasks: retryable.map((task) => ({ prompt: task.prompt, platform: task.platform })),
+    tasks: retryable.map((task) => {
+      let values = {};
+      if (typeof task.values_json === 'string' && task.values_json !== '') { try { values = JSON.parse(task.values_json); } catch { values = {}; } }
+      return { prompt: task.prompt, platform: task.platform, name: task.variant_name ?? '', values };
+    }),
     clientBatchId: 'retry-'+jobId,
+    template,
     nowMs,
   });
 }

@@ -56,6 +56,7 @@ const SCENE_KEYS = new Set([
   'background',
   'backgroundImage',
   'appearance',
+  'layout',
   'composerText',
   'headerText',
   'battery',
@@ -95,6 +96,7 @@ const SET_KEYS = new Set([
   'battery',
   'referenceDate',
   'appearance',
+  'layout',
 ]);
 
 const PATCH_KEYS = new Set([
@@ -247,6 +249,12 @@ export function enforceSceneBounds(scene, { label = 'scene' } = {}) {
   if (scene.reference !== undefined) invalidRequest('MCP 暂不支持截图编辑层，请使用结构化场景或网页编辑器。');
   assertString(scene.backgroundImage, `${label}.backgroundImage`, { max: SCENE_LIMITS.assetDataUriMax });
   assertAppearance(scene.appearance, `${label}.appearance`);
+  if (scene.layout !== undefined) {
+    if (!isPlainObject(scene.layout)) invalidRequest(`${label}.layout 必须是对象`, { field: `${label}.layout` });
+    // Field-level/unbounded values are rejected by the shared validateScene ->
+    // validateCustomLayout contract; MCP only adds the object-shape guard so a
+    // non-object never reaches it as an opaque failure.
+  }
 
   const participants = scene.participants;
   if (!Array.isArray(participants)) invalidRequest(`${label}.participants 必须是数组`, { field: `${label}.participants` });
@@ -483,6 +491,7 @@ export function adaptSceneForRenderer(scene) {
       participants: scene.participants.map((p) => ({ id: p.id, name: p.name })),
       messages,
       watermark: scene.watermark,
+      ...(scene.layout ? { layout: scene.layout } : {}),
     },
     assets,
   };
@@ -529,12 +538,16 @@ export function buildCapabilities() {
       nativelyRenderedMessageTypes: [...NATIVE_MESSAGE_TYPES],
       degradedMessageTypes: degraded,
       persistedNotRendered: [],
+      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时保持平台皮肤不变。',
       unsupported: ['reference screenshot overlays; use the Web editor for those'],
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',
     },
     limits: {
       scene: SCENE_LIMITS,
       render: RENDER_LIMITS,
+      projects: { maxPerInstance: 50, nameMax: 80, rulesMax: 4000, defaultsJsonMax: 4000 },
+      templates: { maxPerInstance: 50, variablesMax: 50, nameMax: 80, descriptionMax: 500 },
+      batches: { itemsMax: 20, storedMax: 500 },
     },
     identifierRules: {
       sceneId: '服务端生成，形如 scn_<32 hex>；调用方只读。',
@@ -548,7 +561,25 @@ export function buildCapabilities() {
       { name: 'imstage_get_scene', readOnly: true, purpose: '按 sceneId（可选 revision 快照）读取场景。' },
       { name: 'imstage_update_scene', readOnly: false, purpose: '按 expectedRevision 原子应用定向 patch。' },
       { name: 'imstage_render_scene', readOnly: true, purpose: '渲染 PNG 并返回图片内容、场景状态与内联预览组件。' },
+      { name: 'imstage_create_project', readOnly: false, purpose: '创建实例项目（名称、规则、默认值），用于冻结批次共享规则。' },
+      { name: 'imstage_list_projects', readOnly: true, purpose: '列出实例项目摘要。' },
+      { name: 'imstage_get_project', readOnly: true, purpose: '读取项目详情与批次摘要。' },
+      { name: 'imstage_update_project', readOnly: false, purpose: '按 expectedRevision 更新项目。' },
+      { name: 'imstage_create_template', readOnly: false, purpose: '用共享纯契约创建实例模板。' },
+      { name: 'imstage_list_templates', readOnly: true, purpose: '列出模板摘要（不含大型快照）。' },
+      { name: 'imstage_get_template', readOnly: true, purpose: '读取完整模板定义。' },
+      { name: 'imstage_update_template', readOnly: false, purpose: '按 expectedRevision 替换模板定义。' },
+      { name: 'imstage_create_batch', readOnly: false, purpose: '确定性原子创建多个独立场景与批次回执；不调用模型。' },
+      { name: 'imstage_get_batch', readOnly: true, purpose: '读取批次回执、冻结快照与输出 sceneId/revision。' },
+      { name: 'imstage_list_batches', readOnly: true, purpose: '列出批次摘要，可按 projectId 过滤。' },
     ],
+    workflow: {
+      deterministicSave: 'MCP 的 create/update/batch 只做确定性校验与保存；调用方 AI 必须自己生成全部对话内容与图片字节（内嵌 data:image base64），本服务不会调用任何模型或图片生成。',
+      webDifference: '网页批量生成是真实 Agent 任务（顺序 worker + 限流）；MCP 批次是一次同步确定性保存，两者不要混为一谈。',
+      templateReuse: '模板 = 版本化场景快照 + 命名类型化变量；instances 通过 values 实例化并得到新的 scn_ id，源模板不变。',
+      batchIdempotency: 'clientIdempotencyKey + 完全相同请求体返回同一批次回执；相同 key 不同内容返回 idempotency_conflict。',
+      instanceScope: '项目/模板/批次都属于当前 MCP bearer 实例的隔离数据库，与网页账号作品互相隔离。',
+    },
     patchOperations: {
       set: [...SET_KEYS],
       addParticipants: ['id', 'name', 'avatar?', 'subtitle?'],
@@ -567,6 +598,12 @@ export function buildCapabilities() {
       { code: 'unsupported_platform', when: 'platform 不在确定性渲染器支持范围内。' },
       { code: 'invalid_patch', when: 'patch 引用不存在的 id 或结构不合法；存储保持原样。' },
       { code: 'scene_not_found', when: 'sceneId 在隔离存储中不存在。' },
+      { code: 'project_not_found', when: 'projectId 在隔离存储中不存在。' },
+      { code: 'template_not_found', when: 'templateId 在隔离存储中不存在。' },
+      { code: 'template_exists', when: '模板 id 已存在。' },
+      { code: 'template_limit_reached', when: '实例模板数量超过上限（50）。' },
+      { code: 'batch_not_found', when: 'batchId 不存在。' },
+      { code: 'storage_limit', when: '实例场景/模板/批次存储达到容量上限。' },
       { code: 'revision_conflict', when: 'expectedRevision 落后于当前版本；details.currentRevision 给出最新值。' },
       { code: 'idempotency_conflict', when: '同一 idempotencyKey 被用于不同请求体。' },
       { code: 'renderer_unavailable', when: '找不到 Playwright Chromium 可执行文件。' },

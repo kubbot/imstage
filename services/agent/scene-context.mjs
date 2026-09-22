@@ -74,7 +74,7 @@ export function buildSceneContext(scene, maxChars, targetId = null) {
     id: scene.id,
     title: truncate(scene.title, AGENT_MAX_SCENE_TITLE_CHARS),
     platform: scene.platform,
-    surface: scene.surface, background: scene.background, backgroundImage: scene.backgroundImage ? ASSET_MARKER : undefined, appearance: scene.appearance, headerText: truncate(scene.headerText,400), composerText: truncate(scene.composerText,200), battery: scene.battery,
+    surface: scene.surface, background: scene.background, backgroundImage: scene.backgroundImage ? ASSET_MARKER : undefined, appearance: scene.appearance, layout: scene.layout, headerText: truncate(scene.headerText,400), composerText: truncate(scene.composerText,200), battery: scene.battery,
     deviceTime: truncate(scene.deviceTime, AGENT_MAX_SCENE_TIME_CHARS),
     date: truncate(scene.date, AGENT_MAX_SCENE_DATE_CHARS), referenceDate: scene.referenceDate,
     selfId: scene.selfId,
@@ -250,7 +250,7 @@ export function targetedChangeViolation(before, after, targetId) {
   if (!target) return '定向编辑目标不存在';
   const a = structuredClone(before), b = structuredClone(after);
   if (target.kind === 'scene') {
-    for (const key of ['title','platform','deviceTime','date','watermark','surface','background','backgroundImage','appearance','headerText','composerText','battery']) { delete a[key]; delete b[key]; }
+    for (const key of ['title','platform','deviceTime','date','watermark','surface','background','backgroundImage','appearance','layout','headerText','composerText','battery']) { delete a[key]; delete b[key]; }
   } else if (target.kind === 'participant') {
     const next = b.participants.find(p => p.id === target.id);
     if (!next) return '定向编辑不能删除参与者';

@@ -20,7 +20,10 @@ export function stableStringify(value) {
 function sortValue(value) {
   if (Array.isArray(value)) return value.map(sortValue);
   if (value && typeof value === 'object') {
-    const out = {};
+    // A null-prototype map preserves every own key, including '__proto__'.
+    // Assigning '__proto__' onto a normal {} would be dropped/interpreted as a
+    // prototype setter, letting two different payloads hash identically.
+    const out = Object.create(null);
     for (const key of Object.keys(value).sort()) {
       const child = value[key];
       if (child === undefined) continue;

@@ -19,8 +19,12 @@ export const MAX_PROJECTS_PER_USER = 50;
 export const DEFAULT_PROJECT_PLATFORM = 'wechat';
 
 export const MAX_BATCH_PROMPTS = 10;
+export const MAX_BATCH_VARIANTS = 10;
 export const MAX_BATCH_ITEMS = 20;
 export const MAX_BATCH_PROMPT_CHARS = 4000;
+export const MAX_VARIANT_NAME_CHARS = 80;
+export const MAX_VARIANT_VALUES_CHARS = 1_500_000;
+export const MAX_VARIANT_KEYS = 50;
 export const MAX_CLIENT_BATCH_ID_CHARS = 200;
 export const MAX_ACTIVE_BATCH_JOBS = 3;
 
@@ -32,6 +36,10 @@ export const MAX_ACTIVE_BATCH_JOBS = 3;
 export const MAX_SCENES_PER_USER = 100;
 
 const PLATFORM_SET = new Set(PLATFORMS);
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export function isPlatform(value) {
   return typeof value === 'string' && PLATFORM_SET.has(value);
@@ -158,8 +166,22 @@ export function normalizePlatforms(raw, fallback = DEFAULT_PROJECT_PLATFORM) {
 /**
  * Expand prompts × platforms into the exact task list. Enforces the 20-item
  * ceiling so one submit cannot enqueue an unbounded amount of paid work.
+ *
+ * Two input dialects are supported and never mixed: the legacy
+ * `prompts`/`promptsText` list, or structured `variants`. Mixing them is an
+ * explicit error rather than a silent precedence choice.
  */
 export function buildBatchTasks(input, defaultPlatform) {
+  const hasLegacy = Array.isArray(input?.prompts) || typeof input?.promptsText === 'string';
+  const hasVariants = Array.isArray(input?.variants);
+  if (hasLegacy && hasVariants) {
+    throw projectsError(400, 'ambiguous_batch_input', '请只使用 prompts/promptsText 或 variants 其中一种输入方式');
+  }
+  if (hasVariants) return buildVariantTasks(input, defaultPlatform);
+  return buildLegacyTasks(input, defaultPlatform);
+}
+
+function buildLegacyTasks(input, defaultPlatform) {
   const prompts = normalizePrompts(input);
   const platforms = normalizePlatforms(input?.platforms, defaultPlatform);
   const total = prompts.length * platforms.length;
@@ -173,9 +195,71 @@ export function buildBatchTasks(input, defaultPlatform) {
   const tasks = [];
   for (const prompt of prompts) {
     for (const platform of platforms) {
-      tasks.push({ prompt, platform });
+      tasks.push({ prompt, platform, name: '', values: {}, templateId: null });
     }
   }
+  return tasks;
+}
+
+function validateVariantValues(raw, label) {
+  if (raw === undefined || raw === null) return {};
+  if (!isPlainObject(raw)) throw projectsError(400, 'invalid_variant_values', `${label} 的 values 必须是对象`);
+  const keys = Object.keys(raw);
+  if (keys.length > MAX_VARIANT_KEYS) {
+    throw projectsError(400, 'invalid_variant_values', `${label} 最多提供 ${MAX_VARIANT_KEYS} 个变量值`);
+  }
+  const values = {};
+  let total = 0;
+  for (const key of keys) {
+    if (!/^[a-z][a-z0-9_]{0,47}$/.test(key)) {
+      throw projectsError(400, 'invalid_variant_values', `${label} 的变量名 ${key} 不合法`);
+    }
+    const value = raw[key];
+    if (typeof value !== 'string') {
+      throw projectsError(400, 'invalid_variant_values', `${label} 的变量 ${key} 必须是字符串`);
+    }
+    total += value.length;
+    if (total > MAX_VARIANT_VALUES_CHARS) {
+      throw projectsError(413, 'invalid_variant_values', `${label} 的变量内容超过总大小上限`);
+    }
+    values[key] = value;
+  }
+  return values;
+}
+
+function buildVariantTasks(input, defaultPlatform) {
+  const variants = input.variants;
+  if (variants.length === 0) throw projectsError(400, 'invalid_variants', '请至少提供 1 个变体');
+  if (variants.length > MAX_BATCH_VARIANTS) {
+    throw projectsError(400, 'invalid_variants', `最多只能提供 ${MAX_BATCH_VARIANTS} 个变体`);
+  }
+  const platforms = normalizePlatforms(input?.platforms, defaultPlatform);
+  const total = variants.length * platforms.length;
+  if (total > MAX_BATCH_ITEMS) {
+    throw projectsError(
+      400,
+      'invalid_batch_size',
+      `一次最多生成 ${MAX_BATCH_ITEMS} 个作品（变体 × 平台），当前为 ${total} 个`,
+    );
+  }
+  const tasks = [];
+  variants.forEach((raw, index) => {
+    const label = `第 ${index + 1} 个变体`;
+    if (!isPlainObject(raw)) throw projectsError(400, 'invalid_variants', `${label} 必须是对象`);
+    if (typeof raw.name !== 'string' || raw.name.trim().length < 1 || raw.name.trim().length > MAX_VARIANT_NAME_CHARS) {
+      throw projectsError(400, 'invalid_variants', `${label} 的名称需为 1-${MAX_VARIANT_NAME_CHARS} 个字符`);
+    }
+    if (typeof raw.prompt !== 'string' || raw.prompt.trim() === '') {
+      throw projectsError(400, 'invalid_variants', `${label} 需要一条提示词`);
+    }
+    if (raw.prompt.length > MAX_BATCH_PROMPT_CHARS) {
+      throw projectsError(400, 'invalid_variants', `${label} 的提示词不能超过 ${MAX_BATCH_PROMPT_CHARS} 个字符`);
+    }
+    const values = validateVariantValues(raw.values, label);
+    for (const platform of platforms) {
+      tasks.push({ prompt: raw.prompt.trim(), platform, name: raw.name.trim(), values, templateId: null });
+    }
+  });
   return tasks;
 }
 

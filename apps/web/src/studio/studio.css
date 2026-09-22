@@ -1300,3 +1300,40 @@
 
 /* A screenshot canvas has fixed typography; Safari must not auto-enlarge it when zoomed. */
 .scene-view{-webkit-text-size-adjust:none;text-size-adjust:none}
+
+/* ------------------------------------------------------------------ */
+/* Custom declarative layout (optional Scene.layout kind=custom).      */
+/* Neutral header/composer; bounded tokens only, never user CSS.       */
+/* ------------------------------------------------------------------ */
+
+.scene-view[data-layout='custom'] {
+  background: var(--scene-custom-bg, #ffffff);
+  color: var(--scene-custom-text, #111214);
+  font-family: var(--scene-custom-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif);
+}
+.scene-view[data-layout='custom'] .scene-status { background: var(--scene-custom-bg, #ffffff); color: var(--scene-custom-text, #111214); }
+.scene-view[data-layout='custom'] .scene-header {
+  height: var(--scene-custom-header-height, auto);
+  min-height: var(--scene-custom-header-height, 51px);
+  background: var(--scene-custom-header, #f7f7f7);
+  color: var(--scene-custom-text, #111214);
+  border-bottom: 1px solid rgba(17, 18, 20, 0.08);
+}
+.scene-view[data-layout='custom'] .scene-header-name { color: var(--scene-custom-text, #111214); }
+.scene-view[data-layout='custom'] .scene-header-sub { color: var(--scene-custom-text, #6b7280); opacity: 0.72; }
+.scene-view[data-layout='custom'] .scene-messages { background: var(--scene-custom-bg, #ffffff); color: var(--scene-custom-text, #111214); }
+.scene-view[data-layout='custom'] .scene-bubble-wrap { max-width: var(--scene-custom-max-bubble, 76%); background: transparent; }
+.scene-view[data-layout='custom'] .scene-bubble {
+  background: var(--scene-custom-incoming, #f1f2f4);
+  color: var(--scene-custom-text, #111214);
+  border-radius: var(--scene-radius, 10px);
+}
+.scene-view[data-layout='custom'] .scene-row.is-self .scene-bubble { background: var(--scene-custom-outgoing, #d8e8ff); color: var(--scene-custom-text, #111214); }
+.scene-view[data-layout='custom'] .scene-avatar { border-radius: var(--scene-custom-avatar-shape, 50%); }
+.scene-view[data-layout='custom'] .scene-sender { color: var(--scene-custom-text, #6b7280); opacity: 0.75; }
+.scene-view[data-layout='custom'] .scene-time,
+.scene-view[data-layout='custom'] .scene-date { color: var(--scene-custom-text, #6b7280); opacity: 0.65; }
+.scene-view[data-layout='custom'] .scene-system { color: var(--scene-custom-text, #6b7280); background: rgba(17, 18, 20, 0.06); }
+.scene-view[data-layout='custom'] .scene-composer { background: var(--scene-custom-header, #f7f7f7); color: var(--scene-custom-text, #111214); }
+.scene-view[data-layout='custom'] .scene-composer-field { background: var(--scene-custom-incoming, #ffffff); color: var(--scene-custom-text, #6b7280); }
+.scene-view[data-layout='custom'] .scene-composer-icon { color: var(--scene-custom-text, #4a4f57); opacity: 0.75; }

@@ -24,12 +24,16 @@ import {
   type BatchTask,
   type Project,
   type SceneSummary,
+  type TemplateDetail,
+  type TemplateSummary,
 } from '../account/api';
-import { PLATFORMS, PLATFORM_LABELS, type Platform } from '../studio/model';
+import { PLATFORMS, type Platform } from '../studio/model';
+import { readImageFile } from '../studio/storage';
 import { useCopy } from '../i18n';
 import './projects.css';
 
 const MAX_PROMPTS = 10;
+const MAX_VARIANTS = 10;
 const MAX_ITEMS = 20;
 const POLL_MS = 2_000;
 const TERMINAL_JOB_STATUSES: BatchJob['status'][] = ['done', 'partial', 'failed', 'cancelled', 'interrupted'];
@@ -53,6 +57,7 @@ export default function ProjectsPage({ projectId }: { projectId?: string }) {
 }
 
 function ProjectList() {
+  const PLATFORM_LABELS = useCopy().platforms;
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -238,6 +243,8 @@ function ProjectList() {
 /* ------------------------------------------------------------------ */
 
 function ProjectDetail({ projectId }: { projectId: string }) {
+  const PLATFORM_LABELS = useCopy().platforms;
+  const platformLabel = (im: string | undefined) => (im && PLATFORM_LABELS[im as Platform]) || im || "";
   const [item, setItem] = useState<Project | null>(null);
   const [scenes, setScenes] = useState<SceneSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,6 +266,12 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [job, setJob] = useState<BatchJob | null>(null);
   const [promptsText, setPromptsText] = useState('');
+  const [batchMode, setBatchMode] = useState<'prompts' | 'variants'>('prompts');
+  const [variants, setVariants] = useState<{ id: string; name: string; prompt: string; values: Record<string, string> }[]>(() => [{ id: crypto.randomUUID(), name: '', prompt: '', values: {} }]);
+  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [templateDetail, setTemplateDetail] = useState<TemplateDetail | null>(null);
+  const selectedTemplate = useRef(templateId); selectedTemplate.current = templateId;
   const [platforms, setPlatforms] = useState<Platform[]>(['wechat']);
   const [submitting, setSubmitting] = useState(false);
   const [batchError, setBatchError] = useState('');
@@ -308,6 +321,36 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       .catch(() => { /* the attach picker is optional */ });
     return () => controller.abort();
   }, [reload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api<{ items: TemplateSummary[] }>('/templates', { signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted) setTemplates(data.items);
+      })
+      .catch(() => { /* template reuse is optional; legacy batches still work */ });
+    return () => controller.abort();
+  }, [reload]);
+
+  // Load the declared variables of the selected template so each variant can
+  // carry explicit typed values. The revision is captured at submit time.
+  useEffect(() => {
+    setTemplateDetail(null);
+    setVariants(current => current.map(variant => ({...variant, values:{}})));
+    if (!templateId) return undefined;
+    const controller = new AbortController();
+    api<{ item: TemplateDetail }>(`/templates/${encodeURIComponent(templateId)}`, { signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setTemplateDetail(data.item);
+        // A reference template cannot be rendered on another platform, so pin
+        // the selection to its source platform instead of silently converting.
+        const source = data.item.definition.scene.reference?.plan?.im;
+        if (source && PLATFORMS.includes(source as Platform)) setPlatforms([source as Platform]);
+      })
+      .catch((err) => { if (!controller.signal.aborted) setBatchError(errorText(err)); });
+    return () => controller.abort();
+  }, [templateId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -363,6 +406,24 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   const promptLines = promptsText.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
   const totalItems = promptLines.length * platforms.length;
+  const batchItems = batchMode === 'variants' ? variants.length * platforms.length : totalItems;
+  const templateReady = !templateId || templateDetail?.id === templateId;
+  const templateVariables = templateReady ? templateDetail?.definition.variables ?? [] : [];
+
+  function updateVariant(id: string, patch: Partial<{ name: string; prompt: string; values: Record<string, string> }>) {
+    setVariants(current => current.map(variant => (variant.id === id ? { ...variant, ...patch } : variant)));
+  }
+  function setVariantValue(id: string, key: string, value: string) {
+    setVariants(current => current.map(variant => (variant.id === id ? { ...variant, values: { ...variant.values, [key]: value } } : variant)));
+  }
+  async function readVariantImage(id: string, key: string, file: File | undefined) {
+    if (!file) return;
+    const targetTemplate = templateId;
+    const result = await readImageFile(file);
+    if (selectedTemplate.current !== targetTemplate) return;
+    if (!result.ok) { setBatchError(result.error); return; }
+    setVariantValue(id, key, result.dataUrl);
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -424,39 +485,54 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   async function startBatch(event: FormEvent) {
     event.preventDefault();
-    if (submitting) return;
-    if (promptLines.length === 0) {
-      setBatchError(p.needPrompt);
-      return;
-    }
-    if (promptLines.length > MAX_PROMPTS) {
-      setBatchError(p.maxPrompts(MAX_PROMPTS));
-      return;
-    }
+    if (submitting || !templateReady) return;
     if (platforms.length === 0) {
       setBatchError(p.needPlatform);
       return;
     }
-    if (totalItems > MAX_ITEMS) {
-      setBatchError(p.maxItems(MAX_ITEMS));
-      return;
+    let payload: Record<string, unknown>;
+    if (batchMode === 'variants') {
+      const cleaned = variants.map(variant => {
+        const values: Record<string, string> = {};
+        if (templateId) {
+          for (const [key, value] of Object.entries(variant.values)) if (value.trim() !== '') values[key] = value;
+        }
+        return { name: variant.name.trim(), prompt: variant.prompt.trim(), values };
+      });
+      if (cleaned.length === 0 || cleaned.length > MAX_VARIANTS) { setBatchError(p.maxVariants(MAX_VARIANTS)); return; }
+      if (cleaned.some(variant => variant.name === '')) { setBatchError(p.needVariantName); return; }
+      if (cleaned.some(variant => variant.prompt === '')) { setBatchError(p.needVariantPrompt); return; }
+      if (cleaned.length * platforms.length > MAX_ITEMS) { setBatchError(p.maxItems(MAX_ITEMS)); return; }
+      payload = { variants: cleaned, platforms };
+    } else {
+      if (promptLines.length === 0) { setBatchError(p.needPrompt); return; }
+      if (promptLines.length > MAX_PROMPTS) { setBatchError(p.maxPrompts(MAX_PROMPTS)); return; }
+      if (totalItems > MAX_ITEMS) { setBatchError(p.maxItems(MAX_ITEMS)); return; }
+      payload = { prompts: promptLines, platforms };
+    }
+    if (templateId) {
+      payload.templateId = templateId;
+      payload.templateRevision = templateDetail?.revision ?? undefined;
     }
     // One stable key per submit attempt: a timed-out retry returns the same job
     // instead of creating duplicates.
     if (!clientBatchId.current) clientBatchId.current = crypto.randomUUID();
+    payload.clientBatchId = clientBatchId.current;
     setSubmitting(true);
     setBatchError('');
     try {
       const data = await api<{ item: BatchJob }>(`/projects/${item?.id}/batch-jobs`, {
         method: 'POST',
-        body: { prompts: promptLines, platforms, clientBatchId: clientBatchId.current },
+        body: payload,
       });
       clientBatchId.current = '';
       lastJobStatus.current = '';
       setJob(data.item);
       setJobs((current) => [data.item, ...current.filter((entry) => entry.id !== data.item.id)]);
     } catch (err) {
-      setBatchError(errorText(err));
+      setBatchError(err instanceof ApiError && err.code === 'reference_platform_mismatch'
+        ? p.platformMismatch(platformLabel(templateDetail?.definition.scene.reference?.plan?.im))
+        : errorText(err));
     } finally {
       setSubmitting(false);
     }
@@ -605,7 +681,19 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           {p.batchHint(MAX_PROMPTS, MAX_ITEMS)}
         </p>
         <form onSubmit={startBatch}>
+          <div className="project-batch-mode" role="group" aria-label={p.batch}>
+            <button type="button" aria-pressed={batchMode === 'prompts'} onClick={() => setBatchMode('prompts')}>{p.modePrompts}</button>
+            <button type="button" aria-pressed={batchMode === 'variants'} onClick={() => setBatchMode('variants')}>{p.modeVariants}</button>
+          </div>
           <label>
+            {p.templateLabel}
+            <select aria-label={p.templateLabel} value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <option value="">{p.templateNone}</option>
+              {templates.map((template) => <option key={template.id} value={template.id}>{p.templateSummary(template.name, template.revision)}</option>)}
+            </select>
+          </label>
+          {templateId && <p className="project-muted">{p.templateHint}{templateVariables.length > 0 ? ` ${p.variantValuesHint}` : ''}{templateDetail?.definition.scene.reference ? ` ${p.referencePlatformNote(platformLabel(templateDetail.definition.scene.reference.plan.im))}` : ''}</p>}
+          {batchMode === 'prompts' ? <label>
             {p.prompts}
             <textarea
               value={promptsText}
@@ -613,7 +701,20 @@ function ProjectDetail({ projectId }: { projectId: string }) {
               placeholder={p.promptsHint}
               onChange={(event) => setPromptsText(event.target.value)}
             />
-          </label>
+          </label> : <fieldset className="project-variants">
+            <legend>{p.variantsLegend} <span>{variants.length}/{MAX_VARIANTS}</span></legend>
+            {variants.map((variant) => <div key={variant.id} className="project-variant">
+              <label>{p.variantName}<input aria-label={p.variantName} value={variant.name} maxLength={80} onChange={(event) => updateVariant(variant.id, { name: event.target.value })} /></label>
+              <label>{p.variantPrompt}<textarea aria-label={p.variantPrompt} value={variant.prompt} rows={2} maxLength={4000} onChange={(event) => updateVariant(variant.id, { prompt: event.target.value })} /></label>
+              {templateVariables.length > 0 && <div className="project-variant-values">{templateVariables.map((variable) => <label key={variable.key}>{variable.label}
+                {variable.type === 'image'
+                  ? <span className="project-variant-image"><input aria-label={variable.label} value={variant.values[variable.key] ?? ''} onChange={(event) => setVariantValue(variant.id, variable.key, event.target.value)} /><input type="file" accept="image/png,image/jpeg,image/webp" aria-label={`${variable.label} · image`} onChange={(event) => { void readVariantImage(variant.id, variable.key, event.target.files?.[0]); event.target.value = ''; }} /></span>
+                  : <input aria-label={variable.label} value={variant.values[variable.key] ?? ''} maxLength={4000} onChange={(event) => setVariantValue(variant.id, variable.key, event.target.value)} />}
+              </label>)}</div>}
+              <button type="button" className="text-link" disabled={variants.length <= 1} onClick={() => setVariants(current => current.filter(entry => entry.id !== variant.id))}><IconX size={14} /> {p.removeVariant}</button>
+            </div>)}
+            <button type="button" className="agent-button" disabled={variants.length >= MAX_VARIANTS} onClick={() => setVariants(current => [...current, { id: crypto.randomUUID(), name: '', prompt: '', values: {} }])}><IconPlus size={15} /> {p.addVariant}</button>
+          </fieldset>}
           <fieldset className="project-platforms">
             <legend>{p.platformShort}</legend>
             {PLATFORMS.map((value) => (
@@ -624,11 +725,11 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             ))}
           </fieldset>
           <div className="project-form-actions">
-            <button className="btn btn-primary" disabled={submitting || running}>
+            <button className="btn btn-primary" disabled={submitting || running || !templateReady}>
               {submitting ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
-              {submitting ? p.generating : running ? p.taskRunning : `${p.generate} ${promptLines.length && platforms.length ? totalItems : 0}`}
+              {submitting ? p.generating : running ? p.taskRunning : `${p.generate} ${platforms.length ? batchItems : 0}`}
             </button>
-            <span className="project-status">{p.promptCount(promptLines.length)}/{MAX_PROMPTS} · {p.sceneCount(totalItems)}/{MAX_ITEMS}</span>
+            <span className="project-status">{batchMode === 'variants' ? `${p.promptCount(variants.length)}/${MAX_VARIANTS}` : `${p.promptCount(promptLines.length)}/${MAX_PROMPTS}`} · {p.sceneCount(batchItems)}/{MAX_ITEMS}</span>
           </div>
           {batchError && <p className="account-error" role="alert">{batchError}</p>}
         </form>
@@ -648,7 +749,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                 {job.tasks.map((task) => (
                   <li key={task.id} className={`task-${task.status}`}>
                     <span className="task-index">{task.ordinal + 1}</span>
-                    <span className="task-text">{task.prompt}</span>
+                    <span className="task-text">{task.name ? `${task.name} · ${task.prompt}` : task.prompt}</span>
                     <span className="task-platform">{PLATFORM_LABELS[task.platform]}</span>
                     <span className="task-status">
                       {task.status === 'done' && task.sceneId ? (

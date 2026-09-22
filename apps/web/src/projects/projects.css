@@ -60,3 +60,14 @@
 @keyframes projects-spin{to{transform:rotate(360deg)}}
 @media(max-width:900px){.projects-columns{grid-template-columns:1fr}.projects-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:590px){.projects-shell{width:calc(100% - 36px);padding:26px 0 60px}.projects-heading h1{font-size:24px}.projects-grid{grid-template-columns:1fr}.project-create,.project-panel{padding:20px 18px}.project-task-list li{grid-template-columns:20px 1fr;grid-auto-rows:auto}.task-platform,.task-status{grid-column:2}}
+
+/* Structured variants: one compact row per item, optional template values. */
+.project-batch-mode { display: inline-flex; gap: 4px; padding: 3px; border-radius: 9px; background: rgba(17,18,20,.06); }
+.project-batch-mode button { border: 0; border-radius: 7px; padding: 5px 12px; font: inherit; font-size: 12px; background: transparent; color: inherit; cursor: pointer; }
+.project-batch-mode button[aria-pressed='true'] { background: var(--surface, #fff); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 600; }
+.project-variants { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.project-variants legend { font-size: 12px; font-weight: 600; display: flex; gap: 8px; }
+.project-variant { border: 1px solid var(--line, #e4e2dd); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.project-variant-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.project-variant-image { display: flex; flex-direction: column; gap: 5px; }
+.project-variant-image input[type='file'] { font-size: 11px; }

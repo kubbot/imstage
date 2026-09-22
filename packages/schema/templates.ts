@@ -53,7 +53,7 @@ export function validateTemplateDefinition(raw: unknown): TemplateResult<Templat
     const target = validateTarget(item.target, scene);
     if (!target || item.type !== targetType(target) || !text(item.label, TEMPLATE_LIMITS.label) || targets.has(targetKey(target))) return { ok: false, errors: [`Invalid or duplicate target for ${item.key}.`] };
     keys.add(item.key); targets.add(targetKey(target));
-    variables.push({ key: item.key, label: item.label.trim(), type: item.type, target });
+    variables.push({ key: item.key, label: item.label.trim(), type: item.type as TemplateVariable['type'], target });
   }
   return { ok: true, value: { schemaVersion: 1, name: raw.name.trim(), description: typeof raw.description === 'string' ? raw.description : '', scene: cloneScene(scene), variables } };
 }

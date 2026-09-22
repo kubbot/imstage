@@ -15,10 +15,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { fail } from './errors.mjs';
 import { MAX_STORED_RENDERS } from './limits.mjs';
 import { nowIso } from './util.mjs';
+import { installTemplateSchema } from '../templates/store.mjs';
 
 export const STORE_SCHEMA_VERSION = 1;
 export const STORE_FILE_NAME = 'mcp.sqlite';
@@ -64,7 +66,49 @@ CREATE TABLE IF NOT EXISTS renders (
   created_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_renders_created ON renders(created_at DESC);
+
+-- Instance-scoped projects, batches and their produced scene references.
+-- Deliberately separate from any Web account database.
+CREATE TABLE IF NOT EXISTS mcp_projects (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  rules         TEXT NOT NULL DEFAULT '',
+  defaults_json TEXT NOT NULL DEFAULT '{}',
+  revision      INTEGER NOT NULL,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_batches (
+  id                TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL,
+  template_id       TEXT,
+  template_revision INTEGER,
+  template_json     TEXT,
+  rules             TEXT NOT NULL DEFAULT '',
+  client_key        TEXT,
+  request_hash      TEXT NOT NULL,
+  item_count        INTEGER NOT NULL,
+  receipt_json      TEXT NOT NULL,
+  created_at        TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_batches_client ON mcp_batches(client_key) WHERE client_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_mcp_batches_project ON mcp_batches(project_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS mcp_batch_items (
+  id          TEXT PRIMARY KEY,
+  batch_id    TEXT NOT NULL,
+  ordinal     INTEGER NOT NULL,
+  name        TEXT NOT NULL DEFAULT '',
+  prompt      TEXT NOT NULL DEFAULT '',
+  scene_id    TEXT NOT NULL,
+  revision    INTEGER NOT NULL,
+  values_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_batch_items_batch ON mcp_batch_items(batch_id, ordinal);
 `;
+
+export const MCP_PROJECT_LIMIT = 50;
+export const MCP_BATCH_LIMIT = 20;
+export const MCP_STORED_BATCH_LIMIT = 500;
 
 function isSqliteError(error) {
   return Boolean(error && error.code === 'ERR_SQLITE_ERROR');
@@ -85,6 +129,9 @@ function openDatabase(dbPath) {
   db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA synchronous = NORMAL;');
   db.exec(SCHEMA_SQL);
+  // Reuse the shared owner-scoped template store inside this isolated database.
+  // The instance scope is an explicit constant, never a Web user id.
+  installTemplateSchema(db);
   db.prepare('INSERT OR REPLACE INTO mcp_meta (key, value) VALUES (?, ?)').run(
     'schema_version',
     String(STORE_SCHEMA_VERSION),
@@ -368,6 +415,192 @@ class Store {
 
   countRenders() {
     return Number(this.db.prepare('SELECT COUNT(*) AS total FROM renders').get().total);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Instance projects                                                 */
+  /* ---------------------------------------------------------------- */
+
+  #projectItem(row, batchCount = 0) {
+    return {
+      projectId: row.id,
+      name: row.name,
+      rules: row.rules,
+      defaults: JSON.parse(row.defaults_json || '{}'),
+      revision: Number(row.revision),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      batchCount: Number(batchCount),
+    };
+  }
+
+  createProject({ projectId, name, rules, defaults, nowMs = Date.now() }) {
+    const stamp = nowIso(nowMs);
+    withTransaction(this.db, () => {
+      const count = Number(this.db.prepare('SELECT COUNT(*) AS total FROM mcp_projects').get().total);
+      if (count >= MCP_PROJECT_LIMIT) {
+        fail('storage_limit', `项目数量达到上限（${MCP_PROJECT_LIMIT}）`, { status: 429 });
+      }
+      this.db
+        .prepare('INSERT INTO mcp_projects (id, name, rules, defaults_json, revision, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)')
+        .run(projectId, name, rules, JSON.stringify(defaults), stamp, stamp);
+    });
+    return this.getProject(projectId);
+  }
+
+  updateProject({ projectId, expectedRevision, name, rules, defaults, nowMs = Date.now() }) {
+    const stamp = nowIso(nowMs);
+    withTransaction(this.db, () => {
+      const row = this.db.prepare('SELECT revision FROM mcp_projects WHERE id = ?').get(projectId);
+      if (!row) fail('project_not_found', `项目不存在：${projectId}`, { details: { projectId }, status: 404 });
+      if (Number(row.revision) !== expectedRevision) {
+        fail('revision_conflict', `项目已被更新：期望 revision ${expectedRevision}，当前 ${Number(row.revision)}`, {
+          details: { projectId, expectedRevision, currentRevision: Number(row.revision) },
+          recovery: '调用 imstage_get_project 读取最新 revision，重新提交。',
+          status: 409,
+        });
+      }
+      this.db
+        .prepare('UPDATE mcp_projects SET name = ?, rules = ?, defaults_json = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?')
+        .run(name, rules, JSON.stringify(defaults), stamp, projectId, expectedRevision);
+    });
+    return this.getProject(projectId);
+  }
+
+  getProject(projectId) {
+    const row = this.db.prepare('SELECT * FROM mcp_projects WHERE id = ?').get(projectId);
+    if (!row) return null;
+    return this.#projectItem(row, this.db.prepare('SELECT COUNT(*) AS total FROM mcp_batches WHERE project_id = ?').get(projectId).total);
+  }
+
+  listProjects() {
+    return this.db
+      .prepare('SELECT * FROM mcp_projects ORDER BY updated_at DESC, id ASC')
+      .all()
+      .map((row) => this.#projectItem(row, this.db.prepare('SELECT COUNT(*) AS total FROM mcp_batches WHERE project_id = ?').get(row.id).total));
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Deterministic batches                                             */
+  /* ---------------------------------------------------------------- */
+
+  /** A previously stored batch for an idempotency key, or null. */
+  findBatchByClientKey(clientKey, requestHash) {
+    if (!clientKey) return null;
+    const row = this.db.prepare('SELECT id, request_hash FROM mcp_batches WHERE client_key = ?').get(clientKey);
+    if (!row) return null;
+    if (row.request_hash !== requestHash) {
+      fail('idempotency_conflict', '该 clientIdempotencyKey 已用于不同的批次内容', {
+        details: { clientIdempotencyKey: clientKey },
+        recovery: '换一个新的 clientIdempotencyKey 重试；重试同一批次时必须复用完全相同的请求体。',
+        status: 409,
+      });
+    }
+    return this.getBatch(row.id);
+  }
+
+  /**
+   * Write every produced scene, its snapshot, the batch receipt and the item
+   * references in one transaction. Any validation/capacity failure rolls the
+   * whole batch back so a retry never leaves partial scenes behind.
+   */
+  createBatch({ projectId, templateId = null, templateRevision = null, templateDefinition = null, rules = '', items, clientKey = null, requestHash, nowMs = Date.now() }) {
+    if (!Array.isArray(items) || items.length === 0) fail('invalid_request', '批次至少需要 1 个条目');
+    if (items.length > MCP_BATCH_LIMIT) fail('limit_exceeded', `每批最多 ${MCP_BATCH_LIMIT} 个条目`);
+    const batchId = `bat_${crypto.randomBytes(12).toString('hex')}`;
+    const stamp = nowIso(nowMs);
+    return withTransaction(this.db, () => {
+      if (clientKey) {
+        const existing = this.db.prepare('SELECT id, request_hash FROM mcp_batches WHERE client_key = ?').get(clientKey);
+        if (existing) {
+          if (existing.request_hash !== requestHash) {
+            fail('idempotency_conflict', '该 clientIdempotencyKey 已用于不同的批次内容', { details: { clientIdempotencyKey: clientKey }, status: 409 });
+          }
+          return { ...this.getBatch(existing.id), deduplicated: true };
+        }
+      }
+      const stored = Number(this.db.prepare('SELECT COUNT(*) AS total FROM mcp_batches').get().total);
+      if (stored >= MCP_STORED_BATCH_LIMIT) fail('storage_limit', `批次存储达到上限（${MCP_STORED_BATCH_LIMIT}）`, { status: 429 });
+      const scenes = this.db.prepare('SELECT COUNT(*) AS total FROM scenes').get().total;
+      if (Number(scenes) + items.length > 1000) fail('storage_limit', '作品存储达到容量上限；请先由所有者管理存储。', { status: 429 });
+
+      const insertScene = this.db.prepare('INSERT INTO scenes (id, revision, scene_json, created_at, updated_at) VALUES (?, 1, ?, ?, ?)');
+      const insertSnapshot = this.db.prepare('INSERT INTO scene_snapshots (scene_id, revision, scene_json, created_at) VALUES (?, 1, ?, ?)');
+      const insertItem = this.db.prepare('INSERT INTO mcp_batch_items (id, batch_id, ordinal, name, prompt, scene_id, revision, values_json) VALUES (?, ?, ?, ?, ?, ?, 1, ?)');
+      const descriptors = [];
+      items.forEach((item, index) => {
+        const sceneJson = JSON.stringify(item.scene);
+        this.#checkCapacity(item.scene, true);
+        try {
+          insertScene.run(item.scene.id, sceneJson, stamp, stamp);
+        } catch (error) {
+          if (isSqliteError(error) && /UNIQUE/i.test(String(error.message))) {
+            fail('scene_exists', `场景 id 已存在：${item.scene.id}`, { details: { sceneId: item.scene.id }, status: 409 });
+          }
+          throw error;
+        }
+        insertSnapshot.run(item.scene.id, sceneJson, stamp);
+        insertItem.run(crypto.randomUUID(), batchId, index, item.name ?? '', item.prompt ?? '', item.scene.id, JSON.stringify(item.values ?? {}));
+        descriptors.push({ ordinal: index, name: item.name ?? '', prompt: item.prompt ?? '', sceneId: item.scene.id, revision: 1, values: item.values ?? {} });
+      });
+      const receipt = {
+        batchId,
+        projectId,
+        templateId,
+        templateRevision,
+        rules,
+        createdAt: stamp,
+        items: descriptors.map(({ ordinal, name: itemName, prompt, sceneId, revision }) => ({ ordinal, name: itemName, prompt, sceneId, revision })),
+      };
+      this.db
+        .prepare('INSERT INTO mcp_batches (id, project_id, template_id, template_revision, template_json, rules, client_key, request_hash, item_count, receipt_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(batchId, projectId, templateId, templateRevision, templateDefinition ? JSON.stringify(templateDefinition) : null, rules, clientKey, requestHash, items.length, JSON.stringify(receipt), stamp);
+      return { ...this.getBatch(batchId), deduplicated: false };
+    });
+  }
+
+  getBatch(batchId) {
+    const row = this.db.prepare('SELECT * FROM mcp_batches WHERE id = ?').get(batchId);
+    if (!row) return null;
+    const items = this.db
+      .prepare('SELECT * FROM mcp_batch_items WHERE batch_id = ? ORDER BY ordinal ASC, id ASC')
+      .all(batchId)
+      .map((item) => ({
+        itemId: item.id,
+        ordinal: Number(item.ordinal),
+        name: item.name,
+        prompt: item.prompt,
+        sceneId: item.scene_id,
+        revision: Number(item.revision),
+        values: JSON.parse(item.values_json || '{}'),
+      }));
+    return {
+      batchId: row.id,
+      projectId: row.project_id,
+      templateId: row.template_id ?? null,
+      templateRevision: row.template_revision === null || row.template_revision === undefined ? null : Number(row.template_revision),
+      template: row.template_json ? JSON.parse(row.template_json) : null,
+      rules: row.rules,
+      itemCount: Number(row.item_count),
+      createdAt: row.created_at,
+      receipt: JSON.parse(row.receipt_json),
+      items,
+    };
+  }
+
+  listBatches({ projectId = null, limit = 20 } = {}) {
+    const rows = projectId
+      ? this.db.prepare('SELECT * FROM mcp_batches WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?').all(projectId, Math.min(Math.max(1, limit), 100))
+      : this.db.prepare('SELECT * FROM mcp_batches ORDER BY created_at DESC, id DESC LIMIT ?').all(Math.min(Math.max(1, limit), 100));
+    return rows.map((row) => ({
+      batchId: row.id,
+      projectId: row.project_id,
+      templateId: row.template_id ?? null,
+      templateRevision: row.template_revision === null || row.template_revision === undefined ? null : Number(row.template_revision),
+      itemCount: Number(row.item_count),
+      createdAt: row.created_at,
+      sceneIds: JSON.parse(row.receipt_json).items.map((item) => item.sceneId),
+    }));
   }
 
   close() {

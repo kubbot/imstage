@@ -26,7 +26,7 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
       const result = await api<{ user: User }>(`/auth/${mode}`, { method: 'POST', body: { email: email.trim(), password, ...(register ? { name: name.trim() } : {}) } });
       if (!active.current) { void refresh(); return; }
       accept(result.user); setPassword(''); location.hash = safeNext(next);
-    } catch (error) { if (!active.current) return; setError(register && error instanceof ApiError && error.status === 0 ? '暂未确认账号是否创建成功。请先切换到登录，使用刚才的邮箱和密码尝试。' : errorText(error)); }
+    } catch (error) { if (!active.current) return; setError(register && error instanceof ApiError && error.status === 0 ? a.registrationUncertain : errorText(error)); }
     finally { if (active.current) setBusy(false); }
   }
   return <section className="auth-layout">

@@ -117,6 +117,17 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
           'imstage_get_scene',
           'imstage_update_scene',
           'imstage_render_scene',
+          'imstage_create_project',
+          'imstage_list_projects',
+          'imstage_get_project',
+          'imstage_update_project',
+          'imstage_create_template',
+          'imstage_list_templates',
+          'imstage_get_template',
+          'imstage_update_template',
+          'imstage_create_batch',
+          'imstage_get_batch',
+          'imstage_list_batches',
         ],
       );
       const renderTool = tools.find((tool) => tool.name === 'imstage_render_scene');
@@ -560,7 +571,7 @@ test('IMStage MCP private tunnel mode allows loopback without a token but keeps 
     const client = await connectClient(handle.url, null);
     try {
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 5);
+      assert.equal(tools.length, 16);
     } finally {
       await client.close();
     }
@@ -594,7 +605,7 @@ test('stateless transport rejects hostile browser origins/hosts and safely repla
    const response=await fetch(handle.url,{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json',...extra},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});assert.equal(response.status,403);
   }
   const hostile=await new Promise((resolve,reject)=>{const req=http.request(handle.url,{method:'POST',headers:{Host:'untrusted.example',Authorization:`Bearer ${TOKEN}`}},res=>{res.resume();resolve(res.statusCode)});req.on('error',reject);req.end();});assert.equal(hostile,403);
-  const raw=await fetch(handle.url,{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});assert.equal(raw.status,200);assert.equal(raw.headers.get('mcp-session-id'),null);assert.equal((await raw.json()).result.tools.length,5);
+  const raw=await fetch(handle.url,{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});assert.equal(raw.status,200);assert.equal(raw.headers.get('mcp-session-id'),null);assert.equal((await raw.json()).result.tools.length,16);
   const made=(await client.callTool({name:'imstage_create_scene',arguments:{scene:createSceneArgument(),idempotencyKey:'noop-create'}})).structuredContent;
   const args={sceneId:made.sceneId,expectedRevision:1,patch:{set:{title:made.title}},idempotencyKey:'noop'};
   const noop=await client.callTool({name:'imstage_update_scene',arguments:args});assert.equal(noop.structuredContent.changed,false);

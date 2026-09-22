@@ -51,6 +51,7 @@ export default function ElementInspector({ scene, selected, locked, onSelect, on
     apply({ ...scene, messages });
   }
   const style = message?.appearance || (!message ? scene.appearance : undefined) || {};
+  const layout = scene.layout;
   const media = message && ['image', 'video', 'album', 'contact', 'location', 'link'].includes(message.type);
   return <div className="agent-inspector property-inspector"><fieldset disabled={locked}>
     <label className="property-element-picker">{e.pickerLabel}<select aria-label={e.pickerLabel} value={selected || '@scene'} onChange={e => onSelect(e.target.value)}><option value="@scene">{e.sceneOption}</option>{scene.participants.map(p => <option key={p.id} value={`@participant:${p.id}`}>{e.personOption(p.name)}</option>)}{scene.messages.map((m, i) => <option key={m.id} value={m.id}>{e.messageOption(i + 1, m.text.slice(0, 24) || copy.messageTypes[m.type])}</option>)}</select></label>
@@ -67,6 +68,38 @@ export default function ElementInspector({ scene, selected, locked, onSelect, on
       <Section title={e.addSection}><div className="inspector-pair"><button className="agent-button" disabled={scene.messages.length >= 200} onClick={addMessage}><IconPlus size={15}/>{e.addMessage}</button><button className="agent-button" disabled={scene.participants.length >= 20} onClick={() => { const p = { id: crypto.randomUUID(), name: e.newMember }; apply({ ...scene, participants: [...scene.participants, p] }); onSelect(`@participant:${p.id}`); }}>{e.addMember}</button></div></Section>
     </>}
     {!person && <Section title={e.appearanceSection} advanced><div className="inspector-pair"><label>{e.textColor}<input type="color" value={style.color || '#222222'} onChange={e => update({ appearance: { ...style, color: e.target.value } })}/></label><label>{e.bubbleColor}<input type="color" value={style.background || '#ffffff'} onChange={e => update({ appearance: { ...style, background: e.target.value } })}/></label></div><div className="inspector-pair"><label>{e.fontSize}<input type="number" min={10} max={40} value={style.fontSize || 15} onChange={e => update({ appearance: { ...style, fontSize: Number(e.target.value) } })}/></label><label>{e.radius}<input type="number" min={0} max={40} value={style.radius ?? 8} onChange={e => update({ appearance: { ...style, radius: Number(e.target.value) } })}/></label></div>{!message && <label>{e.spacing}<input type="number" min={0} max={48} value={style.spacing ?? 8} onChange={e => update({appearance:{...style,spacing:Number(e.target.value)}})}/></label>}{message && <div className="inspector-pair">{(['width', 'height'] as const).map(k => <label key={k}>{k === 'width' ? e.width : e.height}<input type="number" min={k === 'width' ? 40 : 24} max={k === 'width' ? 1200 : 1800} value={message[k] ?? ''} placeholder={e.auto} onChange={e => update({ [k]: e.target.value ? Number(e.target.value) : undefined })}/></label>)}</div>}<button className="property-text-button" onClick={() => update({ appearance: undefined, ...(message ? { width: undefined, height: undefined } : {}) })}>{e.restoreAppearance}</button></Section>}
+    {!person && !message && <Section title={e.layoutSection} advanced>
+      {layout?.kind === 'custom' ? <>
+        <label>{e.layoutName}<input aria-label={e.layoutName} value={layout.name} maxLength={80} onChange={ev => update({ layout: { ...layout, name: ev.target.value } })}/></label>
+        <div className="inspector-pair">
+          <label>{e.layoutAvatarShape}<select aria-label={e.layoutAvatarShape} value={layout.avatarShape ?? 'circle'} onChange={ev => update({ layout: { ...layout, avatarShape: ev.target.value as 'circle' | 'rounded' | 'square' } })}><option value="circle">{e.layoutAvatarCircle}</option><option value="rounded">{e.layoutAvatarRounded}</option><option value="square">{e.layoutAvatarSquare}</option></select></label>
+          <label>{e.layoutFont}<select aria-label={e.layoutFont} value={layout.fontFamily ?? 'sans'} onChange={ev => update({ layout: { ...layout, fontFamily: ev.target.value as 'sans' | 'serif' | 'mono' } })}><option value="sans">{e.fontSans}</option><option value="serif">{e.fontSerif}</option><option value="mono">{e.fontMono}</option></select></label>
+        </div>
+        <label className="inspector-check"><input type="checkbox" aria-label={e.layoutShowAvatars} checked={layout.showAvatars !== false} onChange={ev => update({ layout: { ...layout, showAvatars: ev.target.checked } })}/> {e.layoutShowAvatars}</label>
+        <div className="inspector-pair">
+          <label>{e.layoutHeaderBg}<input type="color" aria-label={e.layoutHeaderBg} value={layout.headerBackground ?? '#f7f7f7'} onChange={ev => update({ layout: { ...layout, headerBackground: ev.target.value } })}/></label>
+          <label>{e.layoutBackground}<input type="color" aria-label={e.layoutBackground} value={layout.background ?? '#ffffff'} onChange={ev => update({ layout: { ...layout, background: ev.target.value } })}/></label>
+        </div>
+        <div className="inspector-pair">
+          <label>{e.layoutIncomingBg}<input type="color" aria-label={e.layoutIncomingBg} value={layout.incomingBackground ?? '#f1f2f4'} onChange={ev => update({ layout: { ...layout, incomingBackground: ev.target.value } })}/></label>
+          <label>{e.layoutOutgoingBg}<input type="color" aria-label={e.layoutOutgoingBg} value={layout.outgoingBackground ?? '#d8e8ff'} onChange={ev => update({ layout: { ...layout, outgoingBackground: ev.target.value } })}/></label>
+        </div>
+        <label>{e.layoutTextColor}<input type="color" aria-label={e.layoutTextColor} value={layout.textColor ?? '#111214'} onChange={ev => update({ layout: { ...layout, textColor: ev.target.value } })}/></label>
+        <div className="inspector-pair">
+          <label>{e.layoutRadius}<input type="number" min={0} max={40} value={layout.bubbleRadius ?? 10} onChange={ev => update({ layout: { ...layout, bubbleRadius: Number(ev.target.value) } })}/></label>
+          <label>{e.layoutSpacing}<input type="number" min={0} max={48} value={layout.messageSpacing ?? 10} onChange={ev => update({ layout: { ...layout, messageSpacing: Number(ev.target.value) } })}/></label>
+        </div>
+        <div className="inspector-pair">
+          <label>{e.layoutHeaderHeight}<input type="number" min={36} max={112} value={layout.headerHeight ?? 51} onChange={ev => update({ layout: { ...layout, headerHeight: Number(ev.target.value) } })}/></label>
+          <label>{e.layoutMaxBubble}<input type="number" min={120} max={560} value={layout.maxBubbleWidth ?? 300} onChange={ev => update({ layout: { ...layout, maxBubbleWidth: Number(ev.target.value) } })}/></label>
+        </div>
+        <p className="property-help">{e.layoutNote}</p>
+        <button className="property-text-button" onClick={() => update({ layout: undefined })}>{e.layoutReset}</button>
+      </> : <>
+        <p className="property-help">{e.layoutNote}</p>
+        <button className="agent-button" onClick={() => update({ layout: { kind: 'custom', name: (scene.title || 'Custom').slice(0, 80) } })}>{e.layoutCreate}</button>
+      </>}
+    </Section>}
     {message && <Section title={e.arrangeSection}><div className="property-message-actions"><button className="agent-button" aria-label={e.moveUp} disabled={index === 0} onClick={() => move(-1)}><IconArrowUp size={15}/></button><button className="agent-button" aria-label={e.moveDown} disabled={index === scene.messages.length - 1} onClick={() => move(1)}><IconArrowDown size={15}/></button><button className="agent-button" disabled={scene.messages.length >= 200} onClick={() => { const copy = { ...message, id: crypto.randomUUID() }; const messages = [...scene.messages]; messages.splice(index + 1, 0, copy); apply({ ...scene, messages }); onSelect(copy.id); }}><IconCopy size={15}/>{e.duplicate}</button><button className="agent-button property-delete" aria-label={e.deleteMessage} onClick={() => { apply({ ...scene, messages: scene.messages.filter(m => m.id !== message.id) }); onSelect(scene.messages[index + 1]?.id || scene.messages[index - 1]?.id || '@scene'); }}><IconTrash size={15}/></button></div></Section>}
     <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { if (e.target.files?.[0]) void upload(e.target.files[0]); e.target.value = ''; }}/>
   </fieldset>{error && <p role="alert">{error}</p>}</div>;

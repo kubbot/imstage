@@ -1012,3 +1012,221 @@ test('project detach HTTP endpoint removes the association and preserves the sce
   assert.equal(repeated.res.status, 200);
   assert.equal(repeated.data.detached, false);
 });
+
+/* ------------------------------------------------------------------ */
+/* Structured variants and frozen templates                            */
+/* ------------------------------------------------------------------ */
+
+test('batch input rejects ambiguous legacy/new mixing and validates variants', () => {
+  const legacy = { prompts: ['one'] };
+  const variants = { variants: [{ name: 'A', prompt: 'one' }] };
+  assert.throws(() => projectStore.buildBatchTasks({ ...legacy, ...variants }, 'wechat'), (error) => error.code === 'ambiguous_batch_input');
+  assert.equal(projectStore.buildBatchTasks(variants, 'wechat').length, 1);
+  assert.throws(() => projectStore.buildBatchTasks({ variants: [] }, 'wechat'), (error) => error.code === 'invalid_variants');
+  assert.throws(() => projectStore.buildBatchTasks({ variants: Array.from({ length: 11 }, (_, i) => ({ name: `v${i}`, prompt: 'p' })) }, 'wechat'), (error) => error.code === 'invalid_variants');
+  assert.throws(() => projectStore.buildBatchTasks({ variants: [{ name: '', prompt: 'p' }] }, 'wechat'), (error) => error.code === 'invalid_variants');
+  assert.throws(() => projectStore.buildBatchTasks({ variants: [{ name: 'a', prompt: '' }] }, 'wechat'), (error) => error.code === 'invalid_variants');
+  assert.throws(() => projectStore.buildBatchTasks({ variants: [{ name: 'a', prompt: 'p', values: { Bad_Key: 'x' } }] }, 'wechat'), (error) => error.code === 'invalid_variant_values');
+  assert.throws(() => projectStore.buildBatchTasks({ variants: [{ name: 'a', prompt: 'p', values: { key: 5 } }] }, 'wechat'), (error) => error.code === 'invalid_variant_values');
+  const expanded = projectStore.buildBatchTasks({ variants: [{ name: 'a', prompt: 'p', values: { key: 'v' } }], platforms: ['wechat', 'slack'] }, 'wechat');
+  assert.equal(expanded.length, 2);
+  assert.deepEqual(expanded[0].values, { key: 'v' });
+  // Legacy task shape stays backward compatible.
+  const plain = projectStore.buildBatchTasks({ promptsText: 'one\ntwo' }, 'wechat');
+  assert.equal(plain[0].name, '');
+  assert.deepEqual(plain[0].values, {});
+});
+
+test('frozen variant values and template snapshot survive template deletion', async () => {
+  const provider = (() => {
+    const calls = [];
+    let index = 0;
+    return {
+      calls,
+      async complete({ messages, signal }) {
+        calls.push(JSON.parse(JSON.stringify(messages)));
+        if (signal?.aborted) { const error = new Error('aborted'); error.name = 'AbortError'; throw error; }
+        const step = index % 2 === 0
+          ? toolResponse('create_scene', { scene: { ...createScene('weekend'), title: `变体作品 ${Math.floor(index / 2) + 1}` } }, { id: `call-${index}` })
+          : finalResponse('已生成。');
+        index += 1;
+        return step;
+      },
+    };
+  })();
+  const { base } = await makeApp({ agent: { chatProvider: provider, limits: highLimits } });
+  const cookie = await register(base);
+  const project = await createProject(base, cookie, { name: '变体项目', platform: 'wechat' });
+
+  const scene = { ...createScene('weekend'), id: 'variant-template-source' };
+  const template = await jsonFetch(base, '/api/templates', {
+    method: 'POST',
+    cookie,
+    body: {
+      name: '变体模板',
+      description: '',
+      scene,
+      variables: [{ key: 'name', label: 'Person', type: 'text', target: { entity: 'participant', id: scene.participants[1].id, field: 'name' } }],
+    },
+  });
+  assert.equal(template.res.status, 200, JSON.stringify(template.data));
+
+  const enqueued = await enqueue(base, cookie, project.id, {
+    variants: [
+      { name: 'Ava', prompt: '生成 Ava 的对话', values: { name: 'Ava' } },
+      { name: 'Noah', prompt: '生成 Noah 的对话', values: { name: 'Noah' } },
+    ],
+    templateId: template.data.item.id,
+    templateRevision: template.data.item.revision,
+    clientBatchId: crypto.randomUUID(),
+  });
+  assert.equal(enqueued.res.status, 200, JSON.stringify(enqueued.data));
+  assert.equal(enqueued.data.item.total, 2);
+  assert.equal(enqueued.data.item.templateId, template.data.item.id);
+  assert.equal(enqueued.data.item.templateRevision, 1);
+  assert.equal(enqueued.data.item.tasks[0].name, 'Ava');
+  assert.deepEqual(enqueued.data.item.tasks[0].values, { name: 'Ava' });
+
+  // Deleting the template after enqueue must not change the queued work.
+  assert.equal((await jsonFetch(base, `/api/templates/${template.data.item.id}`, { method: 'DELETE', cookie, body: { revision: 1 } })).res.status, 200);
+
+  const done = await waitForJobStatus(base, cookie, project.id, enqueued.data.item.id, ['done', 'partial', 'failed']);
+  assert.equal(done.status, 'done', JSON.stringify(done));
+  assert.equal(done.tasks.filter((task) => task.sceneId).length, 2);
+  assert.notEqual(done.tasks[0].sceneId, done.tasks[1].sceneId);
+  const context = JSON.stringify(provider.calls);
+  assert.ok(context.includes('Ava'), 'frozen template values reach the agent context');
+  assert.ok(context.includes('Noah'), 'each independent item uses its own values');
+});
+
+test('batch rejects values without a template, a stale template revision and ambiguous input', async () => {
+  const { base } = await makeApp({ agent: { chatProvider: generatedProvider(), limits: highLimits } });
+  const cookie = await register(base);
+  const project = await createProject(base, cookie);
+  const scene = { ...createScene('weekend'), id: 'revision-template-source' };
+  const template = await jsonFetch(base, '/api/templates', {
+    method: 'POST', cookie,
+    body: { name: '修订模板', description: '', scene, variables: [{ key: 'name', label: 'Person', type: 'text', target: { entity: 'participant', id: scene.participants[1].id, field: 'name' } }] },
+  });
+  assert.equal(template.res.status, 200);
+
+  const ambiguous = await enqueue(base, cookie, project.id, { prompts: ['p'], variants: [{ name: 'a', prompt: 'p' }] });
+  assert.equal(ambiguous.res.status, 400);
+  assert.equal(ambiguous.data.error.code, 'ambiguous_batch_input');
+
+  const orphanValues = await enqueue(base, cookie, project.id, { variants: [{ name: 'a', prompt: 'p', values: { name: 'x' } }] });
+  assert.equal(orphanValues.res.status, 400);
+  assert.equal(orphanValues.data.error.code, 'invalid_variants');
+
+  const stale = await enqueue(base, cookie, project.id, { variants: [{ name: 'a', prompt: 'p' }], templateId: template.data.item.id, templateRevision: 99 });
+  assert.equal(stale.res.status, 409);
+  assert.equal(stale.data.error.code, 'revision_conflict');
+
+  const badValues = await enqueue(base, cookie, project.id, { variants: [{ name: 'a', prompt: 'p', values: { unlisted: 'x' } }], templateId: template.data.item.id, templateRevision: 1 });
+  assert.equal(badValues.res.status, 400);
+  assert.equal(badValues.data.error.code, 'invalid_values');
+});
+
+/* ------------------------------------------------------------------ */
+/* Frozen-job retries and reference-template platforms                 */
+/* ------------------------------------------------------------------ */
+
+function countingProvider() {
+  const calls = [];
+  let index = 0;
+  return {
+    calls,
+    get callCount() { return calls.length; },
+    async complete({ messages, signal }) {
+      calls.push(JSON.parse(JSON.stringify(messages)));
+      if (signal?.aborted) { const error = new Error('aborted'); error.name = 'AbortError'; throw error; }
+      const step = index % 2 === 0
+        ? toolResponse('create_scene', { scene: { ...createScene('weekend'), title: `作品 ${Math.floor(index / 2) + 1}` } }, { id: `call-${index}` })
+        : finalResponse('已生成。');
+      index += 1;
+      return step;
+    },
+  };
+}
+
+test('same-key retry recovers the frozen job after the template is updated and deleted', async () => {
+  const provider = countingProvider();
+  const { base } = await makeApp({ agent: { chatProvider: provider, limits: highLimits } });
+  const cookie = await register(base);
+  const project = await createProject(base, cookie);
+  const scene = { ...createScene('weekend'), id: 'frozen-retry-source' };
+  const template = await jsonFetch(base, '/api/templates', {
+    method: 'POST', cookie,
+    body: { name: '冻结模板', description: '', scene, variables: [] },
+  });
+  assert.equal(template.res.status, 200);
+  const templateId = template.data.item.id;
+  const body = { prompts: ['生成一段对话'], templateId, templateRevision: 1, clientBatchId: 'frozen-retry-key' };
+
+  const enqueued = await enqueue(base, cookie, project.id, body);
+  assert.equal(enqueued.res.status, 200, JSON.stringify(enqueued.data));
+  const jobId = enqueued.data.item.id;
+  await waitForJobStatus(base, cookie, project.id, jobId, ['done', 'partial', 'failed']);
+  const callsAfterFirst = provider.callCount;
+  assert.ok(callsAfterFirst > 0);
+
+  const updated = await jsonFetch(base, `/api/templates/${templateId}`, {
+    method: 'PUT', cookie, body: { revision: 1, ...template.data.item.definition, name: '改名后的模板' },
+  });
+  assert.equal(updated.res.status, 200);
+  assert.equal((await jsonFetch(base, `/api/templates/${templateId}`, { method: 'DELETE', cookie, body: { revision: 2 } })).res.status, 200);
+
+  // The retry must recover the original frozen job, not re-validate the now
+  // missing/updated template and not start another provider run.
+  const replay = await enqueue(base, cookie, project.id, body);
+  assert.equal(replay.res.status, 200, JSON.stringify(replay.data));
+  assert.equal(replay.data.deduplicated, true);
+  assert.equal(replay.data.item.id, jobId);
+  assert.equal(provider.callCount, callsAfterFirst, 'no new provider run for an idempotent retry');
+
+  // A genuinely new key still validates the current template and fails 404.
+  const fresh = await enqueue(base, cookie, project.id, { ...body, clientBatchId: 'frozen-retry-new-key' });
+  assert.equal(fresh.res.status, 404);
+});
+
+test('screenshot-reference templates reject other platforms before enqueue', async () => {
+  const provider = countingProvider();
+  const { base } = await makeApp({ agent: { chatProvider: provider, limits: highLimits } });
+  const cookie = await register(base);
+  const project = await createProject(base, cookie);
+  const { default: sharp } = await import('sharp');
+  const sourcePng = await sharp({ create: { width: 600, height: 900, channels: 3, background: '#ededed' } }).png().toBuffer();
+  const image = `data:image/png;base64,${sourcePng.toString('base64')}`;
+  const scene = {
+    ...createScene('weekend'),
+    id: 'reference-platform-source',
+    platform: 'wechat',
+    reference: {
+      source: image,
+      assets: [],
+      plan: {
+        schemaVersion: 1, im: 'wechat', surface: 'ios', width: 600, height: 900, warnings: [],
+        edits: [{ id: 'words', kind: 'text', text: '原图文字', box: [100, 400, 600, 100], fontSize: 16, background: '#ffffff', color: '#000000' }],
+      },
+    },
+  };
+  const template = await jsonFetch(base, '/api/templates', {
+    method: 'POST', cookie,
+    body: { name: '截图模板', description: '', scene, variables: [] },
+  });
+  assert.equal(template.res.status, 200, JSON.stringify(template.data));
+  assert.equal(template.data.item.mode, 'reference');
+
+  const rejected = await enqueue(base, cookie, project.id, {
+    prompts: ['生成'], platforms: ['slack'], templateId: template.data.item.id, templateRevision: 1, clientBatchId: crypto.randomUUID(),
+  });
+  assert.equal(rejected.res.status, 400);
+  assert.equal(rejected.data.error.code, 'reference_platform_mismatch');
+
+  const accepted = await enqueue(base, cookie, project.id, {
+    prompts: ['生成'], platforms: ['wechat'], templateId: template.data.item.id, templateRevision: 1, clientBatchId: crypto.randomUUID(),
+  });
+  assert.equal(accepted.res.status, 200, JSON.stringify(accepted.data));
+  assert.equal(accepted.data.item.templateId, template.data.item.id);
+  assert.equal(accepted.data.item.tasks[0].platform, 'wechat');
+});

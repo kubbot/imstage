@@ -345,6 +345,7 @@ export interface AccountCopy {
   navWorks: string;
   navProjects: string;
   navInspiration: string;
+  navTemplates: string;
   navLocalDraft: string;
   navAccount: string;
   sidebarNote: string;
@@ -370,6 +371,7 @@ export interface AccountCopy {
   cannotLogin: string;
   tryEditor: string;
   loginHelp: string;
+  registrationUncertain: string;
   instanceNote: string;
   showPassword: string;
   hidePassword: string;
@@ -511,6 +513,24 @@ export interface ProjectsCopy {
   batchNote: string;
   batchNote2: string;
   manageAll: string;
+  modePrompts: string;
+  modeVariants: string;
+  variantsLegend: string;
+  variantName: string;
+  variantPrompt: string;
+  variantValues: string;
+  addVariant: string;
+  removeVariant: string;
+  needVariantName: string;
+  needVariantPrompt: string;
+  maxVariants: (count: number) => string;
+  templateLabel: string;
+  templateNone: string;
+  templateHint: string;
+  templateSummary: (name: string, revision: number) => string;
+  variantValuesHint: string;
+  referencePlatformNote: (platform: string) => string;
+  platformMismatch: (platform: string) => string;
 }
 
 export interface ElementCopy {
@@ -574,6 +594,29 @@ export interface ElementCopy {
   fontSize: string;
   radius: string;
   spacing: string;
+  layoutSection: string;
+  layoutCreate: string;
+  layoutReset: string;
+  layoutName: string;
+  layoutAvatarShape: string;
+  layoutAvatarCircle: string;
+  layoutAvatarRounded: string;
+  layoutAvatarSquare: string;
+  layoutShowAvatars: string;
+  layoutFont: string;
+  fontSans: string;
+  fontSerif: string;
+  fontMono: string;
+  layoutHeaderBg: string;
+  layoutIncomingBg: string;
+  layoutOutgoingBg: string;
+  layoutBackground: string;
+  layoutTextColor: string;
+  layoutRadius: string;
+  layoutSpacing: string;
+  layoutHeaderHeight: string;
+  layoutMaxBubble: string;
+  layoutNote: string;
   width: string;
   height: string;
   auto: string;
@@ -599,6 +642,95 @@ export interface ElementCopy {
   navReferenceEmpty: string;
 }
 
+export interface TemplatesCopy {
+  kicker: string;
+  title: string;
+  lede: string;
+  nav: string;
+  loading: string;
+  reload: string;
+  emptyTitle: string;
+  emptyBody: string;
+  emptyErrorTitle: string;
+  emptyErrorBody: string;
+  mode: Readonly<Record<string, string>>;
+  variableCount: (count: number) => string;
+  revision: (revision: number) => string;
+  open: (name: string) => string;
+  use: string;
+  using: string;
+  rename: string;
+  renameTitle: string;
+  saveName: string;
+  delete: string;
+  deleteTitle: string;
+  deleteBody: (name: string) => string;
+  keep: string;
+  confirmDelete: string;
+  deleting: string;
+  create: string;
+  createTitle: string;
+  createBody: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  descriptionLabel: string;
+  descriptionPlaceholder: string;
+  sceneLabel: string;
+  chooseScene: string;
+  variablesTitle: string;
+  variablesHint: string;
+  selectAll: string;
+  clearAll: string;
+  variableKey: string;
+  variableLabel: string;
+  variableTarget: (entity: string, field: string) => string;
+  noVariables: string;
+  creating: string;
+  created: string;
+  needName: string;
+  needScene: string;
+  useHint: string;
+  useFailed: string;
+  screenshotTitle: string;
+  screenshotBody: string;
+  screenshotUpload: string;
+  screenshotChange: string;
+  reconstruct: string;
+  reconstructHint: string;
+  preserve: string;
+  preserveHint: string;
+  openCreator: string;
+  screenshotReadFailed: string;
+  screenshotDecodeFailed: string;
+  flowReconstructPrompt: string;
+  flowPreservePrompt: string;
+  examplesTitle: string;
+  examplesHint: string;
+  exampleSupport: string;
+  exampleSupportPrompt: string;
+  exampleEvent: string;
+  exampleEventPrompt: string;
+  exampleOnboarding: string;
+  exampleOnboardingPrompt: string;
+  exampleNarrative: string;
+  exampleNarrativePrompt: string;
+  exampleEval: string;
+  exampleEvalPrompt: string;
+  referenceNote: string;
+  fromScene: string;
+  back: string;
+  savedNotice: string;
+  saveCurrent: string;
+  saveTitle: string;
+  saveBody: string;
+  saveAction: string;
+  saving: string;
+  savedOk: string;
+  saveFailed: string;
+  close: string;
+  variablesSelected: (selected: number, total: number) => string;
+}
+
 export interface AppCopy {
   messageTypes: Record<MessageType, string>;
   platforms: Record<Platform, string>;
@@ -610,6 +742,7 @@ export interface AppCopy {
   people: PeopleCopy;
   account: AccountCopy;
   projects: ProjectsCopy;
+  templates: TemplatesCopy;
   elements: ElementCopy;
 }
 
@@ -759,7 +892,7 @@ const zh: AppCopy = {
     cardMessages: (count) => `${count} 条消息`, cardSaved: '保存', cardEdit: (title) => `编辑 ${title}`, cardDelete: (title) => `删除 ${title}`,
     deleteTitle: '删除这份作品？', deleteBody: (title) => `“${title}”将从账号中永久删除。已导出的文件不受影响。`,
     keepWork: '保留作品', confirmDelete: '确认删除', deleting: '正在删除…',
-    navWorks: '我的作品', navProjects: '项目与批量生成', navInspiration: '场景灵感', navLocalDraft: '本机草稿', navAccount: '账号设置',
+    navWorks: '我的作品', navProjects: '项目与批量生成', navInspiration: '场景灵感', navTemplates: '模板库', navLocalDraft: '本机草稿', navAccount: '账号设置',
     sidebarNote: '每一次保存，都让灵感有迹可循。',
     loginKicker: 'WELCOME BACK', registerKicker: 'CREATE YOUR ACCOUNT', loginTitle: '欢迎回来', registerTitle: '开始你的创作空间',
     loginLede: '登录 IMStage，继续上一次的灵感。', registerLede: '创建账号，保存和管理你的对话作品。',
@@ -767,6 +900,7 @@ const zh: AppCopy = {
     passwordHint: '至少 12 个字符，可以使用便于记忆的长密码。', loginBusy: '正在登录…', registerBusy: '正在创建账号…',
     createAccount: '创建账号', login: '登录', haveAccount: '已经有账号？', firstTime: '第一次来？', goLogin: '去登录', goRegister: '创建账号',
     cannotLogin: '无法登录？', tryEditor: '先试用编辑器',
+    registrationUncertain: '暂未确认账号是否创建成功。请先切换到登录，使用刚才的邮箱和密码尝试。',
     loginHelp: '确认正在访问创建账号时的同一个 IMStage 实例。当前版本尚未配置邮件找回；忘记密码请联系实例管理员。已有作品不会因为登录失败而删除。',
     instanceNote: '账号和作品保存在当前 IMStage 实例', showPassword: '显示密码', hidePassword: '隐藏密码',
     gateTitle: '登录后打开你的创作空间', gateUnavailable: '账号服务暂时不可用', gateBody: '正在为你打开登录页面…',
@@ -813,7 +947,50 @@ const zh: AppCopy = {
     success: '成功', failed: '失败', total: (count) => `共 ${count}`, retryFailed: '重试失败项', view: '查看',
     aboutBatch: '关于批量生成', batchNote: '只有模型完整生成并通过校验的作品才会作为新作品保存；失败、取消或服务重启中断的任务会如实记录，不会伪装成成功。',
     batchNote2: '项目删除只解除关联，不会删除作品。', manageAll: '在我的作品中管理全部作品',
+    modePrompts: '提示词列表', modeVariants: '结构化变体', variantsLegend: '每个变体一行',
+    variantName: '变体名称', variantPrompt: '这次要生成什么', variantValues: '变量值',
+    addVariant: '添加变体', removeVariant: '删除变体', needVariantName: '每个变体都需要名称。', needVariantPrompt: '每个变体都需要一条提示词。',
+    maxVariants: (count) => `最多 ${count} 个变体（变体 × 平台不超过 20）。`,
+    templateLabel: '复用模板', templateNone: '不使用模板', templateHint: '模板与每个变体的变量值会在提交时冻结，之后修改或删除模板都不会影响已排队的任务。',
+    templateSummary: (name, revision) => `${name} · 版本 ${revision}`, variantValuesHint: '只显示所选模板声明的变量；图片变量请粘贴数据 URL 或选择文件。',
+    referencePlatformNote: (platform) => `这是保留原截图的模板，只能使用源平台「${platform}」生成；不会把截图转换成其他平台。`,
+    platformMismatch: (platform) => `保留原截图的模板只能用源平台「${platform}」生成；请切换平台或改用结构化模板。`,
 
+  },
+  templates: {
+    kicker: 'TEMPLATES', title: '可复用模板', lede: '把一个可编辑画面冻结成模板，再用命名变量生成互相独立的创作会话。',
+    nav: '模板库', loading: '正在读取模板…', reload: '重新加载',
+    emptyTitle: '还没有模板', emptyBody: '从我的作品中选一个画面，写成模板即可重复使用。',
+    emptyErrorTitle: '模板暂时无法读取', emptyErrorBody: '连接恢复后重试；已保存的模板不会丢失。',
+    mode: { structured: '结构化场景', custom: '自定义布局', reference: '保留原截图' },
+    variableCount: (count) => `${count} 个变量`, revision: (revision) => `版本 ${revision}`,
+    open: (name) => `打开模板：${name}`, use: '使用模板', using: '正在创建会话…',
+    rename: '重命名', renameTitle: '重命名模板', saveName: '保存名称',
+    delete: '删除模板', deleteTitle: '删除这个模板？', deleteBody: (name) => `“${name}”将从账号中永久删除；用它创建过的作品不会被删除。`,
+    keep: '保留模板', confirmDelete: '删除', deleting: '正在删除…',
+    create: '从画面创建模板', createTitle: '创建模板', createBody: '选择一个属于你的画面，命名并勾选需要替换的变量。',
+    nameLabel: '模板名称', namePlaceholder: '例如：客服支持对话', descriptionLabel: '说明（可选）', descriptionPlaceholder: '这个模板适合什么场景',
+    sceneLabel: '来源画面', chooseScene: '选择一个画面…',
+    variablesTitle: '可替换变量', variablesHint: '勾选后，使用模板时可以填入新的姓名、头像、文字或图片。', selectAll: '全选', clearAll: '全部取消',
+    variableKey: '变量名', variableLabel: '显示名称', variableTarget: (entity, field) => `${entity} · ${field}`,
+    noVariables: '这个画面没有可发现的变量；模板仍可整体复用。', creating: '正在创建…', created: '模板已创建。',
+    needName: '请填写模板名称。', needScene: '请选择一个来源画面。',
+    useHint: '使用模板会打开一个全新的创作会话，不会调用模型，也不会修改原模板。', useFailed: '无法打开新会话，请重试或先下载画面 JSON。',
+    screenshotTitle: '截图 → 模板', screenshotBody: '上传一张截图，选择重建可编辑布局或保留原截图并添加可编辑区域，交给现有 Agent 流程处理，再把结果画面保存成模板。',
+    screenshotUpload: '上传截图', screenshotChange: '更换截图', reconstruct: '重建可编辑布局', reconstructHint: '识别平台、人物与消息，生成结构化场景；非六种平台皮肤时使用中性自定义布局近似版式。',
+    preserve: '保留原截图', preserveHint: '保留截图画面，只添加可编辑的文字/图片区域；不会声称还原全部像素。', openCreator: '在创作中打开', screenshotReadFailed: '图片读取失败，请重新选择。',
+    screenshotDecodeFailed: '截图无法解码，已保留上传内容；请重新上传或选择重建布局。',
+    flowReconstructPrompt: '根据我上传的这张截图重建可编辑的结构化聊天场景：识别平台外观、人物、每条消息、发送方与时间；保留原有的风景、插画或人物，不要改成人像。如果截图不属于六种平台皮肤，请用 layout.kind=custom 的中性布局近似页头、气泡与输入栏，并说明这是近似而非像素级还原。先不要自动生成图片，缺少的头像或配图请先用 extract_image 从截图裁取原图。',
+    flowPreservePrompt: '保留这张原截图的画面，不要重建成结构化场景。只在需要修改的位置添加可编辑的文字或图片区域，并说明保留模式只替换这些显式区域，不还原整张截图的所有像素。',
+    examplesTitle: '创作示例', examplesHint: '点击示例会打开一个新的创作会话并带入示例意图；模板需要由你的真实画面生成。',
+    exampleSupport: '客服支持对话', exampleSupportPrompt: '写一段客服支持对话：用户报告登录失败，客服逐步排查并给出解决方案，语气专业友好。',
+    exampleEvent: '活动协调', exampleEventPrompt: '写一段活动协调群聊：确认场地、时间、物料与分工，最后给出明确结论。',
+    exampleOnboarding: '本地化引导', exampleOnboardingPrompt: '写一段英文产品新手引导对话，步骤清晰，并在结尾用一个定位消息指向帮助中心。',
+    exampleNarrative: '叙事/配图变体', exampleNarrativePrompt: '写一段叙事化聊天，包含一张风景照片消息和一句留白式结尾。',
+    exampleEval: '评测数据集', exampleEvalPrompt: '生成一段结构固定的合成对话，用于模型评测：两名参与者，消息类型和条数可预期，内容中性无隐私。',
+    referenceNote: '保留原截图的模板只替换显式编辑区域，不会重建整张截图的全部像素。',
+    fromScene: '用这个画面创建模板', back: '← 我的作品', savedNotice: '模板已保存。',
+    saveCurrent: '存为模板', saveTitle: '把当前画面存为模板', saveBody: '冻结当前可编辑画面，并选择之后可以替换的变量。', saveAction: '保存模板', saving: '正在保存…', savedOk: '模板已保存，可在模板库中重复使用。', saveFailed: '模板保存失败。', close: '关闭', variablesSelected: (selected, total) => `已选 ${selected} / ${total}`,
   },
   elements: {
     pickerLabel: '选中元素', sceneOption: '背景、标题与界面', personOption: (name) => `人物 · ${name}`,
@@ -830,6 +1007,12 @@ const zh: AppCopy = {
     deviceSection: '设备与尺寸', device: '截图设备', genericDevice: '通用尺寸（当前系统）',
     addSection: '添加元素', addMessage: '添加消息', addMember: '添加成员', newMember: '新成员', newMessage: '新消息', newPhoto: '新照片',
     appearanceSection: '外观与排版', textColor: '文字颜色', bubbleColor: '气泡颜色', fontSize: '字号', radius: '圆角', spacing: '消息间距',
+    layoutSection: '自定义布局', layoutCreate: '创建中性自定义布局', layoutReset: '恢复平台皮肤',
+    layoutName: '布局名称', layoutAvatarShape: '头像形状', layoutAvatarCircle: '圆形', layoutAvatarRounded: '圆角', layoutAvatarSquare: '方形',
+    layoutShowAvatars: '显示头像', layoutFont: '字体', fontSans: '无衬线', fontSerif: '衬线', fontMono: '等宽',
+    layoutHeaderBg: '页头背景', layoutIncomingBg: '对方气泡', layoutOutgoingBg: '我的气泡', layoutBackground: '页面背景', layoutTextColor: '文字颜色',
+    layoutRadius: '气泡圆角', layoutSpacing: '消息间距', layoutHeaderHeight: '页头高度', layoutMaxBubble: '气泡最大宽度',
+    layoutNote: '自定义布局用有界字段渲染中性页头与输入栏，不写入任意 HTML/CSS；普通编辑与导出使用同一渲染器。',
     width: '宽度', height: '高度', auto: '自动', restoreAppearance: '恢复默认外观',
     arrangeSection: '排列与操作', moveUp: '上移消息', moveDown: '下移消息', duplicate: '复制', deleteMessage: '删除消息',
     readFailed: '图片读取失败，请重新选择。',
@@ -986,7 +1169,7 @@ const en: AppCopy = {
     cardMessages: (count) => `${count} messages`, cardSaved: 'Saved', cardEdit: (title) => `Edit ${title}`, cardDelete: (title) => `Delete ${title}`,
     deleteTitle: 'Delete this scene?', deleteBody: (title) => `“${title}” will be permanently removed from the account. Exported files are unaffected.`,
     keepWork: 'Keep scene', confirmDelete: 'Delete', deleting: 'Deleting…',
-    navWorks: 'My scenes', navProjects: 'Projects & batch', navInspiration: 'Scenes', navLocalDraft: 'Local draft', navAccount: 'Account settings',
+    navWorks: 'My scenes', navProjects: 'Projects & batch', navInspiration: 'Scenes', navTemplates: 'Template library', navLocalDraft: 'Local draft', navAccount: 'Account settings',
     sidebarNote: 'Every save leaves a trail back to the idea.',
     loginKicker: 'WELCOME BACK', registerKicker: 'CREATE YOUR ACCOUNT', loginTitle: 'Welcome back', registerTitle: 'Create your workspace',
     loginLede: 'Sign in to IMStage and continue where you left off.', registerLede: 'Create an account to save and manage your conversation scenes.',
@@ -994,6 +1177,7 @@ const en: AppCopy = {
     passwordHint: 'At least 12 characters. A long passphrase is fine.', loginBusy: 'Signing in…', registerBusy: 'Creating account…',
     createAccount: 'Create account', login: 'Sign in', haveAccount: 'Already have an account?', firstTime: 'First time here?', goLogin: 'Sign in', goRegister: 'Create account',
     cannotLogin: 'Cannot sign in?', tryEditor: 'Try the editor first',
+    registrationUncertain: 'We could not confirm whether the account was created. Switch to sign-in and try the email and password you just used.',
     loginHelp: 'Make sure you are on the same IMStage instance where you registered. Email recovery is not configured yet; ask the instance admin to reset a password. Existing scenes are never deleted by a failed sign-in.',
     instanceNote: 'Your account and scenes live on this IMStage instance', showPassword: 'Show password', hidePassword: 'Hide password',
     gateTitle: 'Sign in to open your workspace', gateUnavailable: 'Account service is unavailable', gateBody: 'Opening the sign-in page…',
@@ -1040,7 +1224,50 @@ const en: AppCopy = {
     success: 'Succeeded', failed: 'Failed', total: (count) => `${count} total`, retryFailed: 'Retry failed', view: 'View',
     aboutBatch: 'About batch generation', batchNote: 'Only scenes a model fully generated and that passed validation are saved as new work; failed, cancelled or interrupted tasks are recorded honestly and never shown as success.',
     batchNote2: 'Deleting a project only detaches scenes; it never deletes them.', manageAll: 'Manage all scenes in My scenes',
+    modePrompts: 'Prompt list', modeVariants: 'Structured variants', variantsLegend: 'One row per variant',
+    variantName: 'Variant name', variantPrompt: 'What to generate this time', variantValues: 'Variable values',
+    addVariant: 'Add variant', removeVariant: 'Remove variant', needVariantName: 'Every variant needs a name.', needVariantPrompt: 'Every variant needs a prompt.',
+    maxVariants: (count) => `Up to ${count} variants (variants × platforms may not exceed 20).`,
+    templateLabel: 'Reusable template', templateNone: 'No template', templateHint: 'The template and per-variant values are frozen on submit; later template edits or deletion cannot change queued tasks.',
+    templateSummary: (name, revision) => `${name} · revision ${revision}`, variantValuesHint: 'Only variables declared by the selected template are shown; paste a data URL or choose a file for image variables.',
+    referencePlatformNote: (platform) => `This template keeps its source screenshot and can only be generated on the source platform “${platform}”; it does not convert the screenshot to another platform.`,
+    platformMismatch: (platform) => `A screenshot template can only be generated on its source platform “${platform}”. Switch platform or use a structured template.`,
 
+  },
+  templates: {
+    kicker: 'TEMPLATES', title: 'Reusable templates', lede: 'Freeze an editable frame into a template, then generate independent creator sessions from named variables.',
+    nav: 'Template library', loading: 'Loading templates…', reload: 'Reload',
+    emptyTitle: 'No templates yet', emptyBody: 'Pick one of your scenes and save it as a template to reuse it.',
+    emptyErrorTitle: 'Templates cannot load right now', emptyErrorBody: 'Retry when the connection is back; saved templates are kept.',
+    mode: { structured: 'Structured scene', custom: 'Custom layout', reference: 'Keeps the screenshot' },
+    variableCount: (count) => `${count} variables`, revision: (revision) => `revision ${revision}`,
+    open: (name) => `Open template: ${name}`, use: 'Use template', using: 'Opening a session…',
+    rename: 'Rename', renameTitle: 'Rename template', saveName: 'Save name',
+    delete: 'Delete template', deleteTitle: 'Delete this template?', deleteBody: (name) => `“${name}” will be permanently removed from the account. Scenes created from it are kept.`,
+    keep: 'Keep template', confirmDelete: 'Delete', deleting: 'Deleting…',
+    create: 'Create from a scene', createTitle: 'Create a template', createBody: 'Choose one of your scenes, name it and tick the variables that should change.',
+    nameLabel: 'Template name', namePlaceholder: 'For example: support conversation', descriptionLabel: 'Description (optional)', descriptionPlaceholder: 'What this template is for',
+    sceneLabel: 'Source scene', chooseScene: 'Choose a scene…',
+    variablesTitle: 'Replaceable variables', variablesHint: 'Selected variables can be filled with new names, avatars, text or photos when the template is used.', selectAll: 'Select all', clearAll: 'Clear all',
+    variableKey: 'Key', variableLabel: 'Label', variableTarget: (entity, field) => `${entity} · ${field}`,
+    noVariables: 'No discoverable variables in this scene; the template can still be reused as-is.', creating: 'Creating…', created: 'Template created.',
+    needName: 'Enter a template name.', needScene: 'Choose a source scene.',
+    useHint: 'Using a template opens a brand new creator session; it never calls the model and never changes the template.', useFailed: 'The new session could not be opened. Retry or download the scene JSON first.',
+    screenshotTitle: 'Screenshot → template', screenshotBody: 'Upload a screenshot, choose to reconstruct an editable layout or keep the source with editable regions, run it through the existing Agent flow, then save the produced scene as a template.',
+    screenshotUpload: 'Upload screenshot', screenshotChange: 'Replace screenshot', reconstruct: 'Reconstruct editable layout', reconstructHint: 'Read the platform, people and messages into a structured scene; when the source is not one of the six skins, a neutral custom layout approximates it.',
+    preserve: 'Keep the screenshot', preserveHint: 'Keep the source image and add explicit editable text/image regions only; this never claims to rebuild every pixel.', openCreator: 'Open in creator', screenshotReadFailed: 'The image could not be read. Choose another file.',
+    screenshotDecodeFailed: 'The screenshot could not be decoded. Your upload is kept; replace it or switch to reconstruct mode.',
+    flowReconstructPrompt: 'Rebuild this uploaded screenshot as an editable structured chat scene: identify the platform look, people, every message, sender and time; keep the original landscapes, illustrations or people instead of turning them into portraits. If the source is not one of the six skins, approximate the header, bubbles and composer with a neutral layout.kind=custom and say it is an approximation, not a pixel-perfect restoration. Do not generate images yet; reuse missing avatars or photos from the screenshot with extract_image first.',
+    flowPreservePrompt: 'Keep this source screenshot as the frame; do not rebuild it into a structured scene. Add editable text or image regions only where a change is needed, and state that preserve mode replaces only those explicit regions rather than rebuilding every pixel.',
+    examplesTitle: 'Creation examples', examplesHint: 'An example opens a new creator session with a real intent; templates themselves come from your own frames.',
+    exampleSupport: 'Support conversation', exampleSupportPrompt: 'Write a customer support conversation: the user reports a failed sign-in, support diagnoses it step by step and gives a fix in a professional, friendly tone.',
+    exampleEvent: 'Event coordination', exampleEventPrompt: 'Write an event coordination group chat: confirm venue, time, materials and owners, and end with a clear decision.',
+    exampleOnboarding: 'Localised onboarding', exampleOnboardingPrompt: 'Write an English product onboarding chat with clear steps and a closing location message pointing to the help centre.',
+    exampleNarrative: 'Narrative / photo variant', exampleNarrativePrompt: 'Write a narrative chat that includes one landscape photo message and a restrained closing line.',
+    exampleEval: 'Evaluation dataset', exampleEvalPrompt: 'Generate a structurally fixed synthetic conversation for model evaluation: two participants, predictable message types and counts, neutral content with no private data.',
+    referenceNote: 'A screenshot template replaces only explicit edit regions; it does not reconstruct every pixel of the source image.',
+    fromScene: 'Create a template from this scene', back: '← My scenes', savedNotice: 'Template saved.',
+    saveCurrent: 'Save as template', saveTitle: 'Save the current frame as a template', saveBody: 'Freeze the current editable frame and choose the variables that may change later.', saveAction: 'Save template', saving: 'Saving…', savedOk: 'Template saved. Reuse it from the template library.', saveFailed: 'The template could not be saved.', close: 'Close', variablesSelected: (selected, total) => `${selected} of ${total} selected`,
   },
   elements: {
     pickerLabel: 'Selected element', sceneOption: 'Background, title & interface', personOption: (name) => `Person · ${name}`,
@@ -1057,6 +1284,12 @@ const en: AppCopy = {
     deviceSection: 'Device & size', device: 'Screenshot device', genericDevice: 'Generic size (current system)',
     addSection: 'Add element', addMessage: 'Add message', addMember: 'Add member', newMember: 'New member', newMessage: 'New message', newPhoto: 'New photo',
     appearanceSection: 'Appearance & layout', textColor: 'Text colour', bubbleColor: 'Bubble colour', fontSize: 'Font size', radius: 'Radius', spacing: 'Message spacing',
+    layoutSection: 'Custom layout', layoutCreate: 'Create neutral custom layout', layoutReset: 'Restore platform skin',
+    layoutName: 'Layout name', layoutAvatarShape: 'Avatar shape', layoutAvatarCircle: 'Circle', layoutAvatarRounded: 'Rounded', layoutAvatarSquare: 'Square',
+    layoutShowAvatars: 'Show avatars', layoutFont: 'Font', fontSans: 'Sans', fontSerif: 'Serif', fontMono: 'Mono',
+    layoutHeaderBg: 'Header background', layoutIncomingBg: 'Incoming bubble', layoutOutgoingBg: 'Outgoing bubble', layoutBackground: 'Page background', layoutTextColor: 'Text colour',
+    layoutRadius: 'Bubble radius', layoutSpacing: 'Message spacing', layoutHeaderHeight: 'Header height', layoutMaxBubble: 'Max bubble width',
+    layoutNote: 'A custom layout renders a neutral header and composer from bounded fields only, never arbitrary HTML/CSS. Editing and export keep the same renderer.',
     width: 'Width', height: 'Height', auto: 'Auto', restoreAppearance: 'Restore default appearance',
     arrangeSection: 'Arrange & actions', moveUp: 'Move message up', moveDown: 'Move message down', duplicate: 'Duplicate', deleteMessage: 'Delete message',
     readFailed: 'The image could not be read. Choose another file.',

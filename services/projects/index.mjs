@@ -13,8 +13,11 @@ export {
   MAX_PROJECTS_PER_USER,
   DEFAULT_PROJECT_PLATFORM,
   MAX_BATCH_PROMPTS,
+  MAX_BATCH_VARIANTS,
   MAX_BATCH_ITEMS,
   MAX_BATCH_PROMPT_CHARS,
+  MAX_VARIANT_NAME_CHARS,
+  MAX_VARIANT_KEYS,
   MAX_CLIENT_BATCH_ID_CHARS,
   MAX_ACTIVE_BATCH_JOBS,
   MAX_SCENES_PER_USER,
@@ -34,6 +37,7 @@ export {
 } from './model.mjs';
 export {
   PROJECT_SCHEMA_SQL,
+  installProjectSchema,
   nowIso,
   listProjects,
   getProjectRow,

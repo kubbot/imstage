@@ -1,5 +1,6 @@
 import { isCalendarDate } from '../../../../packages/schema/timeline.mjs';
 import { validateReference, type ReferenceDocument } from '../../../../packages/schema/reference.ts';
+import { validateCustomLayout, type CustomLayout } from '../../../../packages/schema/layout.ts';
 import { deviceProfileError } from './device-profiles.ts';
 /**
  * IMStage studio scene model.
@@ -68,6 +69,8 @@ export interface Scene {
   composerText?: string;
   headerText?: string;
   battery?: number;
+  /** Optional declarative neutral layout; absent keeps the platform skin. */
+  layout?: CustomLayout;
 }
 
 export const PLATFORMS: readonly Platform[] = [
@@ -481,6 +484,10 @@ export function validateScene(value: unknown): ValidationResult {
   if (value.backgroundImage !== undefined && value.backgroundImage !== '') {
     if (!isLocalImage(value.backgroundImage)) errors.push('背景必须是本地图片');
     else extras.backgroundImage = value.backgroundImage;
+  }
+  if (value.layout !== undefined) {
+    try { extras.layout = validateCustomLayout(value.layout); }
+    catch (error) { errors.push(error instanceof Error ? error.message : '自定义布局无效'); }
   }
   if (errors.length > 0 || !id || !platform) {
     return { ok: false, errors };

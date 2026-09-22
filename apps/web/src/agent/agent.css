@@ -190,3 +190,7 @@ body:has(.agent-workspace) .nav-wrap{width:100%}
 .contact-panel label{display:grid;gap:6px;font-size:12px;color:var(--muted)}
 .contact-panel select,.contact-panel textarea{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;padding:8px}
 @media(max-width:660px){.agent-heading-compact{padding:6px 10px;min-height:52px}.agent-scene-title{max-width:22ch}.agent-heading-title>svg{display:none}}
+
+/* Shared small spinner for template dialogs rendered inside the creator. */
+@keyframes projects-spin { to { transform: rotate(360deg); } }
+.projects-spin { animation: projects-spin 1s linear infinite; }

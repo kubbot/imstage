@@ -24,6 +24,7 @@ export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } 
     '- extract_image(targetId, kind, attachmentIndex, box, itemId?)：从上传截图裁切并复用原头像/配图，box=[x,y,width,height]归一化到0..1000；附件从0编号。头像边界会按原图像素校准，若工具返回候选区域，直接使用相应候选 box，不自行换算。返回原图裁切预览，确认人物与边界正确即可完成，不要反复裁切已正确的原图。',
     '- generate_image(targetId, kind, prompt, edit?, itemId?)：为 message/avatar/background 生成图片；已有图片的局部调整必须 edit=true，将原图发送图片编辑 API。album 指定 itemId。',
     '- Scene 可选 surface(ios/android/desktop), background(#RRGGBB), appearance{fontSize,color,background,radius,spacing}, headerText,composerText,battery；Message 可选subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。',
+    '- layout 可选自定义中性布局：{kind:"custom",name,avatarShape:circle|rounded|square,showAvatars:boolean,headerBackground,incomingBackground,outgoingBackground,background,textColor(均为#RRGGBB),bubbleRadius:0-40,messageSpacing:0-48,headerHeight:36-112,maxBubbleWidth:120-560,fontFamily:sans|serif|mono}。当截图或需求不是六种平台皮肤之一时（例如自建界面或中性排版），先建立结构化消息，再用 layout.kind=custom 近似版式；自定义布局不重建原图像素，不得宣称完全还原。',
     '',
     'Scene 契约：',
     '- 字段：id, title, platform, deviceTime, date, selfId, participants[], messages[], watermark。',

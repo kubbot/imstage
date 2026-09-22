@@ -149,10 +149,30 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   const template = platformTemplate(scene.platform);
   const profile = deviceProfile(scene);
   const other = scene.participants.find(p => p.id !== scene.selfId);
-  const showAvatar = (self:boolean) => template.messageAvatars === 'all' || (template.messageAvatars === 'incoming' && !self) || (template.messageAvatars === 'group' && group && !self);
+  const custom = scene.layout?.kind === 'custom' ? scene.layout : null;
+  // Bounded declarative tokens only. No CSS text, no arbitrary style keys.
+  const customVars = custom ? {
+    '--scene-custom-bg': custom.background,
+    '--scene-custom-header': custom.headerBackground,
+    '--scene-custom-incoming': custom.incomingBackground,
+    '--scene-custom-outgoing': custom.outgoingBackground,
+    '--scene-custom-text': custom.textColor,
+    '--scene-custom-radius': custom.bubbleRadius !== undefined ? `${custom.bubbleRadius}px` : undefined,
+    '--scene-custom-header-height': custom.headerHeight !== undefined ? `${custom.headerHeight}px` : undefined,
+    '--scene-custom-max-bubble': custom.maxBubbleWidth !== undefined ? `${custom.maxBubbleWidth}px` : undefined,
+    '--scene-custom-avatar-shape': custom.avatarShape === 'square' ? '4px' : custom.avatarShape === 'rounded' ? '12px' : custom.avatarShape === 'circle' ? '50%' : undefined,
+    '--scene-custom-font': custom.fontFamily === 'serif' ? 'Georgia, "Songti SC", serif' : custom.fontFamily === 'mono' ? '"IBM Plex Mono", ui-monospace, monospace' : custom.fontFamily === 'sans' ? 'system-ui, -apple-system, "PingFang SC", sans-serif' : undefined,
+  } as CSSProperties : {};
+  const showAvatar = (self:boolean) => {
+    if (custom) {
+      if (custom.showAvatars === false) return false;
+      return !self || template.messageAvatars === 'all';
+    }
+    return template.messageAvatars === 'all' || (template.messageAvatars === 'incoming' && !self) || (template.messageAvatars === 'group' && group && !self);
+  };
 
   return (
-    <div className="scene-view" data-platform={scene.platform} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
+    <div className="scene-view" data-platform={scene.platform} data-layout={custom ? 'custom' : undefined} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{...customVars,'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : custom?.bubbleRadius !== undefined ? `${custom.bubbleRadius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : custom?.messageSpacing !== undefined ? `${custom.messageSpacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={Boolean(scene.watermark)} data-export={exportMode ? 'true' : undefined}>
       <div className="scene-status" data-element="@scene" {...elementProps(locale === 'en' ? 'Edit device status' : '编辑设备状态')}>
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
@@ -163,6 +183,15 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         </span>
       </div>
 
+      {custom ? (
+        <div className="scene-header scene-header-custom">
+          <IconChevronLeft size={22} stroke={2} aria-hidden="true" className="scene-header-back" />
+          <div className="scene-header-title" {...elementProps(locale === 'en' ? 'Edit chat title' : '编辑会话标题')}>
+            <span className="scene-header-name">{title}</span>
+            {group ? <span className="scene-header-sub">{locale === 'en' ? `${scene.participants.length} members` : `${scene.participants.length} 人`}</span> : null}
+          </div>
+        </div>
+      ) : (
       <div className="scene-header">
         <IconChevronLeft size={22} stroke={2} aria-hidden="true" className="scene-header-back" />
         {template.headerAvatar && (onSelectElement && !exportMode ? <button type="button" className="scene-profile-select" aria-label={locale === 'en' ? `Edit ${other?.name || 'Contact'}'s avatar` : `编辑 ${other?.name || "联系人"} 的头像`} onClick={event=>{event.stopPropagation();if(other)onSelectElement(`@participant:${other.id}`);}}><Avatar participant={other} locale={locale}/></button> : <Avatar participant={other} locale={locale}/>)}
@@ -172,8 +201,9 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         </div>
         {template.headerAvatar ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
       </div>
+      )}
 
-      <div className="scene-messages" {...viewportDrag} data-scrollable={interactiveViewport || undefined} tabIndex={interactiveViewport ? 0 : undefined} role={interactiveViewport ? 'region' : undefined} aria-label={interactiveViewport ? (locale === 'en' ? 'Chat content, scroll to set the capture range' : '聊天内容，可滚动调整截取范围') : undefined} onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
+      <div className="scene-messages" {...viewportDrag} data-scrollable={interactiveViewport || undefined} tabIndex={interactiveViewport ? 0 : undefined} role={interactiveViewport ? 'region' : undefined} aria-label={interactiveViewport ? (locale === 'en' ? 'Chat content, scroll to set the capture range' : '聊天内容，可滚动调整截取范围') : undefined} onClick={event => { if (event.target === event.currentTarget && !exportMode) onSelectElement?.("@scene"); }} style={{backgroundColor:scene.background || custom?.background || template.background,backgroundImage:scene.backgroundImage ? `url("${scene.backgroundImage}")` : undefined,backgroundSize:scene.backgroundImage ? "cover" : undefined,backgroundPosition:"center"}}>
         {timeline.header && <div className="scene-date" {...elementProps(locale === 'en' ? 'Edit date text' : '编辑日期文字')}>{timeline.header}</div>}
         {scene.messages.length === 0 ? <div className="scene-empty">{locale === 'en' ? 'No messages yet' : '还没有消息'}</div> : null}
         {scene.messages.map((message, index) => {
@@ -212,7 +242,12 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         })}
       </div>
 
-      {profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send" aria-hidden="true">{locale === 'en' ? 'Send' : '发送'}</span></div> : <div className="scene-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}>
+      {custom ? <div className="scene-composer scene-composer-custom" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}>
+        <span className="scene-composer-icon" aria-hidden="true"><IconMoodSmile size={25} stroke={1.6}/></span>
+        <span className="scene-composer-field">{scene.composerText ?? (locale === 'en' ? 'Message…' : '')}</span>
+        <span className="scene-composer-icon" aria-hidden="true"><IconPhoto size={24} stroke={1.6}/></span>
+        <span className="scene-composer-icon" aria-hidden="true"><IconPlus size={25} stroke={1.6}/></span>
+      </div> : profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send" aria-hidden="true">{locale === 'en' ? 'Send' : '发送'}</span></div> : <div className="scene-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M11 9q4 4 0 8M14 7q6 6 0 12M8 11q2 2 0 4"/></svg> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-field">{scene.composerText ?? (template.composer === 'instagram' ? 'Message…' : '')}</span>
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
