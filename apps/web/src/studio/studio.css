@@ -338,115 +338,115 @@
 
 /* Platform variants ------------------------------------------------- */
 
-.scene-view[data-platform='xiaohongshu'] {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) {
   background: #ffffff;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-header {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-header {
   border-bottom: 1px solid #f0f0f2;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-bubble {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-bubble {
   border-radius: 14px;
   background: #f4f4f6;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-row.is-self .scene-bubble {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-row.is-self .scene-bubble {
   background: #c71f3a;
   color: #ffffff;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-avatar {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-avatar {
   border-radius: 50%;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-system {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-system {
   background: #f4f4f6;
   color: #8a8f96;
 }
 
-.scene-view[data-platform='xiaohongshu'] .scene-composer {
+.scene-view[data-platform='xiaohongshu']:where(:not([data-layout='custom'])) .scene-composer {
   border-top-color: #f0f0f2;
   background: #ffffff;
 }
 
-.scene-view[data-platform='imessage'] {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) {
   background: #ffffff;
 }
 
-.scene-view[data-platform='imessage'] .scene-header {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) .scene-header {
   border-bottom: 1px solid #ececef;
   background: #f8f8fa;
 }
 
-.scene-view[data-platform='imessage'] .scene-bubble {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) .scene-bubble {
   border-radius: 18px;
   background: #e9e9eb;
   padding: 8px 13px;
 }
 
-.scene-view[data-platform='imessage'] .scene-row.is-self .scene-bubble {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) .scene-row.is-self .scene-bubble {
   background: #0b84ff;
   color: #ffffff;
 }
 
-.scene-view[data-platform='imessage'] .scene-avatar {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) .scene-avatar {
   border-radius: 50%;
 }
 
-.scene-view[data-platform='imessage'] .scene-composer {
+.scene-view[data-platform='imessage']:where(:not([data-layout='custom'])) .scene-composer {
   background: #f8f8fa;
 }
 
-.scene-view[data-platform='whatsapp'] {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) {
   background: #efeae2;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-header {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-header {
   background: #075e54;
   color: #ffffff;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-bubble {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-bubble {
   border-radius: 8px;
   background: #ffffff;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-row.is-self .scene-bubble {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-row.is-self .scene-bubble {
   background: #d9fdd3;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-avatar {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-avatar {
   border-radius: 50%;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-composer {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-composer {
   background: #f0f2f5;
 }
 
-.scene-view[data-platform='whatsapp'] .scene-time {
+.scene-view[data-platform='whatsapp']:where(:not([data-layout='custom'])) .scene-time {
   color: #6b7b78;
 }
 
-.scene-view[data-platform='slack'] {
+.scene-view[data-platform='slack']:where(:not([data-layout='custom'])) {
   background: #ffffff;
 }
 
-.scene-view[data-platform='slack'] .scene-header {
+.scene-view[data-platform='slack']:where(:not([data-layout='custom'])) .scene-header {
   background: #4a154b;
   color: #ffffff;
 }
 
-.scene-view[data-platform='slack'] .scene-bubble {
+.scene-view[data-platform='slack']:where(:not([data-layout='custom'])) .scene-bubble {
   border-radius: 8px;
   background: #f4f4f6;
 }
 
-.scene-view[data-platform='slack'] .scene-row.is-self .scene-bubble {
+.scene-view[data-platform='slack']:where(:not([data-layout='custom'])) .scene-row.is-self .scene-bubble {
   background: #e8e3f0;
 }
 
-.scene-view[data-platform='slack'] .scene-avatar {
+.scene-view[data-platform='slack']:where(:not([data-layout='custom'])) .scene-avatar {
   border-radius: 4px;
 }
 
@@ -1022,7 +1022,7 @@
 .scene-sender,.scene-system,.scene-location-sub,.scene-composer-field{color:#626870}
 
 .scene-view .scene-system { color:#535961; }
-.scene-view[data-platform="xiaohongshu"] .scene-system{color:#626870}
+.scene-view[data-platform="xiaohongshu"]:where(:not([data-layout='custom'])) .scene-system{color:#626870}
 
 .scene-view[data-watermark='true'] .scene-messages { padding-bottom:32px; }
 
@@ -1048,8 +1048,8 @@
 .scene-media-empty { display:grid; place-items:center; min-height:140px; color:#777; }
 .scene-location-map { position:relative; overflow:hidden; }
 .scene-location-map img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.scene-view[data-platform=instagram] .is-self .scene-bubble { background:var(--scene-bubble,#6750f5); color:var(--scene-text,#fff); border-radius:20px; }
-.scene-view[data-platform=instagram] { background:white; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .is-self .scene-bubble { background:var(--scene-bubble,#6750f5); color:var(--scene-text,#fff); border-radius:20px; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) { background:white; }
 .scene-view[data-surface=desktop] .scene-status { display:none; }
 .scene-view[data-surface=desktop] .scene-header { justify-content:flex-start; height:58px; }
 .scene-view[data-surface=desktop] .scene-composer { min-height:120px; align-items:flex-end; }
@@ -1061,35 +1061,35 @@
 .scene-view[data-surface=ios] .scene-status { min-height:46px; padding:14px 25px 5px; font-size:16px; }
 .scene-view[data-surface=ios] .scene-header { min-height:51px; padding:8px 12px 12px; }
 .scene-header-actions { display:flex; align-items:center; gap:17px; }
-.scene-view[data-platform=whatsapp][data-surface=ios] .scene-header,
-.scene-view[data-platform=instagram][data-surface=ios] .scene-header { grid-template-columns:25px 35px minmax(0,1fr) 65px; gap:8px; background:inherit; color:#111; }
-.scene-view[data-platform=whatsapp] .scene-header-title,
-.scene-view[data-platform=instagram] .scene-header-title { align-items:flex-start; }
-.scene-view[data-platform=whatsapp] .scene-header-sub,
-.scene-view[data-platform=instagram] .scene-header-sub { font-size:11px; line-height:1.2; }
-.scene-view[data-platform=whatsapp] .scene-bubble-wrap { max-width:85%; background:#fff; border-radius:13px; overflow:hidden; }
-.scene-view[data-platform=whatsapp] .is-self .scene-bubble-wrap { background:#d9fdd3; }
-.scene-view[data-platform=whatsapp] .scene-bubble { background:transparent; padding:8px 11px 1px; }
-.scene-view[data-platform=whatsapp] .scene-message-meta { align-self:flex-end; display:flex; align-items:center; gap:3px; padding:0 8px 4px 16px; font-size:10px; color:#64776b; }
-.scene-view[data-platform=whatsapp] .scene-message-meta svg { color:#219bfa; }
-.scene-view[data-platform=whatsapp] .scene-date { align-self:center; padding:3px 10px; border-radius:8px; background:#fffffff0; color:#111; font-weight:600; margin:6px 0 12px; }
-.scene-view[data-platform=whatsapp] .scene-composer { background:#f4f0e7; }
-.scene-view[data-platform=whatsapp] .scene-composer-icon:last-child { border-radius:50%; background:#13bd69; color:white; padding:6px; }
-.scene-view[data-platform=instagram] .scene-avatar { border-radius:50%; width:28px; height:28px; }
-.scene-view[data-platform=instagram] .scene-header .scene-avatar { width:35px; height:35px; }
-.scene-view[data-platform=instagram] .scene-line { align-items:flex-end; }
-.scene-view[data-platform=instagram] .scene-bubble { border-radius:20px; background:#f1f1f4; }
-.scene-view[data-platform=instagram] .scene-composer { border-radius:28px; margin:6px; background:#f5f5f5; border:0; }
-.scene-view[data-platform=instagram] .scene-composer-field { background:transparent; }
-.scene-view[data-platform=wechat] .scene-system { background:transparent; color:#626870; font-size:12px; }
-.scene-view[data-platform=wechat] .scene-bubble::before { content:''; position:absolute; left:-4px; top:14px; width:8px; height:8px; transform:rotate(45deg); background:inherit; }
-.scene-view[data-platform=wechat] .is-self .scene-bubble::before { left:auto; right:-4px; }
-.scene-view[data-platform=wechat] .scene-location { display:flex; flex-direction:column; }
-.scene-view[data-platform=wechat] .scene-location-info { order:-1; }
-.scene-view[data-platform=wechat] .scene-location-map { color:#09bd67; }
-.scene-view[data-platform=wechat] .scene-composer { background:#f7f7f7; min-height:66px; padding:8px 10px 18px; gap:8px; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom']))[data-surface=ios] .scene-header,
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom']))[data-surface=ios] .scene-header { grid-template-columns:25px 35px minmax(0,1fr) 65px; gap:8px; background:inherit; color:#111; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-header-title,
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-header-title { align-items:flex-start; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-header-sub,
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-header-sub { font-size:11px; line-height:1.2; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-bubble-wrap { max-width:85%; background:#fff; border-radius:13px; overflow:hidden; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .is-self .scene-bubble-wrap { background:#d9fdd3; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-bubble { background:transparent; padding:8px 11px 1px; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-message-meta { align-self:flex-end; display:flex; align-items:center; gap:3px; padding:0 8px 4px 16px; font-size:10px; color:#64776b; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-message-meta svg { color:#219bfa; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-date { align-self:center; padding:3px 10px; border-radius:8px; background:#fffffff0; color:#111; font-weight:600; margin:6px 0 12px; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-composer { background:#f4f0e7; }
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-composer-icon:last-child { border-radius:50%; background:#13bd69; color:white; padding:6px; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-avatar { border-radius:50%; width:28px; height:28px; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-header .scene-avatar { width:35px; height:35px; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-line { align-items:flex-end; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-bubble { border-radius:20px; background:#f1f1f4; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-composer { border-radius:28px; margin:6px; background:#f5f5f5; border:0; }
+.scene-view[data-platform=instagram]:where(:not([data-layout='custom'])) .scene-composer-field { background:transparent; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-system { background:transparent; color:#626870; font-size:12px; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-bubble::before { content:''; position:absolute; left:-4px; top:14px; width:8px; height:8px; transform:rotate(45deg); background:inherit; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .is-self .scene-bubble::before { left:auto; right:-4px; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-location { display:flex; flex-direction:column; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-location-info { order:-1; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-location-map { color:#09bd67; }
+.scene-view[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-composer { background:#f7f7f7; min-height:66px; padding:8px 10px 18px; gap:8px; }
 .scene-composer-field { min-width:0; }
-.scene-view[data-platform=whatsapp] .scene-messages {
+.scene-view[data-platform=whatsapp]:where(:not([data-layout='custom'])) .scene-messages {
   background-size:180px 180px;
   background-repeat:repeat;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cg fill='none' stroke='%23988f7d' stroke-width='1.1' opacity='.14'%3E%3Cpath d='M15 22q12-16 24 0q-1 10-12 19Q15 31 15 22zM87 16h33v24H99l-8 6v-6h-4zM137 85h23v18h-23zM143 85l3-5h8l3 5M19 116q8-14 15 0t15 0M65 72l8-7 13 16-7 7zM74 81q8 17 20 17M113 142l8-13 8 13 14 2-10 10 3 14-15-7-13 7 3-14-10-10zM42 152a10 10 0 1 0 0 1M157 22l6 5-5 6-6-5z'/%3E%3Ccircle cx='149' cy='94' r='5'/%3E%3Cpath d='M62 28l5 2m-4 0 2-5M102 106l5 2m-4 0 2-5M164 146l5 2m-4 0 2-5'/%3E%3C/g%3E%3C/svg%3E");
@@ -1154,19 +1154,19 @@
   transform: translateX(-50%);
 }
 
-.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-avatar {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat']:where(:not([data-layout='custom'])) .scene-avatar {
   width: 40px;
   height: 40px;
   border-radius: 7px;
 }
 
-.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-bubble {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat']:where(:not([data-layout='custom'])) .scene-bubble {
   padding: 10px 13px;
   border-radius: var(--scene-radius);
   line-height: 1.42;
 }
 
-.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat'] .scene-line {
+.scene-view:is([data-device='iphone-15-pro'],[data-device='iphone-17-pro'])[data-platform='wechat']:where(:not([data-layout='custom'])) .scene-line {
   gap: 10px;
   margin: 3px 0;
 }
@@ -1206,19 +1206,19 @@
   transform: translateX(-50%);
 }
 
-.scene-view[data-device='pixel-8'][data-platform='wechat'] .scene-avatar {
+.scene-view[data-device='pixel-8'][data-platform='wechat']:where(:not([data-layout='custom'])) .scene-avatar {
   width: 40px;
   height: 40px;
   border-radius: 7px;
 }
 
-.scene-view[data-device='pixel-8'][data-platform='wechat'] .scene-bubble {
+.scene-view[data-device='pixel-8'][data-platform='wechat']:where(:not([data-layout='custom'])) .scene-bubble {
   padding: 10px 13px;
   border-radius: var(--scene-radius);
   line-height: 1.42;
 }
 
-.scene-view[data-device='pixel-8'][data-platform='wechat'] .scene-line {
+.scene-view[data-device='pixel-8'][data-platform='wechat']:where(:not([data-layout='custom'])) .scene-line {
   gap: 10px;
   margin: 3px 0;
 }
@@ -1270,8 +1270,8 @@
 .scene-status,.scene-header{flex-shrink:0}
 .scene-signal{display:inline-flex;align-items:flex-end;gap:2px;height:12px;width:17px}.scene-signal i{width:3px;border-radius:1px;background:currentColor;height:4px}.scene-signal i:nth-child(2){height:7px}.scene-signal i:nth-child(3){height:10px}.scene-signal i:nth-child(4){height:13px}
 .scene-battery{position:relative;display:inline-flex;border:1px solid #777;border-radius:3px;width:23px;height:12px;padding:1px;margin-left:1px}.scene-battery::after{content:'';position:absolute;right:-3px;top:3px;width:2px;height:4px;background:#777;border-radius:0 1px 1px 0}.scene-battery i{background:currentColor;border-radius:1px;height:100%}
-.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat] .scene-composer{min-height:84px;padding:9px 11px 32px}
-.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat] .scene-composer-field{border-radius:5px;min-height:38px}
+.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-composer{min-height:84px;padding:9px 11px 32px}
+.scene-view:is([data-device=iphone-15-pro],[data-device=iphone-17-pro])[data-platform=wechat]:where(:not([data-layout='custom'])) .scene-composer-field{border-radius:5px;min-height:38px}
 .scene-view[data-device=macos-window] .scene-header-back{display:none}.scene-view[data-device=macos-window] .scene-header{grid-template-columns:minmax(0,1fr) auto}
 .scene-view[data-device=macos-window] .scene-desktop-composer{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:12px;height:150px;padding:14px 20px;background:#fafafa}
 .scene-desktop-tools{display:flex;gap:18px;color:#626262}.scene-desktop-input{flex:1;white-space:pre-wrap}.scene-desktop-send{position:absolute;right:20px;bottom:14px;padding:5px 22px;border-radius:4px;background:#efefef;color:#686868;font-size:13px}
@@ -1279,7 +1279,7 @@
 .scene-row-host.scene-selectable{padding:0;border-radius:0}
 
 /* User reference screenshots keep the bottom gesture area empty at rest. */
-.scene-view[data-device=iphone-17-pro][data-platform=wechat] .scene-composer::after{display:none}
+.scene-view[data-device=iphone-17-pro][data-platform=wechat]:where(:not([data-layout='custom'])) .scene-composer::after{display:none}
 .scene-battery-number{position:absolute;inset:0;text-align:center;font-size:9px;line-height:10px;color:#fff;font-weight:700;letter-spacing:-.3px}
 
 /* Selection controls exist only in the interactive renderer, never in PNGs. */
@@ -1337,3 +1337,14 @@
 .scene-view[data-layout='custom'] .scene-composer { background: var(--scene-custom-header, #f7f7f7); color: var(--scene-custom-text, #111214); }
 .scene-view[data-layout='custom'] .scene-composer-field { background: var(--scene-custom-incoming, #ffffff); color: var(--scene-custom-text, #6b7280); }
 .scene-view[data-layout='custom'] .scene-composer-icon { color: var(--scene-custom-text, #4a4f57); opacity: 0.75; }
+.scene-view[data-layout='custom'] .scene-message-meta {
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 3px;
+  padding: 3px 4px 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--scene-custom-text, #6b7280);
+  opacity: 0.65;
+}

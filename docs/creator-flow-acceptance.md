@@ -55,3 +55,13 @@ Empty/whitespace overrides now fall back to the contact or group title in both
 platform and custom layouts. The affected editor/project/journey subset passed
 16 browser tests after this fix; all 49 MCP tests passed and its renderer cache
 version was advanced so old cached PNGs cannot hide the correction.
+
+The final visual polish removes the Agent's forced Chinese completion language:
+completion prose now follows the current request, independently of scene text.
+Custom layouts are excluded from platform-specific CSS using a zero-specificity
+`:where` condition, while device geometry remains shared. A real six-platform UI
+switch checks header/bubble colors and neutral timestamp styling. The affected
+20 browser scenarios passed; the final timestamp assertion passed separately.
+All 134 Agent/MCP tests passed. No no-op, provider-failure or fidelity gate was
+relaxed: the initial live instruction to keep a template unchanged was rejected
+with `no_mutation`, and the subsequent explicit dialogue variations both saved.
