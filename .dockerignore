@@ -1,0 +1,14 @@
+.git
+.local
+.vercel
+node_modules
+**/node_modules
+dist
+.env*
+**/.env*
+*.log
+design/evidence
+docs/evidence
+eval/datasets/*.imb
+test-results
+playwright-report
