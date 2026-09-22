@@ -1,41 +1,58 @@
 /**
- * Production landing page — the Conversation Stage.
+ * Production landing page — the AI story stage.
  *
- * Journey: read a two-line promise, rewrite the highlighted line, watch the
- * real shared SceneView answer, then export the actual PNG. Everything below
- * the fold stays short: a capability strip, real scenario previews, one
- * edit→export section, honest self-host/MCP notes, native FAQ and a single
- * final call to action.
+ * Journey: one instruction becomes believable dialogue, a pause, a photo and a
+ * reply, replayed by a bounded state machine; then the same editable scene goes
+ * to the real Agent. The replay is explicitly an authored AI-made example and
+ * never claims a paid model is running. Below the fold stay the capability
+ * strip, real scenario previews, one edit→export section, honest self-host/MCP
+ * notes, native FAQ and a single final call to action.
  *
- * The page is usable without an account: all editing is local, the only
- * network reads are the two bounded same-origin avatar files, and creation
- * links hand off to the real Agent workspace through an explicit query param.
+ * The page is usable without an account: all editing is local, the only network
+ * reads are bounded same-origin assets (two portraits and one story photo), and
+ * creation links hand off to the Agent through an explicit query token.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { IconAlertTriangle, IconArrowUpRight, IconBrandGithub, IconCheck, IconDownload, IconPencil, IconRefresh } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconArrowUpRight,
+  IconBrandGithub,
+  IconCheck,
+  IconDownload,
+  IconMaximize,
+  IconPhoto,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconRefresh,
+  IconSparkles,
+  IconX,
+} from '@tabler/icons-react';
 import { SceneView } from '../studio/SceneView';
 import type { Scene } from '../studio/model';
 import { useLocale } from './LocaleContext';
 import { LANDING_COPY } from './copy';
 import { createHandoffHref, type Locale } from './locale';
-import { useDemoAvatars } from './avatars';
-import { injectAvatars, portableScene, type DemoAvatars } from './portable';
-import { writeHandoffScene } from './handoff';
+import { useDemoAvatars, useStoryPhoto } from './avatars';
+import { injectAvatars, injectStoryPhoto, portableScene, type DemoAvatars, type DemoStories } from './portable';
+import { MAX_HANDOFF_PROMPT, writeHandoffScene } from './handoff';
 import { createRevisionQueue, type RevisionQueue } from './renderQueue';
 import { deviceProfile } from '../studio/device-profiles';
 import {
   COMMENTARY_LINE_ID,
   createScenario,
-  EDITABLE_REPLY_ID,
-  isTextMessage,
   messageText,
   otherParticipantId,
   participantName,
+  readScenarioParam,
   SCENARIOS,
   setMessageText,
   setParticipantName,
+  WUKANG_PHOTO_ID,
+  WUKANG_PROMPT,
   type SceneKind,
 } from './scenes';
+import { BEATS, PROCESS_STEPS, STORY_STEP_COUNT, framePhotoPending, sceneForFrame } from './story';
+import { useStoryPlayback } from './useStoryPlayback';
 import { ExportStage, ScaledSceneFrame, DEMO_DEVICE } from './DeviceFrame';
 import { downloadDataUrl, renderScenePng, sceneFileName } from './png';
 import { useReveal } from './reveal';
@@ -47,6 +64,30 @@ type PreviewState =
   | { status: 'ready'; src: string; width: number; height: number }
   | { status: 'error' };
 
+/** Build a scenario's complete scene, with whatever assets are already local. */
+function buildScene(kind: SceneKind, locale: Locale, avatars: DemoAvatars | null, photo: string | undefined): Scene {
+  let scene = createScenario(kind, locale);
+  if (avatars) scene = injectAvatars(scene, avatars, locale);
+  if (kind === 'wukang' && photo) scene = injectStoryPhoto(scene, photo, WUKANG_PHOTO_ID);
+  return scene;
+}
+
+/** Read the OS motion preference once, then follow changes. */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(query.matches);
+    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
 function Reveal({ id, className, children }: { id?: string; className?: string; children: ReactNode }) {
   const { ref, state } = useReveal<HTMLElement>(true);
   return (
@@ -56,12 +97,9 @@ function Reveal({ id, className, children }: { id?: string; className?: string; 
   );
 }
 
-/** Scenario thumbnails use the real renderer and the same loaded avatars. */
-function ScenarioPreview({ kind, locale, avatars }: { kind: SceneKind; locale: Locale; avatars: DemoAvatars | null }) {
-  const scene = useMemo(() => {
-    const base = createScenario(kind, locale);
-    return avatars ? injectAvatars(base, avatars, locale) : base;
-  }, [kind, locale, avatars]);
+/** Scenario thumbnails use the real renderer and the same loaded assets. */
+function ScenarioPreview({ kind, locale, avatars, photo }: { kind: SceneKind; locale: Locale; avatars: DemoAvatars | null; photo: string | undefined }) {
+  const scene = useMemo(() => buildScene(kind, locale, avatars, photo), [kind, locale, avatars, photo]);
   return (
     <div className="mark-crop" aria-hidden="true">
       <ScaledSceneFrame size={DEMO_DEVICE}>
@@ -77,28 +115,51 @@ export default function MarketingSite() {
   const { state: avatarState, retry: retryAvatars } = useDemoAvatars();
   const avatars = avatarState.status === 'ready' ? avatarState.avatars : null;
   const assetsReady = Boolean(avatars);
+  const { state: photoState, retry: retryPhoto } = useStoryPhoto();
+  const storyPhoto = photoState.status === 'ready' ? photoState.photo : undefined;
+  const photoReady = photoState.status === 'ready';
+  const stories = useMemo<DemoStories>(() => (storyPhoto ? { wukang: storyPhoto } : {}), [storyPhoto]);
 
-  const [kind, setKind] = useState<SceneKind>('coffee');
-  const [scene, setScene] = useState<Scene>(() => createScenario('coffee', locale));
-  const [editableId, setEditableId] = useState(EDITABLE_REPLY_ID);
+  const [kind, setKind] = useState<SceneKind>(() => readScenarioParam(window.location.search, window.location.hash) ?? 'wukang');
+  const [prompt, setPrompt] = useState(() => WUKANG_PROMPT[locale]);
+  const [promptEdited, setPromptEdited] = useState(false);
+  const [scene, setScene] = useState<Scene>(() => buildScene(kind, locale, null, undefined));
+  const [storyScene, setStoryScene] = useState<Scene>(() => buildScene('wukang', locale, null, undefined));
   const [heroStatus, setHeroStatus] = useState('');
   const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' });
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const latestScene = useRef(scene);
   latestScene.current = scene;
   const exportRef = useRef<HTMLDivElement>(null);
+  const storyExportRef = useRef<HTMLDivElement>(null);
   const contrastRef = useRef<HTMLElement>(null);
+  const lightboxRef = useRef<HTMLDialogElement>(null);
+  const storyHostRef = useRef<HTMLDivElement>(null);
   const previewStarted = useRef(false);
   const exportingRef = useRef(false);
   const avatarsRef = useRef<DemoAvatars | null>(null);
   avatarsRef.current = avatars;
+  const photoRef = useRef<string | undefined>(undefined);
+  photoRef.current = storyPhoto;
+
+  const reducedMotion = usePrefersReducedMotion();
+  const playback = useStoryPlayback({ storyKey: `wukang:${locale}`, reducedMotion, hostRef: storyHostRef });
+  const frame = playback.frame;
+  const photoPending = framePhotoPending(frame, photoReady);
+  // The shared renderer never sees an image message without its asset.
+  const visibleStory = useMemo(() => sceneForFrame(storyScene, frame, photoReady), [storyScene, frame, photoReady]);
 
   // Export and save read the validated, data-URI scene; the visible preview can
-  // render slightly earlier while the two bounded avatar files are loading.
-  const portable = useMemo(() => (avatars ? portableScene(scene, avatars) : null), [scene, avatars]);
-  const exportScene = portable?.scene ?? scene;
-  const exportReady = Boolean(portable?.ok);
+  // render slightly earlier while the bounded assets are loading.
+  const portable = useMemo(() => portableScene(scene, avatars, stories), [scene, avatars, stories]);
+  const exportScene = portable.scene ?? scene;
+  const storyPortable = useMemo(() => portableScene(storyScene, avatars, stories), [storyScene, avatars, stories]);
+  const storyExportScene = storyPortable.scene ?? storyScene;
+  const sceneNeedsPhoto = kind === 'wukang';
+  const exportReady = portable.ok && assetsReady && (!sceneNeedsPhoto || photoReady);
+  const storyExportReady = storyPortable.ok && assetsReady && photoReady;
 
   // Single-flight preview queue: only the newest revision may publish.
   const queueRef = useRef<RevisionQueue<PreviewState> | null>(null);
@@ -117,36 +178,53 @@ export default function MarketingSite() {
 
   const requestPreview = useCallback(() => {
     if (exportingRef.current || !avatarsRef.current) return;
+    // Never render the Wukang preview before its photo is local, so the shared
+    // renderer cannot publish an "image not set" frame.
+    if (sceneNeedsPhoto && !photoReady) return;
     // Keep the current image visible while regenerating to avoid flicker.
     setPreview((current) => (current.status === 'ready' ? current : { status: 'loading' }));
     queueRef.current?.request();
-  }, []);
+  }, [sceneNeedsPhoto, photoReady]);
 
-  // Reseed the whole stage when the language or selected scenario changes.
+  // Reseed the editable scene when the language or selected scenario changes.
   useEffect(() => {
     queueRef.current?.cancel();
-    setScene(() => {
-      const next = createScenario(kind, locale);
-      return avatarsRef.current ? injectAvatars(next, avatarsRef.current, locale) : next;
-    });
-    setEditableId(EDITABLE_REPLY_ID);
+    setScene(buildScene(kind, locale, avatarsRef.current, photoRef.current));
     setHeroStatus('');
     setPreview({ status: 'idle' });
   }, [kind, locale]);
 
-  // Avatars arrive as data URIs; keep any edit the visitor already made.
+  // The story is always the authored Wukang example; a language switch reseeds it.
+  useEffect(() => {
+    setStoryScene(buildScene('wukang', locale, avatarsRef.current, photoRef.current));
+  }, [locale]);
+
+  // Keep a localized authored instruction unless the visitor wrote their own.
+  useEffect(() => {
+    if (!promptEdited) setPrompt(WUKANG_PROMPT[locale]);
+  }, [locale, promptEdited]);
+
+  // Assets arrive as data URIs; keep any edit the visitor already made.
   useEffect(() => {
     if (!avatars) return;
     setScene((current) => injectAvatars(current, avatars, locale));
+    setStoryScene((current) => injectAvatars(current, avatars, locale));
   }, [avatars, locale]);
+
+  useEffect(() => {
+    if (!storyPhoto) return;
+    setScene((current) => (kind === 'wukang' ? injectStoryPhoto(current, storyPhoto, WUKANG_PHOTO_ID) : current));
+    setStoryScene((current) => injectStoryPhoto(current, storyPhoto, WUKANG_PHOTO_ID));
+  }, [storyPhoto, kind]);
+
+  // A "still preparing" handoff warning is cleared as soon as the assets land.
+  useEffect(() => {
+    setHeroStatus((current) => (current === copy.handoffLoading ? '' : current));
+  }, [assetsReady, photoReady, copy.handoffLoading]);
 
   const resetScene = useCallback(() => {
     queueRef.current?.cancel();
-    setScene(() => {
-      const next = createScenario(kind, locale);
-      return avatarsRef.current ? injectAvatars(next, avatarsRef.current, locale) : next;
-    });
-    setEditableId(EDITABLE_REPLY_ID);
+    setScene(buildScene(kind, locale, avatarsRef.current, photoRef.current));
     setHeroStatus('');
   }, [kind, locale]);
 
@@ -175,16 +253,49 @@ export default function MarketingSite() {
   }, [assetsReady, requestPreview]);
 
   // Keep the exported preview honest while the visitor edits, with a debounce.
-  // The queue also marks itself dirty when a render is already running.
   useEffect(() => {
     if (!assetsReady || !previewStarted.current) return;
     const timer = window.setTimeout(requestPreview, 450);
     return () => window.clearTimeout(timer);
   }, [scene, assetsReady, requestPreview]);
 
+  // Native dialog: Escape closes it and focus returns to the trigger.
+  useEffect(() => {
+    const dialog = lightboxRef.current;
+    if (!dialog) return;
+    if (photoOpen && !dialog.open) dialog.showModal();
+    else if (!photoOpen && dialog.open) dialog.close();
+  }, [photoOpen]);
+
+  const exportStory = useCallback(async () => {
+    if (!storyPortable.ok || !storyPortable.scene || !assetsReady || !photoReady) {
+      setHeroStatus(copy.exportFail);
+      return;
+    }
+    const node = storyExportRef.current;
+    if (!node) {
+      setHeroStatus(copy.exportFail);
+      return;
+    }
+    // The snapshot is the complete authored story, never a half-played frame.
+    const snapshot = storyPortable.scene;
+    exportingRef.current = true;
+    setExporting(true);
+    setHeroStatus(copy.exporting);
+    try {
+      const result = await renderScenePng(node);
+      downloadDataUrl(result.dataUrl, sceneFileName(snapshot));
+      setHeroStatus(copy.exportDone);
+    } catch {
+      setHeroStatus(copy.exportFail);
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
+  }, [assetsReady, copy.exportDone, copy.exportFail, copy.exporting, photoReady, storyPortable]);
+
   const exportFrame = useCallback(async () => {
-    if (!avatars || !portable?.ok || !portable.scene) {
-      // Never download a frame whose avatars were not converted and validated.
+    if (!portable.ok || !portable.scene || !assetsReady || (sceneNeedsPhoto && !photoReady)) {
       setHeroStatus(copy.exportFail);
       return;
     }
@@ -214,25 +325,42 @@ export default function MarketingSite() {
       setExporting(false);
       if (latestScene.current !== scene) requestPreview();
     }
-  }, [avatars, portable, scene, requestPreview, copy.exportDone, copy.exportFail, copy.exporting]);
+  }, [assetsReady, copy.exportDone, copy.exportFail, copy.exporting, photoReady, portable, requestPreview, scene, sceneNeedsPhoto]);
 
-  /** Write the current scene (avatars already data URIs) and hand it over. */
-  function handoff(event: MouseEvent<HTMLAnchorElement>, source: Scene, scenario?: SceneKind) {
-    if (!avatars) return; // Fall back to the query-param scenario seed.
-    const result = portableScene(source, avatars);
-    if (!result.ok || !result.scene) return;
-    const token = writeHandoffScene(result.scene);
-    if (!token) return;
-    event.preventDefault();
-    window.location.hash = createHandoffHref(locale, scenario, token);
-  }
+  /**
+   * Hand a scene to the Agent. Navigation is never allowed to race the payload:
+   * the link is always cancelled, and a missing asset or unusable storage is
+   * reported instead of silently dropping the visitor's scene or instruction.
+   */
+  const stageHandoff = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>, source: Scene, scenario: SceneKind, instruction?: string) => {
+      event.preventDefault();
+      const result = portableScene(source, avatars, stories);
+      const needsPhoto = scenario === 'wukang';
+      if (!assetsReady || !result.ok || !result.scene || (needsPhoto && !photoReady)) {
+        setHeroStatus(copy.handoffLoading);
+        return;
+      }
+      const token = writeHandoffScene(result.scene, instruction);
+      if (!token) {
+        setHeroStatus(copy.handoffStorage);
+        return;
+      }
+      window.location.hash = createHandoffHref(locale, scenario, token);
+    },
+    [assetsReady, avatars, copy.handoffLoading, copy.handoffStorage, locale, photoReady, stories],
+  );
+
+  /** The story CTA adds the visitor's bounded instruction to the same handoff. */
+  const handoffStory = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined),
+    [prompt, stageHandoff, storyScene],
+  );
 
   function scenarioScene(target: SceneKind): Scene {
-    const base = createScenario(target, locale);
-    return avatars ? injectAvatars(base, avatars, locale) : base;
+    return buildScene(target, locale, avatars, storyPhoto);
   }
 
-  const editableText = messageText(scene, editableId);
   const otherId = otherParticipantId(scene);
   const clock = scene.deviceTime;
   const profile = deviceProfile(scene);
@@ -242,53 +370,71 @@ export default function MarketingSite() {
       ? `${preview.width} × ${preview.height}`
       : `${DEMO_DEVICE.width * profile.pixelRatio} × ${DEMO_DEVICE.height * profile.pixelRatio}`;
 
+  const storyStatus =
+    playback.status === 'playing'
+      ? `${copy.storyPlaying} · ${Math.min(frame.step + 1, STORY_STEP_COUNT)}/${STORY_STEP_COUNT}`
+      : playback.status === 'paused'
+        ? copy.storyPaused
+        : playback.status === 'done'
+          ? copy.storyDone
+          : copy.storyIdle;
+  const playLabel = playback.status === 'playing' ? copy.storyPause : playback.status === 'paused' ? copy.storyResume : copy.storyPlay;
+  const progress = playback.status === 'done' ? 1 : Math.max(0, (frame.beatIndex + 1) / BEATS.length);
+
   return (
     <div className="mark" data-locale={locale}>
       <section className="mark-hero" aria-labelledby="mark-hero-title">
         <div className="mark-shell mark-hero-in">
-          <div className="mark-hero-copy">
-            <p className="mark-eyebrow">{copy.eyebrow}</p>
-            <h1 className="mark-h1" id="mark-hero-title">
-              <span>{copy.h1a}</span>
-              <span className="mark-h1-em">{copy.h1b}</span>
-            </h1>
-            <p className="mark-promise">{copy.promise}</p>
+          <div className="mark-hero-left">
+            <div className="mark-hero-copy">
+              <p className="mark-eyebrow">{copy.eyebrow}</p>
+              <h1 className="mark-h1" id="mark-hero-title">
+                <span>{copy.h1a}</span>
+                <span className="mark-h1-em">{copy.h1b}</span>
+              </h1>
+              <p className="mark-promise">{copy.promise}</p>
+            </div>
 
-            <div className="mark-edit">
-              <label htmlFor="mark-line">{copy.editLabel}</label>
-              <input
-                id="mark-line"
-                value={editableText}
-                maxLength={120}
+            <div className="mark-hero-composer">
+              <label htmlFor="mark-instruction">{copy.promptLabel}</label>
+              <textarea
+                id="mark-instruction"
+                value={prompt}
+                rows={3}
+                maxLength={MAX_HANDOFF_PROMPT}
                 spellCheck={false}
-                disabled={exporting}
-                placeholder={copy.editPlaceholder}
-                onChange={(event) => setScene((current) => setMessageText(current, editableId, event.target.value))}
+                placeholder={copy.promptPlaceholder}
+                onChange={(event) => {
+                  setPrompt(event.target.value);
+                  setPromptEdited(true);
+                }}
               />
-              <p className="mark-edit-hint">
-                <IconPencil size={14} stroke={1.7} aria-hidden="true" />
-                {copy.editHint}
+              <p className="mark-composer-hint">
+                <IconSparkles size={14} stroke={1.7} aria-hidden="true" />
+                {copy.promptHint}
               </p>
             </div>
 
-            <div className="mark-actions">
-              <a className="mark-btn" href={createHandoffHref(locale, kind)} data-testid="hero-start" onClick={(event) => handoff(event, scene, kind)}>
-                {copy.primary}
-                <IconArrowUpRight size={17} aria-hidden="true" />
-              </a>
-              <button type="button" className="mark-btn mark-btn-ghost" onClick={() => void exportFrame()} disabled={exportDisabled}>
-                <IconDownload size={16} stroke={1.7} aria-hidden="true" />
-                {exporting ? copy.exporting : copy.secondary}
-              </button>
+            <div className="mark-hero-actions">
+              <div className="mark-actions">
+                <a className="mark-btn" href={createHandoffHref(locale, 'wukang')} data-testid="hero-start" onClick={handoffStory}>
+                  {copy.primary}
+                  <IconArrowUpRight size={17} aria-hidden="true" />
+                </a>
+                <button type="button" className="mark-btn mark-btn-ghost" data-testid="hero-export" onClick={() => void exportStory()} disabled={exporting || !storyExportReady}>
+                  <IconDownload size={16} stroke={1.7} aria-hidden="true" />
+                  {exporting ? copy.exporting : copy.secondary}
+                </button>
+              </div>
+              <p className="mark-status" role="status" aria-live="polite">
+                {heroStatus}
+              </p>
+              <p className="mark-note mark-boundary">{copy.storyBoundary}</p>
             </div>
 
-            <p className="mark-status" role="status" aria-live="polite">
-              {heroStatus}
-            </p>
-
-            <ol className="mark-steps">
-              {copy.steps.map((step, index) => (
-                <li key={step} className={index === 1 ? 'is-active' : undefined}>
+            <ol className="mark-process" aria-label={copy.storyProcess}>
+              {PROCESS_STEPS[locale].map((step, index) => (
+                <li key={step} className={index === frame.step ? 'is-active' : index < frame.step ? 'is-done' : undefined}>
                   <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                   {step}
                 </li>
@@ -296,23 +442,69 @@ export default function MarketingSite() {
             </ol>
           </div>
 
-          <div className="mark-hero-stage">
+          <div className="mark-hero-stage" ref={storyHostRef}>
             <div className="mark-stage-top">
-              <span className="mark-preview-note">{copy.previewLabel}</span>
-              <span className="mark-platform">{copy.previewNote}</span>
+              <span className="mark-preview-note">{copy.storyLabel}</span>
+              <span className="mark-stage-top-actions">
+                {photoReady && (
+                  <button type="button" className="mark-inline-btn mark-icon-btn" aria-label={copy.photoZoom} title={copy.photoZoom} onClick={() => setPhotoOpen(true)}>
+                    <IconMaximize size={15} stroke={1.7} aria-hidden="true" />
+                  </button>
+                )}
+                <span className="mark-platform">{copy.previewNote}</span>
+              </span>
             </div>
-            <ScaledSceneFrame label={`${copy.previewLabel} · ${scene.title}`}>
-              <SceneView
-                scene={scene}
-                selectedId={editableId}
-                locale={locale}
-                onSelect={(id) => {
-                  if (isTextMessage(scene, id)) setEditableId(id);
-                }}
-              />
+            <ScaledSceneFrame label={`${copy.storyLabel} · ${copy.synthetic}`}>
+              <div className="mark-story-phone" data-story-status={playback.status} data-story-beat={frame.beatIndex}>
+                <SceneView scene={visibleStory} locale={locale} />
+                {photoPending ? (
+                  <div className="mark-preparing" aria-hidden="true">
+                    <IconPhoto size={15} stroke={1.7} />
+                    <span>{copy.storyPreparing}</span>
+                  </div>
+                ) : frame.typing ? (
+                  <div className="mark-typing" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                ) : null}
+              </div>
             </ScaledSceneFrame>
-            <div className="mark-stage-foot">
-              <p className="mark-device-caption">{copy.synthetic}</p>
+
+            <div className="mark-story-progress" aria-hidden="true">
+              <span style={{ transform: `scaleX(${progress})` }} />
+            </div>
+
+            <div className="mark-story-controls" role="group" aria-label={copy.storyControls}>
+              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.toggle} disabled={exporting || playback.status === 'done'}>
+                {playback.status === 'playing' ? <IconPlayerPause size={15} aria-hidden="true" /> : <IconPlayerPlay size={15} aria-hidden="true" />}
+                {playLabel}
+              </button>
+              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.replay} disabled={exporting}>
+                <IconRefresh size={15} aria-hidden="true" />
+                {copy.storyReplay}
+              </button>
+              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.showResult} disabled={exporting || playback.status === 'done'}>
+                <IconCheck size={15} aria-hidden="true" />
+                {copy.storyShowResult}
+              </button>
+              <span className="mark-story-state" data-story-state={playback.status}>
+                {storyStatus}
+              </span>
+            </div>
+
+            <div className="mark-story-assets">
+              {photoState.status === 'loading' && <p className="mark-asset-status">{copy.photoLoading}</p>}
+              {photoState.status === 'error' && (
+                <p className="mark-asset-status is-error" role="alert">
+                  <IconAlertTriangle size={14} aria-hidden="true" />
+                  {copy.photoError}
+                  <button type="button" className="mark-inline-btn" onClick={retryPhoto}>
+                    {copy.photoRetry}
+                  </button>
+                </p>
+              )}
               {avatarState.status === 'loading' && <p className="mark-asset-status">{copy.avatarLoading}</p>}
               {avatarState.status === 'error' && (
                 <p className="mark-asset-status is-error" role="alert">
@@ -372,7 +564,7 @@ export default function MarketingSite() {
                     disabled={exporting}
                     onClick={() => setKind(scenario.kind)}
                   >
-                    <ScenarioPreview kind={scenario.kind} locale={locale} avatars={avatars} />
+                    <ScenarioPreview kind={scenario.kind} locale={locale} avatars={avatars} photo={storyPhoto} />
                     <span className="mark-scenario-name">{scenario.label[locale]}</span>
                     <span className="mark-scenario-caption">{scenario.caption[locale]}</span>
                     <span className="mark-scenario-state">{active ? copy.scenarioActive : copy.scenarioUse}</span>
@@ -380,7 +572,7 @@ export default function MarketingSite() {
                   <a
                     className="mark-scenario-use"
                     href={createHandoffHref(locale, scenario.kind)}
-                    onClick={(event) => handoff(event, active ? scene : scenarioScene(scenario.kind), scenario.kind)}
+                    onClick={(event) => stageHandoff(event, active ? scene : scenarioScene(scenario.kind), scenario.kind)}
                   >
                     {copy.scenarioUse}
                     <IconArrowUpRight size={15} aria-hidden="true" />
@@ -537,7 +729,7 @@ export default function MarketingSite() {
             {copy.ctaTitle}
           </h2>
           <p className="mark-lede">{copy.ctaBody}</p>
-          <a className="mark-btn mark-btn-lg" href={createHandoffHref(locale, kind)} onClick={(event) => handoff(event, scene, kind)}>
+          <a className="mark-btn mark-btn-lg" href={createHandoffHref(locale, 'wukang')} onClick={handoffStory}>
             {copy.ctaAction}
             <IconArrowUpRight size={18} aria-hidden="true" />
           </a>
@@ -545,8 +737,19 @@ export default function MarketingSite() {
         </div>
       </section>
 
+      <dialog className="mark-lightbox" ref={lightboxRef} aria-label={copy.photoCaption} onClose={() => setPhotoOpen(false)} onCancel={() => setPhotoOpen(false)}>
+        {storyPhoto && <img src={storyPhoto} alt={copy.photoCaption} />}
+        <button type="button" className="mark-btn mark-btn-ghost mark-lightbox-close" onClick={() => setPhotoOpen(false)}>
+          <IconX size={16} aria-hidden="true" />
+          {copy.photoClose}
+        </button>
+      </dialog>
+
       <ExportStage nodeRef={exportRef} size={DEMO_DEVICE}>
         <SceneView scene={exportScene} exportMode locale={locale} />
+      </ExportStage>
+      <ExportStage nodeRef={storyExportRef} size={DEMO_DEVICE}>
+        <SceneView scene={storyExportScene} exportMode locale={locale} />
       </ExportStage>
     </div>
   );

@@ -1,13 +1,13 @@
 # IMStage
 
-Create an editable conversation scene. Export a crisp PNG.
+Turn a prompt into dialogue, photos and an editable conversation.
 
 [Try IMStage →](https://project-91bgj.vercel.app/?lang=en) · [简体中文](README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
 
-![IMStage in English: edit a line and see it in a WhatsApp scene](docs/images/landing-en.png)
+![IMStage in English: an AI-made Wukang Road story unfolds in WhatsApp](docs/images/landing-en.png)
 
 Make product demos, teaching examples and fictional stories with chat scenes.
-Start with an example, change the details, and export exactly the frame you need.
+Watch a short story unfold, continue it with the Agent, and export the frame you need.
 
 - **Edit directly.** Change messages, people, avatars, timestamps and device settings. Undo mistakes and keep separate local sessions.
 - **Create with words.** The hosted Agent can draft and revise a scene after sign-in. Reference screenshots support reconstruction and focused edits.
@@ -15,8 +15,9 @@ Start with an example, change the details, and export exactly the frame you need
 - **Use your own tools.** Self-host the account API and Agent, or connect a client to the authenticated MCP service.
 
 Chinese examples use WeChat; English examples use WhatsApp. Light, dark and
-system themes are supported. Try editing and exporting the homepage example
-without an account.
+system themes are supported. The homepage replays an AI-made example: pause it,
+inspect the photo, or export its PNG without an account. Create with AI carries
+your scene and prompt into a fresh workspace; you choose when to send it.
 
 ## Run locally
 

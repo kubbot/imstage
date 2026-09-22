@@ -9,9 +9,13 @@ const draftKey = 'imstage.studio.draft.v1';
 test.use({ locale: 'zh-CN' });
 const hero = (page: Page) => page.locator('.mark-hero-stage');
 const heroScene = (page: Page) => page.locator('.mark-hero-stage .scene-view');
+const heroCta = (page: Page) => page.locator('.mark-hero-actions').getByRole('link', { name: '用 AI 创作' });
+const storyExport = (page: Page) => page.getByTestId('hero-export');
 
+/** The story export is ready only once the bounded assets are local. */
 async function readyToExport(page: Page) {
-  await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeEnabled();
+  await expect(hero(page).locator('.scene-image img')).toBeVisible({ timeout: 15000 });
+  await expect(storyExport(page)).toBeEnabled();
 }
 
 /** Reveal every scroll-reveal section before checking colours so axe never
@@ -30,52 +34,35 @@ async function revealAll(page: Page) {
 }
 
 test.describe('landing default (zh-CN browser)', () => {
-  test('the Conversation Stage shows a two-line promise, a live WeChat frame and a highlighted editable line', async ({ page }) => {
+  test('the hero promises one prompt, replays one authored story and exports the real frame', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.mark-h1')).toHaveCount(1);
-    await expect(page.locator('.mark-h1')).toContainText('让对话，');
-    await expect(page.locator('.mark-h1-em')).toHaveText('成为作品。');
+    await expect(page.locator('.mark-h1')).toContainText('一句话，');
+    await expect(page.locator('.mark-h1-em')).toHaveText('让故事发生。');
+    await expect(page.locator('.mark-promise')).toHaveText('AI 写对白、生成画面，全部可编辑。');
     await expect(heroScene(page)).toHaveAttribute('data-platform', 'wechat');
-    // The authored conversation is complete and fits without scrolling.
-    await expect(hero(page).locator('.scene-row')).toHaveCount(4);
-    const overflow = await hero(page).locator('.scene-messages').evaluate((node) => node.scrollHeight - node.clientHeight);
-    expect(overflow).toBeLessThanOrEqual(2);
-    // The invited line is the highlighted message.
-    const selected = page.locator('.mark-hero-stage .scene-row-host.is-selected');
-    await expect(selected).toHaveCount(1);
-    await expect(selected).toContainText('好，给你留了靠窗的位置。');
-    await expect(page.getByLabel('试着改这句', { exact: true })).toHaveValue('好，给你留了靠窗的位置。');
+    // The instruction composer is the authored example, and it is editable.
+    await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
+    await expect(hero(page).getByText('AI 合成示例 · 可重播', { exact: false })).toBeVisible();
+    await expect(heroCta(page)).toBeVisible();
     await readyToExport(page);
+    await expect(hero(page).locator('.scene-row')).toHaveCount(5);
+    await expect(hero(page).locator('.scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
   });
 
-  test('editing the hero line changes only that message and the highlight follows a click', async ({ page }) => {
-    await page.goto('/');
-    const rows = hero(page).locator('.scene-row');
-    const before = await rows.allTextContents();
-    await page.getByLabel('试着改这句', { exact: true }).fill('换到窗边的位置吧。');
-    const after = await rows.allTextContents();
-    expect(after[0]).toBe(before[0]);
-    expect(after[2]).toBe(before[2]);
-    expect(after[1]).toContain('换到窗边的位置吧。');
-    await expect(page.locator('.mark-hero-stage .scene-row-host.is-selected')).toContainText('换到窗边的位置吧。');
-    // Clicking a different text message moves the editable target.
-    await hero(page).locator('.scene-row-host').nth(0).locator('.scene-message-select').click();
-    await expect(page.getByLabel('试着改这句', { exact: true })).toHaveValue('下午三点，老地方？');
-  });
-
-  test('the export action writes a real PNG at the iPhone 17 Pro resolution', async ({ page }, testInfo) => {
+  test('the hero export writes a real PNG at the iPhone 17 Pro resolution', async ({ page }, testInfo) => {
     await page.goto('/');
     await readyToExport(page);
     const download = page.waitForEvent('download');
-    await page.getByRole('button', { name: '导出这张画面', exact: true }).click();
-    const file = testInfo.outputPath('landing-hero.png');
+    await storyExport(page).click();
+    const file = testInfo.outputPath('landing-story.png');
     await (await download).saveAs(file);
     const png = await readFile(file);
     expect(png.subarray(1, 4).toString()).toBe('PNG');
     expect(png.readUInt32BE(16)).toBe(1206);
     expect(png.readUInt32BE(20)).toBe(2622);
-    expect(png.length).toBeGreaterThan(5000);
-    // The exported preview in the contrast section is the same real file.
+    expect(png.length).toBeGreaterThan(20000);
+    // The exported preview in the contrast section is the same real renderer.
     await page.locator('#mark-export').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-export-preview="ready"]')).toBeVisible();
     const preview = page.locator('.mark-export-card-body img');
@@ -94,15 +81,18 @@ test.describe('landing default (zh-CN browser)', () => {
     await (await download).createReadStream();
   });
 
-  test('scenario selector swaps the shared renderer and hands the scene to the studio', async ({ page }) => {
+  test('scenario selector swaps the editable scene and hands it to the studio, leaving the story intact', async ({ page }) => {
     await page.goto('/#/studio');
     await page.getByRole('textbox', { name: '文本内容', exact: true }).fill('不能丢失的草稿');
     const original = await page.evaluate((key) => localStorage.getItem(key), draftKey);
     await page.goto('/?lang=zh');
     await page.locator('.mark-scenarios').scrollIntoViewIfNeeded();
     await page.getByRole('button', { name: /周末看海/ }).click();
-    await expect(heroScene(page)).toContainText('好，我订了早班船。');
-    await expect(page.locator('.mark-hero-stage .scene-view')).toHaveAttribute('data-platform', 'wechat');
+    await expect(page.getByLabel('我说的话', { exact: true })).toHaveValue('那就周六见，我带上相机。');
+    await expect(page.locator('.mark-scenario.is-active')).toContainText('周末看海');
+    // The hero keeps playing the authored Wukang story.
+    await expect(hero(page)).toContainText('苏晚');
+    await expect(hero(page)).toContainText('AI 合成示例 · 可重播');
     // The landing demo never writes the studio draft.
     expect(await page.evaluate((key) => localStorage.getItem(key), draftKey)).toBe(original);
     const useLink = page.locator('.mark-scenario.is-active .mark-scenario-use');
@@ -118,16 +108,17 @@ test.describe('language', () => {
   test('an explicit ?lang=en switches platform, names, times and the whole marketing chrome', async ({ page }) => {
     await page.goto('/?lang=en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('.mark-h1')).toContainText('Turn a conversation');
-    await expect(page.locator('.mark-h1-em')).toHaveText('into a keepsake.');
+    await expect(page.locator('.mark-h1')).toContainText('One prompt.');
+    await expect(page.locator('.mark-h1-em')).toHaveText('A story unfolds.');
     await expect(page.locator('.mark-eyebrow')).toHaveText('Open-source conversation staging');
     await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
-    await expect(hero(page)).toContainText('Saved you the window seat.');
-    await expect(hero(page)).toContainText('Ava');
+    await expect(hero(page)).toContainText('Where are you?');
+    await expect(hero(page)).toContainText('Su Wan');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Scenes$/ })).toBeVisible();
     await expect(page.getByRole('contentinfo')).toContainText('A stage for every conversation.');
-    await expect(page.getByLabel('Try rewriting this line', { exact: true })).toHaveValue('Saved you the window seat.');
-    await expect(page).toHaveTitle(/Turn a conversation into a keepsake/);
+    await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
+    await expect(page).toHaveTitle(/One prompt. A story unfolds./);
+    await readyToExport(page);
     // The English example must not leak any Chinese renderer fallback copy.
     expect(await hero(page).innerText()).not.toMatch(/[\u3400-\u9fff]/);
   });
@@ -161,7 +152,7 @@ test.describe('english-first browser', () => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
-    await expect(page.getByLabel('Try rewriting this line', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Your instruction', { exact: true })).toBeVisible();
   });
 });
 
@@ -172,10 +163,9 @@ test('the English landing starts a new WhatsApp session without overwriting an e
   await expect(page.getByRole('button', { name: '管理创作会话' })).toContainText('已保存到本机');
 
   await page.goto('/?lang=en');
-  await page.locator('.mark-hero-copy').getByRole('link', { name: 'Start creating' }).click();
+  await page.locator('.mark-hero-actions').getByRole('link', { name: 'Create with AI' }).click();
   await expect(page).toHaveURL(/#\/create/);
   await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
-  await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('');
 
   await page.getByRole('button', { name: '管理创作会话' }).click();
   await expect(page.getByRole('button', { name: '打开会话：不能被覆盖的会话', exact: true })).toBeVisible();
@@ -187,30 +177,29 @@ test('avatar loading failure is visible, blocks export and recovers on retry', a
   await page.route('**/assets/people/**', (route) => route.fulfill({ status: 500, body: 'nope' }));
   await page.goto('/');
   await expect(page.getByRole('button', { name: '重新加载头像', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeDisabled();
+  await expect(storyExport(page)).toBeDisabled();
   await page.unroute('**/assets/people/**');
   await page.getByRole('button', { name: '重新加载头像', exact: true }).click();
   await expect(page.getByRole('button', { name: '重新加载头像', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeEnabled();
-  await expect(page.locator('.mark-hero-stage .scene-avatar img, .mark-hero-stage img.scene-avatar').first()).toBeVisible();
+  await readyToExport(page);
 });
 
-test('mobile keeps the CTA and a meaningful conversation in the first viewport without overflow', async ({ page }) => {
+test('mobile keeps a useful story, the CTA and touch-sized controls without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  await expect(page.locator('.mark-hero-copy').getByRole('link', { name: '开始创作' })).toBeInViewport();
-  await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeInViewport();
-  await expect(hero(page).locator('.scene-row').first()).toBeInViewport();
-  // Every demo control keeps a touch-sized target.
-  for (const selector of ['.mark-btn', '.mark-toggle button']) {
+  // The compact CTA row is in the first viewport, before the phone.
+  await expect(heroCta(page)).toBeInViewport();
+  await expect(hero(page)).toBeVisible();
+  await expect(hero(page).locator('.scene-row').first()).toBeInViewport({ timeout: 5000 });
+  for (const selector of ['.mark-btn', '.mark-toggle button', '.mark-story-controls button']) {
     const boxes = await page.locator(selector).evaluateAll((nodes) => nodes.filter((node) => (node as HTMLElement).offsetParent !== null).map((node) => node.getBoundingClientRect().height));
     for (const height of boxes) expect(height).toBeGreaterThanOrEqual(44);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
-test('keyboard navigation reaches the skip link, the live editor and the scenario selector', async ({ page }) => {
+test('keyboard navigation reaches the skip link, the instruction composer and the scenario selector', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('Tab');
   const skip = page.locator('.skip-link');
@@ -218,24 +207,25 @@ test('keyboard navigation reaches the skip link, the live editor and the scenari
   await page.keyboard.press('Enter');
   await expect(page.locator('#main-content')).toBeFocused();
 
-  const input = page.getByLabel('试着改这句', { exact: true });
-  await input.focus();
-  await page.keyboard.type('，顺便带本书。');
-  await expect(page.locator('.mark-hero-stage .scene-row-host.is-selected')).toContainText('顺便带本书。');
+  const composer = page.getByLabel('你的指令', { exact: true });
+  await composer.focus();
+  await composer.fill('我约了苏晚在武康路见面。');
+  await expect(composer).toHaveValue('我约了苏晚在武康路见面。');
 
   const card = page.getByRole('button', { name: /产品讨论/ });
   await card.focus();
   await expect(card).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('.mark-scenario.is-active')).toContainText('产品讨论');
-  await expect(heroScene(page)).toContainText('首页那句标题，我想压到两行。');
+  await expect(page.getByLabel('我说的话', { exact: true })).toHaveValue('好，明早十点这里见。');
 });
 
-test('reduced motion keeps every section visible and the FAQ works as native details', async ({ page }) => {
+test('reduced motion keeps every section visible, starts on the result and the FAQ still works', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   const pending = await page.locator('.mark-section[data-reveal="pending"]').count();
   expect(pending).toBe(0);
+  await expect(page.locator('.mark-story-phone')).toHaveAttribute('data-story-status', 'done');
   const details = page.locator('.mark-faq-list details').first();
   await expect(details).not.toHaveAttribute('open', '');
   await details.locator('summary').click();
@@ -281,7 +271,6 @@ test.describe('refinements', () => {
     await page.getByRole('banner').getByRole('link', { name: 'Start creating' }).click();
     await expect(page).toHaveURL(/#\/create/);
     await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
-    await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('');
 
     // The in-app "New session" button also follows the current language.
     await page.getByRole('button', { name: '新建会话', exact: true }).click();
@@ -364,62 +353,36 @@ test.describe('refinements', () => {
     expect(text.match(/iPhone 17 Pro/g)).toHaveLength(1);
   });
 
-  test('the full device and caption fit a 1440 × 900 first viewport', async ({ page }) => {
+  test('the story stage and its controls fit a 1440 × 900 first viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeEnabled();
+    await readyToExport(page);
     const frame = await page.locator('.mark-hero-stage .mark-phone-frame').boundingBox();
     expect(frame).not.toBeNull();
     expect(frame!.width).toBeGreaterThanOrEqual(280);
     expect(frame!.width).toBeLessThanOrEqual(340);
     expect(Math.round(frame!.y + frame!.height)).toBeLessThanOrEqual(900);
-    await expect(page.locator('.mark-stage-foot')).toBeInViewport();
-    await expect(page.locator('.mark-steps')).toBeInViewport();
-    await expect(page.locator('.mark-hero-copy').getByRole('link', { name: '开始创作' })).toBeInViewport();
+    await expect(page.locator('.mark-story-controls')).toBeInViewport();
+    await expect(page.locator('.mark-hero-stage .scene-row').nth(4)).toBeInViewport();
+    await expect(heroCta(page)).toBeInViewport();
   });
 
-  test('at 390 × 844 the first line and the highlighted reply are both inside the viewport', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  test('the scenario previews and the handoff carry locale-correct local assets', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.mark-hero-stage .scene-row').first()).toBeInViewport();
-    await expect(page.locator('.mark-hero-stage .scene-row').nth(1)).toBeInViewport();
-    await expect(page.locator('.mark-hero-stage .scene-row-host.is-selected')).toBeInViewport();
-    await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeInViewport();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  });
-
-  test('locale-correct avatars reach the hero, the scenario cards, reset and the handoff', async ({ page }) => {
-    await page.goto('/');
-    const selfAvatars = page.locator('.mark-hero-stage .scene-row.is-self .scene-avatar');
-    await expect(selfAvatars.first()).toBeVisible();
-    const zhSelf = await selfAvatars.first().getAttribute('src');
-    const zhOther = await page.locator('.mark-hero-stage .scene-row.is-other .scene-avatar').first().getAttribute('src');
-    expect(zhSelf).toMatch(/^data:image\/webp;base64,/);
-    expect(zhOther).toMatch(/^data:image\/webp;base64,/);
-    expect(zhSelf).not.toBe(zhOther);
-    // Scenario thumbnails must use the same loaded data avatars, not initials.
+    // Scenario thumbnails use the same loaded data avatars, never static paths.
     const thumbs = page.locator('.mark-crop img.scene-avatar');
     await expect(thumbs.first()).toBeVisible();
     expect(await thumbs.evaluateAll((nodes) => nodes.every((node) => (node as HTMLImageElement).src.startsWith('data:image/webp;base64,')))).toBe(true);
+    expect(await page.locator('.mark-crop img').evaluateAll((nodes) => nodes.some((node) => (node as HTMLImageElement).src.includes('/assets/')))).toBe(false);
 
-    // Reset keeps the data avatars.
-    await page.locator('#mark-export').scrollIntoViewIfNeeded();
-    await page.getByRole('button', { name: '回到初始', exact: true }).click();
-    await expect(page.locator('.mark-hero-stage .scene-row.is-self .scene-avatar').first()).toHaveAttribute('src', zhSelf!);
-
-    await page.goto('/?lang=en');
-    // WhatsApp direct chat shows one photo in the header (the other person).
-    const enHeader = await page.locator('.mark-hero-stage .scene-header img.scene-avatar').first().getAttribute('src');
-    expect(enHeader).toBe(zhSelf);
-    expect(enHeader).not.toBe(zhOther);
-
-    // Handoff carries validated data-URI avatars; no raw static path may appear.
+    // Handoff carries validated data URIs; no raw static path may appear.
     await page.goto('/');
     await page.locator('.mark-scenarios').scrollIntoViewIfNeeded();
     await page.locator('.mark-scenario.is-active .mark-scenario-use').click();
     await expect(page).toHaveURL(/#\/create/);
     await expect(page.locator('.agent-phone .scene-avatar').first()).toHaveAttribute('src', /^data:image\/webp;base64,/);
-    expect(await page.locator('.agent-phone .scene-avatar').evaluateAll((nodes) => nodes.some((node) => (node as HTMLImageElement).src.includes('/assets/people')))).toBe(false);
+    await expect(page.locator('.agent-phone .scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
+    expect(await page.locator('.agent-phone img').evaluateAll((nodes) => nodes.some((node) => (node as HTMLImageElement).src.includes('/assets/')))).toBe(false);
   });
 
   test('the scenes and docs pages follow the language instead of falling back to Chinese', async ({ page }) => {
@@ -450,10 +413,10 @@ test('download keeps its clicked scene when the header language changes during c
   await page.goto('/?lang=zh');
   await readyToExport(page);
   const first = page.waitForEvent('download');
-  await page.getByRole('button', {name:'导出这张画面', exact:true}).click();
+  await storyExport(page).click();
   const baseline = testInfo.outputPath('snapshot-baseline.png');
   await (await first).saveAs(baseline);
-  await expect(page.getByRole('button', {name:'导出这张画面', exact:true})).toBeEnabled();
+  await expect(storyExport(page)).toBeEnabled();
   await page.evaluate(() => {
     const ready = document.fonts.ready;
     let release!: () => void;
@@ -462,8 +425,8 @@ test('download keeps its clicked scene when the header language changes during c
     (window as any).__releaseCapture=()=>{Object.defineProperty(document.fonts,'ready',{configurable:true,get:()=>ready});release();};
   });
   const pending = page.waitForEvent('download');
-  await page.getByRole('button', {name:'导出这张画面', exact:true}).click();
-  await expect(page.getByRole('button', {name:'正在导出 PNG…',exact:true}).first()).toBeDisabled();
+  await storyExport(page).click();
+  await expect(page.getByRole('button', { name: '正在导出 PNG…', exact: true }).first()).toBeDisabled();
   await page.locator('.mark-toggle').getByRole('button',{name:'EN',exact:true}).click();
   await expect(heroScene(page)).toHaveAttribute('data-platform','whatsapp');
   await page.evaluate(()=>(window as any).__releaseCapture());
@@ -472,7 +435,7 @@ test('download keeps its clicked scene when the header language changes during c
   const result=testInfo.outputPath('snapshot-after-language-switch.png');await download.saveAs(result);
   expect(await readFile(result)).toEqual(await readFile(baseline));
   await page.locator('#mark-export').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-export-preview="ready"]')).toBeVisible();
+  await expect(page.locator('[data-export-preview="ready"]')).toBeVisible({ timeout: 15000 });
   const current=page.waitForEvent('download');await page.getByRole('button',{name:'Export PNG',exact:true}).click();
   const currentFile=testInfo.outputPath('current-language.png');await(await current).saveAs(currentFile);
   expect(await readFile(currentFile)).not.toEqual(await readFile(result));

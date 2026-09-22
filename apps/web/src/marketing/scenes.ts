@@ -10,10 +10,21 @@
 import type { Message, Platform, Scene } from '../studio/model';
 import type { Locale } from './locale';
 
-export type SceneKind = 'coffee' | 'weekend' | 'product';
+export type SceneKind = 'coffee' | 'weekend' | 'product' | 'wukang';
 
 export const SELF_ID = 'self';
 export const OTHER_ID = 'other';
+
+/**
+ * The default scenario is an authored AI story. Its ids are stable because the
+ * playback, the portable asset swap and the Agent seed all reference them.
+ *
+ * `WUKANG_OTHER_ID` deliberately does not match a legacy avatar role: Su Wan
+ * keeps text initials until the parent imports her matching fictional portrait,
+ * which the bounded loader can then attach without touching legacy scenes.
+ */
+export const WUKANG_OTHER_ID = 'su';
+export const WUKANG_PHOTO_ID = 'photo';
 
 /** The line the hero invites the visitor to rewrite. */
 export const EDITABLE_REPLY_ID = 'm2';
@@ -33,6 +44,11 @@ export interface ScenarioMeta {
 
 export const SCENARIOS: readonly ScenarioMeta[] = [
   {
+    kind: 'wukang',
+    label: { zh: '武康路的傍晚', en: 'Wukang Road, evening' },
+    caption: { zh: '一句邀约，等她把照片发过来。', en: 'One invitation, and the photo she sends back.' },
+  },
+  {
     kind: 'coffee',
     label: { zh: '街角咖啡', en: 'Corner coffee' },
     caption: { zh: '下午三点，老地方。一句邀约就够了。', en: 'Three in the afternoon, the usual place. One invitation is enough.' },
@@ -50,7 +66,24 @@ export const SCENARIOS: readonly ScenarioMeta[] = [
 ];
 
 export function isSceneKind(value: unknown): value is SceneKind {
-  return value === 'coffee' || value === 'weekend' || value === 'product';
+  return value === 'coffee' || value === 'weekend' || value === 'product' || value === 'wukang';
+}
+
+/**
+ * Read an explicit `?scenario=` (search or hash query) so old links such as
+ * `/?scenario=coffee` keep selecting their scene. Unknown values fall back to
+ * the caller's default instead of failing the page.
+ */
+export function readScenarioParam(search: string, hash: string): SceneKind | null {
+  const queries: string[] = [];
+  if (search) queries.push(search.startsWith('?') ? search : `?${search}`);
+  const hashQuery = hash.indexOf('?');
+  if (hashQuery >= 0) queries.push(hash.slice(hashQuery));
+  for (const query of queries) {
+    const value = new URLSearchParams(query).get('scenario');
+    if (isSceneKind(value)) return value;
+  }
+  return null;
 }
 
 interface SceneData {
@@ -185,8 +218,59 @@ function product(locale: Locale): Scene {
       });
 }
 
+/** The authored instruction the visitor can edit and carry into the Agent. */
+export const WUKANG_PROMPT: Record<Locale, string> = {
+  zh: '我约了苏晚在武康路见面。我问她在哪里，她请路人拍了一张照片发给我。',
+  en: 'I asked Su Wan to meet me on Wukang Road. I asked where she was, and she had a passerby take a photo and sent it to me.',
+};
+
+/**
+ * The default scenario: a short, fully authored AI story. The conversation is
+ * ordinary on purpose — the proof is that an instruction became dialogue, a
+ * pause and a photograph. `WUKANG_PHOTO_ID` is the image message the bounded
+ * asset loader fills in; until then it renders the renderer's preparing state.
+ */
+function wukang(locale: Locale): Scene {
+  return locale === 'zh'
+    ? build('wukang', locale, {
+        title: '武康路的傍晚',
+        deviceTime: '18:55',
+        date: '今天',
+        battery: 62,
+        participants: [
+          { id: SELF_ID, name: '我' },
+          { id: WUKANG_OTHER_ID, name: '苏晚' },
+        ],
+        messages: [
+          { id: 'm1', participantId: SELF_ID, type: 'text', text: '你到哪里了？', time: '18:52' },
+          { id: 'm2', participantId: WUKANG_OTHER_ID, type: 'text', text: '武康路。等我，给你发张照片。', time: '18:53' },
+          { id: WUKANG_PHOTO_ID, participantId: WUKANG_OTHER_ID, type: 'image', text: '', time: '18:54' },
+          { id: 'm3', participantId: WUKANG_OTHER_ID, type: 'text', text: '刚请路人帮我拍的。认得出我吗？', time: '18:54' },
+          { id: COMMENTARY_LINE_ID, participantId: SELF_ID, type: 'text', text: '看见你了。别动，我过来。', time: '18:55' },
+        ],
+      })
+    : build('wukang', locale, {
+        title: 'Wukang Road, evening',
+        deviceTime: '18:55',
+        date: 'Today',
+        battery: 62,
+        participants: [
+          { id: SELF_ID, name: 'You' },
+          { id: WUKANG_OTHER_ID, name: 'Su Wan' },
+        ],
+        messages: [
+          { id: 'm1', participantId: SELF_ID, type: 'text', text: 'Where are you?', time: '18:52' },
+          { id: 'm2', participantId: WUKANG_OTHER_ID, type: 'text', text: 'On Wukang Road. Give me a second — sending a photo.', time: '18:53' },
+          { id: WUKANG_PHOTO_ID, participantId: WUKANG_OTHER_ID, type: 'image', text: '', time: '18:54' },
+          { id: 'm3', participantId: WUKANG_OTHER_ID, type: 'text', text: "Just asked a passerby to take it. Can you tell it's me?", time: '18:54' },
+          { id: COMMENTARY_LINE_ID, participantId: SELF_ID, type: 'text', text: "I see you. Stay there, I'm coming over.", time: '18:55' },
+        ],
+      });
+}
+
 /** Build a fresh, independent scene. Edits never leak between calls. */
 export function createScenario(kind: SceneKind, locale: Locale): Scene {
+  if (kind === 'wukang') return wukang(locale);
   if (kind === 'weekend') return weekend(locale);
   if (kind === 'product') return product(locale);
   return coffee(locale);

@@ -4,7 +4,7 @@ import { useAuth } from '../account/Auth';
 import AgentStudio from './AgentStudio';
 import { setNavigationGuard } from '../account/navigation';
 import { useLocale } from '../marketing/LocaleContext';
-import { clearHandoffScene, readHandoffScene } from '../marketing/handoff';
+import { clearHandoffScene, readHandoffPayload } from '../marketing/handoff';
 import loanCase from '../../../../tools/eval/fixtures/loan-anniversary.json';
 import { emptyDraft, recoverDraft, newSession, readSession, writeSession, listSessions, removeSession, type SessionDraft, type SessionMeta, type SessionRecord } from './sessions';
 import './sessions.css';
@@ -70,8 +70,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
         const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale,scenario:seedScenario});
         // A handed-off scene was written to sessionStorage before navigation and
         // is validated here; invalid or missing payloads fall back to the seed.
-        const stored=readHandoffScene(handoffToken);
-        const draft=stored?recoverDraft({scene:stored} as Partial<SessionDraft>,fallback):fallback;
+        // The optional prompt only pre-fills the composer — nothing is sent.
+        const handoff=readHandoffPayload(handoffToken);
+        const draft=handoff?recoverDraft({scene:handoff.scene,prompt:handoff.prompt} as Partial<SessionDraft>,fallback):fallback;
         draft.scene.id=crypto.randomUUID();
         const created=await writeSession(newSession(owner,origin,draft));
         clearHandoffScene(handoffToken);

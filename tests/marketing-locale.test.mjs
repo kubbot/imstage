@@ -9,9 +9,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createHandoffHref, detectLocale, documentLang, isLocale, readLangParam, withLangParam } from '../apps/web/src/marketing/locale.ts';
-import { COMMENTARY_LINE_ID, EDITABLE_REPLY_ID, SCENARIOS, createScenario, isSceneKind, platformFor } from '../apps/web/src/marketing/scenes.ts';
-import { DEMO_AVATARS, avatarRoleForParticipant, demoAvatarRole, hasLocalAvatar, injectAvatars, makePortable, portableScene } from '../apps/web/src/marketing/portable.ts';
+import { COMMENTARY_LINE_ID, EDITABLE_REPLY_ID, SCENARIOS, WUKANG_OTHER_ID, WUKANG_PHOTO_ID, WUKANG_PROMPT, createScenario, isSceneKind, platformFor, readScenarioParam } from '../apps/web/src/marketing/scenes.ts';
+import { DEMO_AVATARS, DEMO_STORIES, avatarRoleForParticipant, demoAvatarRole, demoStoryRole, hasLocalAvatar, injectAvatars, injectStoryPhoto, makePortable, portableScene } from '../apps/web/src/marketing/portable.ts';
 import { handoffKey, isHandoffToken } from '../apps/web/src/marketing/handoff.ts';
+import { PROCESS_STEPS, STORY_STEP_COUNT, storyDurationMs } from '../apps/web/src/marketing/story.ts';
 import { LANDING_COPY, SITE_COPY } from '../apps/web/src/marketing/copy.ts';
 import { DOCS_COPY, TEMPLATES_COPY } from '../apps/web/src/marketing/pagesCopy.ts';
 import { validateScene } from '../apps/web/src/studio/model.ts';
@@ -147,6 +148,73 @@ test('handoff tokens are validated before touching storage', () => {
   assert.equal(handoffKey(token), `imstage.marketing.handoff.${token}`);
 });
 
+test('an explicit scenario query selects a scene and defaults are preserved', () => {
+  assert.equal(readScenarioParam('?scenario=coffee', ''), 'coffee');
+  assert.equal(readScenarioParam('', '#/?scenario=weekend'), 'weekend');
+  assert.equal(readScenarioParam('?foo=1', '#/?scenario=product&lang=en'), 'product');
+  assert.equal(readScenarioParam('?scenario=wukang', ''), 'wukang');
+  assert.equal(readScenarioParam('?scenario=unknown', ''), null);
+  assert.equal(readScenarioParam('', ''), null);
+  assert.equal(isSceneKind('wukang'), true);
+});
+
+test('the Wukang scenario is one authored story in both languages', () => {
+  const zh = createScenario('wukang', 'zh');
+  const en = createScenario('wukang', 'en');
+  assert.equal(zh.platform, 'wechat');
+  assert.equal(en.platform, 'whatsapp');
+  assert.equal(zh.messages[0].text, '你到哪里了？');
+  assert.equal(en.messages[0].text, 'Where are you?');
+  // The same fictional woman and place, in the same order, in both languages.
+  assert.equal(zh.participants.find((p) => p.id === WUKANG_OTHER_ID).name, '苏晚');
+  assert.equal(en.participants.find((p) => p.id === WUKANG_OTHER_ID).name, 'Su Wan');
+  const zhPhoto = zh.messages.find((message) => message.id === WUKANG_PHOTO_ID);
+  const enPhoto = en.messages.find((message) => message.id === WUKANG_PHOTO_ID);
+  assert.equal(zhPhoto.type, 'image');
+  assert.equal(enPhoto.type, 'image');
+  assert.equal(zhPhoto.asset, undefined);
+  assert.equal(enPhoto.asset, undefined);
+  assert.ok(en.messages.every((message) => !/[\u3400-\u9fff]/.test(message.text)));
+  assert.ok(WUKANG_PROMPT.zh.includes('武康路'));
+  assert.ok(!/[\u3400-\u9fff]/.test(WUKANG_PROMPT.en));
+  assert.equal(validateScene(zh).ok, true);
+  assert.equal(validateScene(en).ok, true);
+  // The other participant keeps initials so no second face appears; legacy roles
+  // are untouched.
+  assert.equal(avatarRoleForParticipant(WUKANG_OTHER_ID, 'zh'), null);
+  assert.equal(avatarRoleForParticipant(WUKANG_OTHER_ID, 'en'), null);
+  assert.equal(avatarRoleForParticipant('other', 'zh'), 'yuan');
+});
+
+test('story photos are bounded same-origin assets and become portable data URIs', () => {
+  assert.equal(demoStoryRole(DEMO_STORIES.wukang), 'wukang');
+  assert.equal(demoStoryRole('/assets/people/yuan.webp'), null);
+  assert.equal(demoStoryRole(undefined), null);
+  const photo = 'data:image/webp;base64,WUKANG';
+  const base = createScenario('wukang', 'zh');
+  const injected = injectStoryPhoto(base, photo, WUKANG_PHOTO_ID);
+  assert.equal(injected.messages.find((message) => message.id === WUKANG_PHOTO_ID).asset, photo);
+  // Same reference when nothing changes, so effects do not loop.
+  assert.equal(injectStoryPhoto(injected, photo, WUKANG_PHOTO_ID), injected);
+  assert.equal(injectStoryPhoto(base, undefined, WUKANG_PHOTO_ID), base);
+
+  const withPath = {
+    ...base,
+    messages: base.messages.map((message) => (message.id === WUKANG_PHOTO_ID ? { ...message, asset: DEMO_STORIES.wukang } : message)),
+  };
+  assert.equal(validateScene(withPath).ok, false);
+  const converted = makePortable(withPath, { yuan: YUAN, ava: AVA }, { wukang: photo });
+  assert.equal(converted.messages.find((message) => message.id === WUKANG_PHOTO_ID).asset, photo);
+  const result = portableScene(withPath, { yuan: YUAN, ava: AVA }, { wukang: photo });
+  assert.equal(result.ok, true);
+  assert.equal(result.scene.messages.find((message) => message.id === WUKANG_PHOTO_ID).asset, photo);
+  // Without the loaded photo and without a static path the scene stays valid but
+  // carries no image data, which is exactly why export gates on the loader.
+  const bare = portableScene(base, null);
+  assert.equal(bare.ok, true);
+  assert.equal(bare.scene.messages.find((message) => message.id === WUKANG_PHOTO_ID).asset, undefined);
+});
+
 test('both locales expose the same copy shape with no empty strings', () => {
   const zh = LANDING_COPY.zh;
   const en = LANDING_COPY.en;
@@ -162,7 +230,10 @@ test('both locales expose the same copy shape with no empty strings', () => {
   assert.equal(zh.capabilities.length, en.capabilities.length);
   assert.equal(zh.faq.length, en.faq.length);
   assert.equal(zh.openRows.length, en.openRows.length);
-  assert.equal(zh.steps.length, en.steps.length);
+  assert.equal(PROCESS_STEPS.zh.length, PROCESS_STEPS.en.length);
+  assert.equal(PROCESS_STEPS.zh.length, STORY_STEP_COUNT);
+  assert.ok(storyDurationMs() > 8000 && storyDurationMs() < 10500, String(storyDurationMs()));
+  assert.ok(PROCESS_STEPS.en.every((step) => !/[\u3400-\u9fff]/.test(step)));
   assert.deepEqual(Object.keys(SITE_COPY.zh.titles).sort(), Object.keys(SITE_COPY.en.titles).sort());
   for (const locale of ['zh', 'en']) {
     assert.ok(SITE_COPY[locale].nav.home.length > 0);
@@ -182,4 +253,16 @@ test('both locales expose the same copy shape with no empty strings', () => {
     assert.ok(docs.privacy.recovery.length > 0);
     assert.ok(docs.privacy.payment.length > 0);
   }
+});
+
+// The person receiving the date's photo is consistent in both platforms.
+test('Wukang keeps the matching portrait and self avatar without changing legacy roles', () => {
+  const suWan = 'data:image/webp;base64,CCCC';
+  for (const locale of ['zh', 'en']) {
+    const scene = injectAvatars(createScenario('wukang', locale), {yuan:YUAN, ava:AVA, suWan}, locale);
+    assert.equal(scene.participants.find(p=>p.id==='su').avatar, suWan);
+    assert.equal(scene.participants.find(p=>p.id==='self').avatar, YUAN);
+    assert.equal(validateScene(scene).ok, true);
+  }
+  assert.equal(injectAvatars(createScenario('coffee','zh'), {yuan:YUAN,ava:AVA,suWan}, 'zh').participants[0].avatar, AVA);
 });

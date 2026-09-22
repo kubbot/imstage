@@ -13,20 +13,36 @@
  */
 import { validateScene, type Scene } from '../studio/model.ts';
 import type { Locale } from './locale';
+import { WUKANG_OTHER_ID } from './scenes.ts';
 
 export const DEMO_AVATARS = {
   yuan: '/assets/people/yuan.webp',
   ava: '/assets/people/ava.webp',
+  suWan: '/assets/stories/su-wan.webp',
+} as const;
+
+/**
+ * Story photographs are bounded same-origin assets too. They travel as data
+ * URIs in anything validated, exported or handed off, so a downloaded PNG never
+ * depends on a network read and `validateScene` never sees a remote path.
+ */
+export const DEMO_STORIES = {
+  wukang: '/assets/stories/wukang-evening.webp',
 } as const;
 
 export type AvatarRole = keyof typeof DEMO_AVATARS;
+export type StoryRole = keyof typeof DEMO_STORIES;
 export interface DemoAvatars {
   yuan: string;
   ava: string;
+  suWan?: string;
 }
+export type DemoStories = Partial<Record<StoryRole, string>>;
 
 /** Hard bound for any avatar read from the static bundle. */
 export const MAX_AVATAR_BYTES = 1024 * 1024;
+/** Hard bound for a story photograph; the committed WebP is ~400 KB. */
+export const MAX_STORY_BYTES = 2 * 1024 * 1024;
 
 const DATA_IMAGE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 
@@ -48,25 +64,35 @@ export function avatarRoleForParticipant(id: string, locale: Locale): AvatarRole
 export function demoAvatarRole(value: string | undefined): AvatarRole | null {
   if (value === DEMO_AVATARS.yuan) return 'yuan';
   if (value === DEMO_AVATARS.ava) return 'ava';
+  if (value === DEMO_AVATARS.suWan) return 'suWan';
+  return null;
+}
+
+export function demoStoryRole(value: string | undefined): StoryRole | null {
+  if (value === DEMO_STORIES.wukang) return 'wukang';
   return null;
 }
 
 /** Apply loaded data URIs to the demo participants, preserving everything else. */
 export function injectAvatars(scene: Scene, avatars: DemoAvatars, locale: Locale): Scene {
+  const wukang = scene.participants.some((participant) => participant.id === WUKANG_OTHER_ID);
   return {
     ...scene,
     participants: scene.participants.map((participant) => {
-      const role = avatarRoleForParticipant(participant.id, locale);
+      const role = wukang ? (participant.id === WUKANG_OTHER_ID ? 'suWan' : participant.id === scene.selfId ? 'yuan' : null) : avatarRoleForParticipant(participant.id, locale);
       return role ? { ...participant, avatar: avatars[role] } : participant;
     }),
   };
 }
 
-/** Replace any demo static path with its loaded data URI. */
-export function makePortable(scene: Scene, avatars: DemoAvatars): Scene {
+/** Replace any demo static path (avatar or story photo) with its data URI. */
+export function makePortable(scene: Scene, avatars: DemoAvatars | null, stories: DemoStories = {}): Scene {
   const swap = (value: string | undefined) => {
-    const role = demoAvatarRole(value);
-    return role ? avatars[role] : value;
+    const avatar = demoAvatarRole(value);
+    if (avatar) return avatars?.[avatar] ?? value;
+    const story = demoStoryRole(value);
+    if (story) return stories[story] ?? value;
+    return value;
   };
   return {
     ...scene,
@@ -81,6 +107,22 @@ export function makePortable(scene: Scene, avatars: DemoAvatars): Scene {
   };
 }
 
+/**
+ * Attach the loaded story photograph to its authored image message. Returns the
+ * same scene reference when the photo is missing or already attached, so callers
+ * can inject it safely in an effect without extra renders.
+ */
+export function injectStoryPhoto(scene: Scene, photo: string | undefined, messageId: string): Scene {
+  if (!photo) return scene;
+  let changed = false;
+  const messages = scene.messages.map((message) => {
+    if (message.id !== messageId || message.asset === photo) return message;
+    changed = true;
+    return { ...message, asset: photo };
+  });
+  return changed ? { ...scene, messages } : scene;
+}
+
 export interface PortableResult {
   ok: boolean;
   errors: string[];
@@ -91,8 +133,8 @@ export interface PortableResult {
  * Convert demo assets to data URIs and validate the result. Callers must show
  * the returned errors instead of claiming a successful export/save.
  */
-export function portableScene(scene: Scene, avatars: DemoAvatars): PortableResult {
-  const result = validateScene(makePortable(scene, avatars));
+export function portableScene(scene: Scene, avatars: DemoAvatars | null, stories: DemoStories = {}): PortableResult {
+  const result = validateScene(makePortable(scene, avatars, stories));
   return { ok: result.ok, errors: result.errors, scene: result.scene };
 }
 

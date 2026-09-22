@@ -1,7 +1,8 @@
 import { calendarToday } from '../../../../packages/schema/timeline.mjs';
-import { createScene, validateScene, type Scene } from '../studio/model';
-import { createScenario, isSceneKind } from '../marketing/scenes';
+import { createScene, validateScene, type Scene } from '../studio/model.ts';
+import { createScenario, isSceneKind } from '../marketing/scenes.ts';
 import type { Locale } from '../marketing/locale';
+import { MAX_HANDOFF_PROMPT } from '../marketing/handoff.ts';
 import type { ChatEntry, ToolEvent } from './client';
 
 export type Turn = ChatEntry & { id: string; tools?: ToolEvent[]; target?: string; failed?: boolean; attachments?: string[] };
@@ -18,6 +19,8 @@ export class SessionConflict extends Error { constructor() { super('这个会话
 export interface DraftSeed {
   locale?: Locale;
   scenario?: string;
+  /** Optional bounded instruction carried from the landing page. */
+  prompt?: string;
 }
 
 export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
@@ -32,12 +35,12 @@ export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
   } else {
     scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
   }
-  return { scene, prompt:'', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false };
+  return { scene, prompt: typeof seed.prompt === 'string' ? seed.prompt.slice(0, MAX_HANDOFF_PROMPT) : '', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false };
 }
 export function recoverDraft(raw: Partial<SessionDraft> | null, fallback = emptyDraft()): SessionDraft {
   const scene = validateScene(raw?.scene);
   return { ...fallback, scene:scene.ok && scene.scene ? scene.scene : fallback.scene,
-    prompt:typeof raw?.prompt==='string'?raw.prompt.slice(0,4000):'', editPrompt:typeof raw?.editPrompt==='string'?raw.editPrompt.slice(0,4000):'',
+    prompt:typeof raw?.prompt==='string'?raw.prompt.slice(0,4000):fallback.prompt, editPrompt:typeof raw?.editPrompt==='string'?raw.editPrompt.slice(0,4000):'',
     turns:Array.isArray(raw?.turns)?raw.turns.filter(t=>['user','assistant'].includes(t.role)&&typeof t.id==='string'&&typeof t.content==='string').map((t,i)=>({...t,...(raw.generating&&i===raw.turns!.length-1&&t.role==='assistant'?{failed:true,content:'上次生成已中断，已保留收到的内容。可以继续输入需求。'}:{}),tools:t.tools?.map(tool=>tool.state==='running'?{...tool,state:'error',detail:'上次生成已中断'}:tool)})):[],
     attachments:Array.isArray(raw?.attachments)?raw.attachments.filter(a=>typeof a==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a)&&a.length<6*1024*1024).slice(0,3):[],
     selected:typeof raw?.selected==='string'?raw.selected:'', projectId:typeof raw?.projectId==='string'?raw.projectId:fallback.projectId,

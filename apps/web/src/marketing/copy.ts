@@ -32,9 +32,9 @@ export const SITE_COPY: Record<Locale, SiteCopy> = {
     notFound: { title: '这个场景还没有开场。', body: '页面不存在，回到首页继续创作。', back: '返回首页' },
     loading: '正在准备…',
     storageNotice: '当前浏览器无法保存主题偏好，本次切换仍然有效。',
-    description: 'IMStage，开源聊天场景创作工具。改一句台词，用真实渲染器生成微信与 WhatsApp 画面，导出 PNG。',
+    description: 'IMStage，开源聊天场景创作工具。写一句指令，让 AI 写出对白、生成画面，再导出 PNG。',
     titles: {
-      home: '让对话，成为作品',
+      home: '一句话，让故事发生',
       create: '一句话创作',
       studio: '工作台',
       templates: '场景灵感',
@@ -57,9 +57,9 @@ export const SITE_COPY: Record<Locale, SiteCopy> = {
     notFound: { title: 'This scene never opened.', body: 'The page does not exist. Head back home.', back: 'Back home' },
     loading: 'Getting ready…',
     storageNotice: 'This browser cannot save the theme preference; the change still applies for this session.',
-    description: 'IMStage is an open-source conversation staging tool. Rewrite one line, render real WeChat and WhatsApp frames, export a PNG.',
+    description: 'IMStage is an open-source conversation staging tool. Write one prompt, let AI write the dialogue and create the image, then export a PNG.',
     titles: {
-      home: 'Turn a conversation into a keepsake',
+      home: 'One prompt. A story unfolds.',
       create: 'Create from a sentence',
       studio: 'Studio',
       templates: 'Scenes',
@@ -79,9 +79,9 @@ export interface LandingCopy {
   h1a: string;
   h1b: string;
   promise: string;
-  editLabel: string;
-  editHint: string;
-  editPlaceholder: string;
+  promptLabel: string;
+  promptHint: string;
+  promptPlaceholder: string;
   primary: string;
   secondary: string;
   exporting: string;
@@ -91,8 +91,28 @@ export interface LandingCopy {
   avatarLoading: string;
   avatarError: string;
   avatarRetry: string;
-  steps: readonly string[];
-  previewLabel: string;
+  photoLoading: string;
+  photoError: string;
+  photoRetry: string;
+  storyLabel: string;
+  storyProcess: string;
+  storyIdle: string;
+  storyPlaying: string;
+  storyPaused: string;
+  storyDone: string;
+  storyControls: string;
+  storyPause: string;
+  storyResume: string;
+  storyPlay: string;
+  storyReplay: string;
+  storyShowResult: string;
+  storyBoundary: string;
+  storyPreparing: string;
+  handoffLoading: string;
+  handoffStorage: string;
+  photoZoom: string;
+  photoClose: string;
+  photoCaption: string;
   previewNote: string;
   synthetic: string;
   capabilitiesLabel: string;
@@ -138,13 +158,13 @@ export interface LandingCopy {
 export const LANDING_COPY: Record<Locale, LandingCopy> = {
   zh: {
     eyebrow: '开源的聊天场景创作工具',
-    h1a: '让对话，',
-    h1b: '成为作品。',
-    promise: '写下场景，改一句台词，导出真实画面。',
-    editLabel: '试着改这句',
-    editHint: '改动立即出现在右侧画面，对应消息同步高亮',
-    editPlaceholder: '写下你要说的话',
-    primary: '开始创作',
+    h1a: '一句话，',
+    h1b: '让故事发生。',
+    promise: 'AI 写对白、生成画面，全部可编辑。',
+    promptLabel: '你的指令',
+    promptHint: '写下你的版本；在创作页交给 AI。',
+    promptPlaceholder: '描述一个场景，例如一次见面的地点。',
+    primary: '用 AI 创作',
     secondary: '导出这张画面',
     exporting: '正在导出 PNG…',
     exportDone: 'PNG 已导出。',
@@ -153,8 +173,28 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     avatarLoading: '正在载入合成头像…',
     avatarError: '合成头像加载失败，画面暂用文字头像。',
     avatarRetry: '重新加载头像',
-    steps: ['写下', '改一句', '导出'],
-    previewLabel: '实时预览',
+    photoLoading: '正在载入示例照片…',
+    photoError: '示例照片加载失败，暂不能导出完整画面。',
+    photoRetry: '重新加载照片',
+    storyLabel: 'AI 合成示例 · 可重播',
+    storyProcess: '示例过程',
+    storyIdle: '准备回放',
+    storyPlaying: '回放中',
+    storyPaused: '已暂停',
+    storyDone: '回放完成 · 全部可编辑',
+    storyControls: '示例回放控制',
+    storyPause: '暂停',
+    storyResume: '继续',
+    storyPlay: '播放',
+    storyReplay: '重播',
+    storyShowResult: '查看完整结果',
+    storyBoundary: '此处为合成示例回放；AI 创作由你点击发送。',
+    storyPreparing: '正在生成照片…',
+    handoffLoading: '场景还在准备，暂时不能带到创作页。',
+    handoffStorage: '浏览器无法暂存这份场景，暂时不能带到创作页；请释放存储空间后重试。',
+    photoZoom: '放大照片',
+    photoClose: '关闭大图',
+    photoCaption: 'AI 合成照片 · 非真实人物',
     previewNote: '微信 · 中文',
     synthetic: '合成示例 · 非真实聊天',
     capabilitiesLabel: '可以做什么',
@@ -213,13 +253,13 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
   },
   en: {
     eyebrow: 'Open-source conversation staging',
-    h1a: 'Turn a conversation',
-    h1b: 'into a keepsake.',
-    promise: 'Write a scene, rewrite one line, export the frame.',
-    editLabel: 'Try rewriting this line',
-    editHint: 'The preview follows, and the matching message is highlighted',
-    editPlaceholder: 'Write your line',
-    primary: 'Start creating',
+    h1a: 'One prompt.',
+    h1b: 'A story unfolds.',
+    promise: 'AI writes the dialogue and creates the image — all editable.',
+    promptLabel: 'Your instruction',
+    promptHint: 'Write your own version and hand it to AI in the studio.',
+    promptPlaceholder: 'Describe a scene, for example a place to meet.',
+    primary: 'Create with AI',
     secondary: 'Export this frame',
     exporting: 'Exporting PNG…',
     exportDone: 'PNG exported.',
@@ -228,8 +268,28 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     avatarLoading: 'Loading synthetic avatars…',
     avatarError: 'Synthetic avatars failed to load; using text avatars.',
     avatarRetry: 'Reload avatars',
-    steps: ['Write', 'Edit a line', 'Export'],
-    previewLabel: 'Live preview',
+    photoLoading: 'Loading the example photo…',
+    photoError: 'The example photo failed to load; the full frame cannot be exported yet.',
+    photoRetry: 'Reload photo',
+    storyLabel: 'AI-made example · Replayable',
+    storyProcess: 'Authored process',
+    storyIdle: 'Ready to replay',
+    storyPlaying: 'Replaying',
+    storyPaused: 'Paused',
+    storyDone: 'Replay complete · fully editable',
+    storyControls: 'Example playback controls',
+    storyPause: 'Pause',
+    storyResume: 'Resume',
+    storyPlay: 'Play',
+    storyReplay: 'Replay',
+    storyShowResult: 'Show result',
+    storyBoundary: 'A synthetic example replay; you press send when you create with AI.',
+    storyPreparing: 'Creating the photo…',
+    handoffLoading: 'The scene is still preparing, so it cannot be carried to the studio yet.',
+    handoffStorage: 'This browser cannot stage the scene, so it cannot be carried to the studio. Free some storage and retry.',
+    photoZoom: 'View photo larger',
+    photoClose: 'Close photo',
+    photoCaption: 'AI-made photo · fictional person',
     previewNote: 'WhatsApp · English',
     synthetic: 'Synthetic demo · not a real chat',
     capabilitiesLabel: 'What it does',

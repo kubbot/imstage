@@ -19,16 +19,16 @@ test('system appearance follows changes; manual preference survives reload', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
 });
 
-test('landing direct edit changes only the selected reply and the language switches platform', async ({ page }) => {
-  await page.goto('/'); const rows = page.locator('.mark-hero-stage .scene-row');
-  const before = await rows.allTextContents();
-  await page.getByLabel('试着改这句', { exact: true }).fill('火星见，给你留了靠窗的位置。');
-  const after = await rows.allTextContents();
-  expect(after[0]).toBe(before[0]); expect(after[2]).toBe(before[2]); expect(after[1]).toContain('火星见');
-  await expect(page.locator('.mark-hero-stage .scene-row-host.is-selected')).toContainText('火星见');
+test('landing instruction composer follows the language and keeps a typed instruction', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
   await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
   await expect(page.locator('.mark-hero-stage .scene-view')).toHaveAttribute('data-platform','whatsapp');
-  await expect(page.locator('.mark-hero-stage .scene-row').nth(1)).toContainText('Saved you the window seat.');
+  await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
+  // A written instruction is never discarded by a language switch.
+  await page.getByLabel('Your instruction', { exact: true }).fill('my own instruction');
+  await page.locator('.mark-toggle').getByRole('button', { name: '中文', exact: true }).click();
+  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue('my own instruction');
 });
 
 test('template filtering, empty recovery and selected scene entry', async ({ page }) => {
