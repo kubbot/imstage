@@ -23,6 +23,39 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.imstage.org"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "project-91bgj.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "imstage-kubbots-projects.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [
         {
