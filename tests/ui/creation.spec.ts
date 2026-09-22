@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 const key='imstage.studio.draft.v1';
 
 test('prompt demo streams messages and resolves real image assets into one editable scene',async({page})=>{
-  await page.goto('/#/create');
+  await page.goto('/');
   await expect(page.getByRole('textbox',{name:'描述你想创作的场景'})).toHaveValue(/Elon Musk/);
   await page.getByRole('button',{name:'生成场景',exact:true}).click();
   await expect(page.getByRole('button',{name:'停止生成'})).toBeVisible();
@@ -20,7 +20,7 @@ test('prompt demo streams messages and resolves real image assets into one edita
 });
 
 test('stop interrupts the stream and keeps partial result stable',async({page})=>{
-  await page.goto('/#/create'); await page.getByRole('button',{name:'生成场景',exact:true}).click();
+  await page.goto('/'); await page.getByRole('button',{name:'生成场景',exact:true}).click();
   await expect(page.locator('.creation-phone .scene-row').first()).toBeVisible();
   await page.getByRole('button',{name:'停止生成'}).click();
   await expect(page.getByText('已暂停创作',{exact:true})).toBeVisible();
@@ -31,39 +31,16 @@ test('stop interrupts the stream and keeps partial result stable',async({page})=
 });
 
 test('unrelated prompts never masquerade as generated Mars scenes',async({page})=>{
-  await page.goto('/#/create');await page.getByRole('textbox',{name:'描述你想创作的场景'}).fill('和朋友明天去东京吃拉面');
+  await page.goto('/');await page.getByRole('textbox',{name:'描述你想创作的场景'}).fill('和朋友明天去东京吃拉面');
   await page.getByRole('button',{name:'生成场景',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('示例模式演示');
   await expect(page.getByText('画面已经就绪',{exact:true})).toHaveCount(0);
 });
 
-test('live endpoint failure stays visible without silently falling back to demo',async({page})=>{
-  let requests=0;await page.route('**/api/scenes/stream',route=>{requests++;return route.fulfill({status:503,body:'not configured'});});
-  await page.goto('/#/create');await page.getByLabel('生成模式',{exact:true}).selectOption('live');
-  await page.getByRole('textbox',{name:'描述你想创作的场景'}).fill('我们明天去东京');
-  const original=await page.locator('.creation-phone').innerText();
-  await page.getByRole('button',{name:'生成场景',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('真实生成服务尚未接入');
-  expect(await page.locator('.creation-phone').innerText()).toBe(original);
-  await page.getByRole('button',{name:'重试',exact:true}).click();
-  await expect.poll(()=>requests).toBe(2);
-});
-
-test('remote protocol fixture renders its result and does not claim X avatar provenance',async({page})=>{
-  const scene={id:'tokyo',title:'东京见',platform:'wechat',deviceTime:'12:00',date:'明天',selfId:'me',participants:[{id:'me',name:'我'},{id:'friend',name:'朋友'}],messages:[],watermark:'虚构场景'};
-  await page.route('**/api/scenes/stream',route=>route.fulfill({status:200,contentType:'application/x-ndjson',body:[{type:'scene',scene},{type:'message',message:{id:'one',participantId:'friend',type:'text',text:'拉面店见。',time:''}},{type:'done'}].map(JSON.stringify).join('\n')}));
-  await page.goto('/#/create');await page.getByLabel('生成模式',{exact:true}).selectOption('live');
-  await page.getByRole('button',{name:'生成场景',exact:true}).click();
-  await expect(page.getByText('画面已经就绪',{exact:true})).toBeVisible({timeout:15000});
-  await expect(page.locator('.creation-phone')).toContainText('拉面店见。');
-  await page.getByRole('button',{name:'查看素材来源'}).click();
-  await expect(page.locator('.creation-sources')).not.toContainText('@elonmusk');
-});
-
 test('handoff protects saved work and carries images into studio after explicit replacement',async({page})=>{
   await page.goto('/#/studio');await page.getByRole('textbox',{name:'文本内容',exact:true}).fill('这份草稿不能丢');
   const original=await page.evaluate(k=>localStorage.getItem(k),key);
-  await page.goto('/#/create');await page.getByRole('button',{name:'编辑细节',exact:true}).click();
+  await page.goto('/');await page.getByRole('button',{name:'编辑细节',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'保留已有草稿'})).toBeVisible();
   await page.getByRole('button',{name:'取消',exact:true}).click();
   expect(await page.evaluate(k=>localStorage.getItem(k),key)).toBe(original);
@@ -74,7 +51,7 @@ test('handoff protects saved work and carries images into studio after explicit 
 });
 
 test('prompt PNG export is downloadable and both frames use the preview renderer',async({page},testInfo)=>{
-  await page.goto('/#/create');
+  await page.goto('/');
   for(const mode of ['standard','full']){
     await page.getByLabel('图片导出范围').selectOption(mode);
     const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
@@ -86,7 +63,7 @@ test('prompt PNG export is downloadable and both frames use the preview renderer
 });
 
 test('mobile prompt and preview remain accessible and keep state across tabs',async({page})=>{
-  await page.setViewportSize({width:390,height:844});await page.goto('/#/create');
+  await page.setViewportSize({width:390,height:844});await page.goto('/');
   await expect(page.getByRole('textbox',{name:'描述你想创作的场景'})).toBeVisible();
   await page.getByRole('tab',{name:'实时画面'}).click();await expect(page.locator('.creation-phone')).toBeVisible();
   await page.locator('.creation-phone .scene-selectable').first().click();

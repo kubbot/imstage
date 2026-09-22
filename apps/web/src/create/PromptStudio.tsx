@@ -56,7 +56,7 @@ export default function PromptStudio({ embedded = false }: { embedded?: boolean 
     const text = prompt.trim();
     if (!text) { setError('先写下一句话，告诉我这个场景。'); inputRef.current?.focus(); return; }
     if (mode === 'demo' && !isMarsPrompt(text)) {
-      setError('示例模式演示“和马斯克去火星”。自由场景请切换 AI 生成；它需要已连接的生成服务。'); return;
+      setError('示例模式演示“和马斯克去火星”。自由场景请点击上方「进入 Agent 创作」。'); return;
     }
     const id = ++runId.current;
     generation.current?.abort();
@@ -141,7 +141,7 @@ export default function PromptStudio({ embedded = false }: { embedded?: boolean 
 
 
   return <div className={`prompt-studio${embedded ? ' embedded' : ''}`} data-view={view}>
-    <div className="creation-topbar"><span><IconSparkles size={17} /> 对话创作</span><div><span className="creation-mode-dot" />{mode === 'demo' ? '交互示例' : 'AI 生成'}<a href="#/studio">手动编辑 <IconArrowRight size={14} /></a></div></div>
+    <div className="creation-topbar"><span><IconSparkles size={17} /> 对话创作</span><div><span className="creation-mode-dot" />{mode === 'demo' ? '交互示例' : 'AI 生成'}<a href="#/create">进入 Agent 创作 <IconArrowRight size={14} /></a></div></div>
     <div className="creation-mobile-tabs" role="tablist" aria-label="创作视图"><button role="tab" aria-selected={view === 'write'} onClick={() => setView('write')}>写下场景</button><button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>实时画面{busy && <span className="live-dot" />}</button></div>
     <div className="creation-layout">
       <div className="creation-input-panel">
@@ -149,7 +149,7 @@ export default function PromptStudio({ embedded = false }: { embedded?: boolean 
         <form onSubmit={generate} className="creation-prompt-form">
           <label htmlFor={embedded ? 'home-scene-prompt' : 'scene-prompt'}>描述你想创作的场景</label>
           <textarea ref={inputRef} id={embedded ? 'home-scene-prompt' : 'scene-prompt'} value={prompt} maxLength={2000} rows={3} placeholder="比如：我和 Elon Musk 在明天一起去火星漫游…" onChange={event => setPrompt(event.target.value)} disabled={busy || exporting} onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void generate(); } }} />
-          <div className="creation-prompt-bottom"><label className="creation-mode-select"><select aria-label="生成模式" value={mode} onChange={event => { setMode(event.target.value as 'demo' | 'live'); setError(''); }} disabled={busy || exporting}><option value="demo">示例体验</option><option value="live">AI 生成</option></select><IconChevronDown size={13} /></label><span className="prompt-shortcut">⌘ / Ctrl + Enter</span>{busy ? <button key="stop" className="creation-send" type="button" onClick={event => { event.preventDefault(); cancel(); }} aria-label="停止生成"><IconPlayerStop size={19} /></button> : <button key="generate" className="creation-send" type="submit" disabled={exporting || handoffBusy} aria-label={runState === 'done' ? '重新生成场景' : '生成场景'}><IconArrowUp size={21} /></button>}</div>
+          <div className="creation-prompt-bottom"><label className="creation-mode-select"><select aria-label="生成模式" value={mode} onChange={event => { setMode(event.target.value as 'demo' | 'live'); setError(''); }} disabled={busy || exporting}><option value="demo">示例体验</option>{!embedded && <option value="live">AI 生成</option>}</select><IconChevronDown size={13} /></label><span className="prompt-shortcut">⌘ / Ctrl + Enter</span>{busy ? <button key="stop" className="creation-send" type="button" onClick={event => { event.preventDefault(); cancel(); }} aria-label="停止生成"><IconPlayerStop size={19} /></button> : <button key="generate" className="creation-send" type="submit" disabled={exporting || handoffBusy} aria-label={runState === 'done' ? '重新生成场景' : '生成场景'}><IconArrowUp size={21} /></button>}</div>
         </form>
         <div className="creation-example"><span>试试这个</span><button disabled={busy || exporting} onClick={() => { setPrompt(examplePrompts[prompt === examplePrompts[0] ? 1 : 0]); setMode('demo'); setError(''); inputRef.current?.focus(); }}>和马斯克去火星 <IconArrowRight size={13} /></button></div>
         <div className="creation-mode-note">{mode === 'demo' ? '示例模式 · 分步回放预设故事与已生成素材' : '真实生成服务需连接 · 请求会发送至配置的模型'}</div>

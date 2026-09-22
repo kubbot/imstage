@@ -1,0 +1,77 @@
+/**
+ * IMStage Projects — public entry point.
+ *
+ * Re-exports the project/batch validation, persistence and worker so
+ * `services/api/server.mjs` can wire them with a single import. The normal
+ * Agent integration only needs `getProjectContext` plus `buildTaskPrompt`.
+ */
+
+export { ProjectsError, projectsError, isTerminalJobStatus, isRetryableTaskStatus } from './errors.mjs';
+export {
+  MAX_PROJECT_NAME_CHARS,
+  MAX_PROJECT_RULES_CHARS,
+  MAX_PROJECTS_PER_USER,
+  DEFAULT_PROJECT_PLATFORM,
+  MAX_BATCH_PROMPTS,
+  MAX_BATCH_ITEMS,
+  MAX_BATCH_PROMPT_CHARS,
+  MAX_CLIENT_BATCH_ID_CHARS,
+  MAX_ACTIVE_BATCH_JOBS,
+  MAX_SCENES_PER_USER,
+  isPlatform,
+  validateProjectName,
+  validateProjectRules,
+  validateProjectPlatform,
+  parseRevision,
+  validateProjectId,
+  validateJobId,
+  normalizePrompts,
+  normalizePlatforms,
+  buildBatchTasks,
+  validateClientBatchId,
+  buildTaskPrompt,
+  blankScene,
+} from './model.mjs';
+export {
+  PROJECT_SCHEMA_SQL,
+  nowIso,
+  listProjects,
+  getProjectRow,
+  getProjectItem,
+  getProjectContext,
+  countProjects,
+  createProject,
+  updateProject,
+  countProjectScenes,
+  deleteProject,
+  listProjectScenes,
+  attachScene,
+  detachScene,
+  findJobByClientId,
+  getJobRowById,
+  getJobRow,
+  listJobTasks,
+  jobDetail,
+  getJobDetail,
+  getJobDetailById,
+  listBatchJobs,
+  countActiveJobs,
+  createBatchJob,
+  claimNextJob,
+  sessionStillValid,
+  jobCancelRequested,
+  markTaskRunning,
+  updateTaskDetail,
+  markTaskDone,
+  markTaskFailed,
+  markTaskInterrupted,
+  markTaskCancelled,
+  markRemainingTasksInterrupted,
+  markRemainingTasksCancelled,
+  finalizeJob,
+  markJobCancelRequested,
+  createRetryJob,
+  publishGeneratedScene,
+  markInterruptedJobs,
+} from './store.mjs';
+export { createBatchQueue } from './batch.mjs';

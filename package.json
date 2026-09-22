@@ -3,14 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "22.x" },
+  "engines": {
+    "node": ">=22.18 <23"
+  },
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 4417 --strictPort",
+    "dev": "node tools/dev-web.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4417 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "dev:web": "vite --host 127.0.0.1 --port 4417 --strictPort",
+    "dev:api": "node services/api/server.mjs",
+    "start": "node tools/start-web.mjs",
+    "test:eval": "node --test tools/eval/test/*.test.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -18,15 +24,20 @@
     "@tabler/icons-react": "3.47.0",
     "html-to-image": "1.11.13",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
+    "@types/node": "^22.20.4",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.1.1",
     "typescript": "7.0.2",
     "vite": "8.3.0"
-  }
+  },
+  "workspaces": [
+    "tools/eval"
+  ]
 }

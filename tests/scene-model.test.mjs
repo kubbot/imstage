@@ -36,7 +36,7 @@ import {
 
 test('createScene("weekend") matches the sample brief', () => {
   const scene = createScene('weekend');
-  assert.deepEqual(PLATFORMS, ['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack']);
+  assert.deepEqual(PLATFORMS, ['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
   assert.equal(scene.platform, 'wechat');
   assert.equal(scene.messages.length, 4);
   assert.equal(scene.watermark, '');
@@ -186,7 +186,7 @@ test('message ids stay unique even for non-numeric ids', () => {
   scene.messages[0].id = 'draft-note';
   const id = nextMessageId(scene);
   assert.ok(!scene.messages.some((m) => m.id === id));
-  assert.deepEqual(MESSAGE_TYPES, ['text', 'image', 'location', 'system']);
+  assert.deepEqual(MESSAGE_TYPES, ['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album']);
 });
 
 /* ------------------------------------------------------------------ */

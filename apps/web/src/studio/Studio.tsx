@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
   IconAlertTriangle,
   IconArrowBackUp,
@@ -66,6 +66,10 @@ import './studio.css';
 
 export interface StudioProps {
   initialTemplate?: TemplateId;
+  initialScene?: Scene;
+  persistLocal?: boolean;
+  onSceneChange?: (scene: Scene) => void;
+  accountAction?: (scene: Scene) => ReactNode;
 }
 
 interface ConfirmState {
@@ -105,13 +109,14 @@ function messagePreview(scene: Scene, type: MessageType): string {
   return participant?.name ?? '';
 }
 
-export default function Studio({ initialTemplate }: StudioProps) {
-  const [initialLoad] = useState(loadDraft);
+export default function Studio({ initialTemplate, initialScene, persistLocal = true, onSceneChange, accountAction }: StudioProps) {
+  const [initialLoad] = useState(() => persistLocal ? loadDraft() : { status: 'empty' as const, scene: initialScene, raw: undefined, message: undefined });
   const [history, setHistory] = useState<History>(() => createHistory(initialLoad.scene ?? createScene(initialTemplate)));
   const [savePause, setSavePause] = useState<string | null>(initialLoad.status === 'corrupt' ? 'corrupt' : null);
   const uploadGeneration = useRef(0);
   useEffect(() => () => { uploadGeneration.current++; }, []);
   const scene = history.present;
+  useEffect(() => { onSceneChange?.(scene); }, [scene, onSceneChange]);
 
   const [activeTemplate, setActiveTemplate] = useState<TemplateId>(initialTemplate ?? 'weekend');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -174,7 +179,7 @@ export default function Studio({ initialTemplate }: StudioProps) {
   }, [initialLoad, initialTemplate]);
 
   useEffect(() => {
-    if (!draftLoaded || savePause) return;
+    if (!persistLocal || !draftLoaded || savePause) return;
     // Compare before writing as well as listening for cross-tab events.
     try {
       const stored = localStorage.getItem(DRAFT_KEY) ?? '';
@@ -186,9 +191,10 @@ export default function Studio({ initialTemplate }: StudioProps) {
       savedRawRef.current = raw;
       setNote({ code: 'ok', message: '草稿已保存到本机浏览器' });
     } else setNote({ code: result.code, message: result.message });
-  }, [scene, draftLoaded, savePause]);
+  }, [scene, draftLoaded, savePause, persistLocal]);
 
   useEffect(() => {
+    if (!persistLocal) return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== DRAFT_KEY && event.key !== null) return;
       if ((event.newValue ?? '') === savedRawRef.current) return;
@@ -431,6 +437,7 @@ export default function Studio({ initialTemplate }: StudioProps) {
           <p>写好台词，点选画面，把每个细节改到刚刚好。</p>
         </div>
         <div className="studio-toolbar">
+          {accountAction?.(scene)}
           <button
             className="studio-btn studio-btn-icon"
             type="button"
@@ -856,7 +863,7 @@ export default function Studio({ initialTemplate }: StudioProps) {
               </div>
             ) : null}
             <p className="studio-hint">
-              自然语言生成与截图识别尚未接入；现在可以直接编辑示例。
+              这是手动编辑器。自然语言和截图创作请进入 Agent 创作台。
             </p>
             <button className="studio-btn studio-btn-primary studio-btn-block" type="button" onClick={addComposerMessage} disabled={exporting}>
               <IconPlus size={16} stroke={1.8} />
@@ -969,6 +976,7 @@ export default function Studio({ initialTemplate }: StudioProps) {
             <p className="studio-hint">为角色起个名字，也可以上传自己的头像。</p>
           </details>
 
+          {persistLocal && <>
           <details className="studio-panel studio-advanced">
             <summary className="studio-panel-title">
               <span>
@@ -996,6 +1004,7 @@ export default function Studio({ initialTemplate }: StudioProps) {
               </button>
             </div>
           </details>
+          </>}
         </div>
 
         <div className="studio-canvas">

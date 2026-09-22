@@ -18,9 +18,9 @@ function OpenSection() {
   return <section className="open-section section-shell" id="open-source"><div className="open-copy"><IconBraces size={34} stroke={1.3} /><h2>你的作品，<br />不止属于一个页面。</h2><p>场景是可编辑的数据，也是可以带走的作品。<br />开源，让创作有更多可能。</p><div className="integration-list"><a href="#/studio"><IconWorld size={20} /><div><strong>浏览器工作台</strong><span>本地编辑、保存与导出</span></div><span className="available-tag">可体验</span><IconArrowUpRight size={17} /></a><a href="#/docs?tab=mcp"><IconPlugConnected size={20} /><div><strong>MCP / API</strong><span>同一个场景，融入你的工具链</span></div><span className="planned-tag">规划中</span><IconArrowUpRight size={17} /></a></div><a className="text-link" href={github} target="_blank" rel="noreferrer"><IconBrandGithub size={17} />在 GitHub 一起构建 <IconArrowUpRight size={15} /></a></div><div className="code-window"><div className="code-tabs"><div role="group" aria-label="数据展示"><button aria-pressed={tab === 'scene'} onClick={() => setTab('scene')}>scene.json</button><button aria-pressed={tab === 'flow'} onClick={() => setTab('flow')}>共同渲染路径</button></div><button className="icon-btn" onClick={copy} aria-label={copied ? '已复制' : '复制示例'}>{copied ? <IconCheck size={16} /> : <IconCopy size={16} />}</button></div><pre><code>{data}</code></pre><div className="code-footer"><span role="status">{copyError || (copied ? '已复制到剪贴板' : '格式示意 · 当前字段以工作台导出为准')}</span><IconBraces size={16} /></div></div></section>;
 }
 const faqs = [
-  ['现在可以用 IMStage 做什么？', '可以从合成示例创建场景，修改人物、消息和时间，上传本地图片，切换平台风格，保存浏览器草稿并导出 PNG。首页支持输入驱动的火星示例和流式交互。自由场景需要连接真实生成服务；截图识别尚未接入。'],
+  ['现在可以用 IMStage 做什么？', '可以从合成示例创建场景，修改人物、消息和时间，上传本地图片，切换平台风格，保存浏览器草稿并导出 PNG。进入创作台后可用 Agent 从描述或截图生成、继续编辑聊天；自托管实例需配置模型。首页火星故事是固定交互示例。'],
   ['聊天画面和真实 App 一样吗？', '目前提供微信、小红书等风格预览，尚未完成针对具体 App 版本的像素校准。我们会用经过授权的真实截图逐个校准字体、间距和消息状态；当前请用于设计、教学和虚构叙事。'],
-  ['我的素材会传到哪里？', '示例和手动编辑在浏览器本地处理。切换 AI 生成并提交时，场景描述会发送到配置的生成服务；当前真实服务尚未连接。草稿保存在当前浏览器，清理网站数据会删除草稿，重要内容请导出 JSON 或图片备份。'],
+  ['我的素材会传到哪里？', '示例和手动编辑在浏览器本地处理。在 Agent 创作台提交时，描述、当前对话与参考截图会发送到配置的模型；配图需求发送到独立图片服务。草稿保存在当前浏览器，清理网站数据会删除草稿，重要内容请导出 JSON 或图片备份。'],
   ['开源、免费和托管有什么区别？', '代码采用 MIT 许可。Web 免费是产品方向，当前本地编辑功能不收费；托管 MCP/API、AI 额度与价格尚未上线，也不会在这个页面收取费用。'],
   ['可以导出长截图吗？', '可以。普通截图是默认选项；在工作台切换为完整长图后，导出会包含完整对话。水印默认关闭，也可以自定义。'],
 ];

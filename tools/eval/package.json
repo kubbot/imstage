@@ -1,0 +1,21 @@
+{
+  "name": "@imstage/eval",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IMStage local-first Chinese annotation lab and quantitative PNG golden evaluator.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test",
+    "selftest": "node cli.mjs selftest",
+    "test:browser": "node browser-smoke.mjs"
+  },
+  "dependencies": {
+    "pixelmatch": "7.2.0",
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0"
+  }
+}
