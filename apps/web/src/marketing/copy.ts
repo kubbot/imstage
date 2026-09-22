@@ -24,7 +24,7 @@ export interface SiteCopy {
 export const SITE_COPY: Record<Locale, SiteCopy> = {
   zh: {
     skip: '跳到主要内容',
-    nav: { main: '主导航', home: 'IMStage 首页', projects: '项目', templates: '场景灵感', docs: '使用与接入', openSource: '开源', login: '登录', account: '账号', workspace: '我的作品', start: '开始创作' },
+    nav: { main: '主导航', home: 'IMStage 首页', projects: '项目', templates: '场景灵感', docs: '使用与接入', openSource: 'GitHub 开源仓库', login: '登录', account: '账号', workspace: '我的作品', start: '开始创作' },
     theme: { group: '外观主题', light: '浅色', dark: '深色', system: '跟随系统' },
     locale: { group: '界面语言', zh: '中文', en: 'EN' },
     menu: { open: '打开导航', close: '关闭导航' },
@@ -49,7 +49,7 @@ export const SITE_COPY: Record<Locale, SiteCopy> = {
   },
   en: {
     skip: 'Skip to content',
-    nav: { main: 'Main navigation', home: 'IMStage home', projects: 'Projects', templates: 'Scenes', docs: 'Docs', openSource: 'Open source', login: 'Sign in', account: 'Account', workspace: 'My scenes', start: 'Start creating' },
+    nav: { main: 'Main navigation', home: 'IMStage home', projects: 'Projects', templates: 'Scenes', docs: 'Docs', openSource: 'GitHub repository', login: 'Sign in', account: 'Account', workspace: 'My scenes', start: 'Start creating' },
     theme: { group: 'Appearance', light: 'Light', dark: 'Dark', system: 'System' },
     locale: { group: 'Interface language', zh: '中文', en: 'EN' },
     menu: { open: 'Open navigation', close: 'Close navigation' },

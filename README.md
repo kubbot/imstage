@@ -1,23 +1,23 @@
 # IMStage
 
-Turn a prompt into dialogue, photos and an editable conversation.
+Create conversations. Refine every detail.
 
 [Try IMStage →](https://imstage.org/?lang=en) · [简体中文](README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
 
-![IMStage in English: an AI-made Wukang Road story unfolds in WhatsApp](docs/images/landing-en.png)
+![IMStage: an editable WhatsApp scene and a prompt to start creating](docs/images/landing-en.png)
 
 Make product demos, teaching examples and fictional stories with chat scenes.
-Watch a short story unfold, continue it with the Agent, and export the frame you need.
+Start with an idea, edit the scene directly, and export the frame you need.
 
 - **Edit directly.** Change messages, people, avatars, timestamps and device settings. Undo mistakes and keep separate local sessions.
 - **Create with words.** The hosted Agent can draft and revise a scene after sign-in. Reference screenshots support reconstruction and focused edits.
 - **Export the result.** Download a normal frame or a long PNG, or keep the editable scene as JSON. Preview and export share one renderer.
 - **Use your own tools.** Self-host the account API and Agent, or connect a client to the authenticated MCP service.
 
-Chinese examples use WeChat; English examples use WhatsApp. Light, dark and
-system themes are supported. The homepage replays an AI-made example: pause it,
-inspect the photo, or export its PNG without an account. Create with AI carries
-your scene and prompt into a fresh workspace; you choose when to send it.
+Chinese examples use WeChat; English examples use WhatsApp. Scroll through a
+scene, change a line and explore variations. **Send & create** opens a fresh
+workspace and starts your request after sign-in. Your scenes and people save
+automatically; local drafts keep edits available when a cloud save fails.
 
 ## Run locally
 
@@ -42,8 +42,9 @@ PNG export work without provider keys.
 
 The hosted website uses Vercel for the frontend and a persistent server for
 accounts, saved scenes and Agent requests. Provider secrets stay on the server.
-Local drafts remain in the current browser; explicit account saves and AI
-requests send the relevant content to the server and configured providers.
+Local sessions stay in the current browser. Signed-in scene and people edits
+automatically sync to the server. AI requests send their scene, attachments and
+instruction to the configured providers.
 
 MCP uses an **administrator-configured instance token and its own scene store**.
 It does not share Web account sessions or the Web saved-scene library. Managed

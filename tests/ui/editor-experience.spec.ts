@@ -37,7 +37,7 @@ test('canvas fits and properties, ordering, undo, redo and element navigator sta
   await page.getByRole('button', { name: '删除消息', exact: true }).click();
   await expect(page.locator('.agent-phone .scene-row')).toHaveCount(3);
   await page.getByRole('button', { name: '元素 3', exact: true }).click();
-  await page.getByRole('button', { name: '画面与界面 标题 · 时间 · 背景 · 输入栏' }).click();
+  await page.getByRole('button', { name: '画面与界面' }).click();
   await page.getByLabel('会话标题', { exact: true }).fill('周末计划');
   await expect(page.locator('.agent-phone .scene-header-name')).toHaveText('周末计划');
   await page.getByRole('button', { name: '小满 对方 · 左侧消息', exact: true }).click();

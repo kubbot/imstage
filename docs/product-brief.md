@@ -1,6 +1,6 @@
 # IMStage — 产品说明
 
-状态：2026-09-21 用户明确纠正产品重心：Agent 生成与 AI 编辑是核心，手动编辑与渲染为支撑能力。自托管 Web 接入 DeepSeek 工具循环；图像生成按独立服务配置。公网托管、MCP 和计费仍未交付。
+状态：2026-09-23。Agent 生成与 AI 编辑是核心，手动编辑与渲染为支撑能力。官网 imstage.org 使用 Vercel 前端与持久化账号/Agent 服务器；独立认证的 MCP 服务已部署。计费未实现。本轮创作体验修改与上线验收分别记录，不能把本地实现当成已部署。
 
 ## 定位
 
@@ -24,7 +24,7 @@
 
 用户一句话／截图 → DeepSeek Agent 理解需求 → 调用 create_scene、upsert_message、delete_message、generate_image → 校验并更新共享 Scene → 实时预览与 PNG 导出。工具结果回传模型继续执行；实际执行步骤可展开查看。UI 为左侧创作 Chat、中间渲染画面、右侧可展开的 Vibe Edit；点选消息带入严格局部编辑范围。
 
-React + Vite、Node + SQLite 账号会话已实现。密钥仅由后端读取。图像模型与 DeepSeek 分开配置，未配置或调用失败必须明确显示，不能以静态示例代替真实生图。MCP 未来复用相同 Scene 和渲染路径。
+React + Vite、Node + SQLite 账号会话已实现。密钥仅由后端读取。图像模型与 DeepSeek 分开配置，未配置或调用失败必须明确显示，不能以静态示例代替真实生图。MCP 已复用相同 Scene 与渲染路径，但使用独立的实例数据库和认证令牌。
 
 ## 待确认事项
 
@@ -36,11 +36,11 @@ React + Vite、Node + SQLite 账号会话已实现。密钥仅由后端读取。
 
 ## 2026-09-21 核心 Web 与账号实现
 
-已实现登录／注册、服务端持久会话、我的作品、保存冲突处理、账号隔离、改密和退出。账号采用当前实例的 SQLite + Node crypto，Web 仍为 React + Vite。作品编辑与预览/导出复用既有 Scene 模型；免登录草稿只有在用户明确保存时才进入账号。未配置邮件验证/找回或 OAuth，不把自托管运行写成公网服务已上线。详细流程与配置见 [core-web-auth.md](core-web-auth.md)。
+已实现登录／注册、服务端持久会话、我的作品、保存冲突处理、账号隔离、改密和退出。账号采用当前实例的 SQLite + Node crypto，Web 仍为 React + Vite。作品编辑与预览/导出复用既有 Scene 模型；免登录草稿保留在当前浏览器；登录后的创作会话会自动同步 Scene，AI 聊天记录仍属于本机会话。未配置邮件验证/找回或 OAuth，不把自托管运行写成公网服务已上线。详细流程与配置见 [core-web-auth.md](core-web-auth.md)。
 
 ## Agent 验收与边界
 
-主入口 `/#/create` 和账号新建作品使用真实 Agent。首页火星故事为明确标记的固定交互示例。支持六种平台皮肤和文字、图片、定位、系统、联系人、转账、语音卡片、视频缩略图、链接、相册。语音播放与视频生成未实现；这些卡片只用于静态截图。图片服务支持 OpenAI-compatible `images/generations` / `images/edits` 和腾讯云 TokenHub WAND-Vega 异步任务；凭据只由服务端读取，必须通过实际调用才算可用。参见 [Agent 服务说明](../services/agent/README.md)。
+主入口 `/#/create` 和账号新建作品使用真实 Agent。首页提供明确标记的合成示例，滚动展示直接编辑与人物变体，不在浏览时调用模型。支持六种平台皮肤和文字、图片、定位、系统、联系人、转账、语音卡片、视频缩略图、链接、相册。语音播放与视频生成未实现；这些卡片只用于静态截图。图片服务支持 OpenAI-compatible `images/generations` / `images/edits` 和腾讯云 TokenHub WAND-Vega 异步任务；凭据只由服务端读取，必须通过实际调用才算可用。参见 [Agent 服务说明](../services/agent/README.md)。
 
 ## 项目、自由编辑与截图评测
 

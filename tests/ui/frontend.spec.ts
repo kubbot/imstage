@@ -23,7 +23,7 @@ test('landing instruction composer follows the language and keeps a typed instru
   await page.goto('/');
   await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
   await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
-  await expect(page.locator('.mark-hero-stage .scene-view')).toHaveAttribute('data-platform','whatsapp');
+  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform','whatsapp');
   await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
   // A written instruction is never discarded by a language switch.
   await page.getByLabel('Your instruction', { exact: true }).fill('my own instruction');
@@ -134,10 +134,10 @@ test('JSON dialog is keyboard reachable and Escape restores focus', async ({ pag
 });
 
 for(const width of [320,390,768,1440]) test(`responsive routes have no horizontal overflow at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:900});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
+  await page.setViewportSize({width,height:900});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator(route==='#/create'?'.agent-workspace':'h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
   if(width<901){await page.getByRole('tab',{name:'预览',exact:true}).click();await expect(phone(page)).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
 });
 
 for(const theme of ['light','dark'] as const)test(`WCAG A/AA automated checks across frontend in ${theme}`,async({page})=>{
-  await page.emulateMedia({colorScheme:theme,reducedMotion:'reduce'});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
+  await page.emulateMedia({colorScheme:theme,reducedMotion:'reduce'});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator(route==='#/create'?'.agent-workspace':'h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
 });

@@ -73,7 +73,7 @@ function AppShell() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [themeError, setThemeError] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  useEffect(() => { let previous = location.hash; const change = () => { if (!canNavigate()) { history.replaceState(null, '', location.pathname + location.search + previous); return; } previous = location.hash; setRoute(parseRoute()); window.scrollTo(0, 0); requestAnimationFrame(() => mainRef.current?.focus()); }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
+  useEffect(() => { const change = (event: HashChangeEvent) => { const previous = new URL(event.oldURL).hash; if (!canNavigate()) { history.replaceState(null, '', location.pathname + location.search + previous); return; } setRoute(parseRoute()); window.scrollTo(0, 0); requestAnimationFrame(() => mainRef.current?.focus()); }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
   // https://react.dev/reference/react/useEffect#connecting-to-an-external-system
   useEffect(() => { const media = window.matchMedia('(prefers-color-scheme: dark)'); const apply = () => { document.documentElement.dataset.theme = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme; document.documentElement.dataset.themePreference = theme; }; apply(); media.addEventListener('change', apply); return () => media.removeEventListener('change', apply); }, [theme]);
   useEffect(() => {

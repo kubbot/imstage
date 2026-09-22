@@ -94,6 +94,7 @@ export interface AgentCopy {
   dropTitle: string;
   dropOr: string;
   ideas: readonly string[];
+  ideaLabels: readonly string[];
   capabilitiesError: string;
   capabilityConnected: (model: string) => string;
   capabilityImageReady: string;
@@ -601,6 +602,7 @@ export interface ElementCopy {
 export interface AppCopy {
   messageTypes: Record<MessageType, string>;
   platforms: Record<Platform, string>;
+  devices: Record<string, string>;
   reference: { title: string; selected: string; all: string; text: string; image: string; axes: readonly string[]; font: string; color: string; background: string; remove: string };
   common: CommonCopy;
   sessions: SessionsCopy;
@@ -612,6 +614,7 @@ export interface AppCopy {
 }
 
 const zh: AppCopy = {
+  devices: {'legacy360':'通用手机 360×640','macos-window':'macOS 桌面窗口'},
   messageTypes: { text:'文字', image:'图片', location:'位置', system:'系统提示', contact:'联系人', transfer:'转账', voice:'语音', video:'视频', link:'链接', album:'相册' },
   platforms: {wechat:'微信',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'小红书',instagram:'Instagram',slack:'Slack'},
   reference: {title:'编辑层与位置',selected:'选中编辑层',all:'全部编辑层',text:'文字',image:'图片素材',axes:['左','上','宽','高'],font:'字号（源像素）',color:'文字颜色',background:'底色',remove:'移除此编辑层'},
@@ -646,7 +649,8 @@ const zh: AppCopy = {
     projectRules: '项目规则', currentProject: '当前项目', manageProjects: '管理项目 →',
     sampleLink: '打开合成案例 · 去年借款，今天归还 ↗',
     dropTitle: '把图片拖到这里', dropOr: '或点击选择参考图',
-    ideas: ['和朋友约周末去上海看展，聊得轻松一点', '生成一段 WhatsApp 英文旅行对话，最后发一个地点', '根据截图重建聊天，把对方名字改成小满'],
+    ideaLabels: ['客户支持', '活动协调', '新用户引导', '剧情与照片', '评测样本', '截图重建'],
+    ideas: ['生成微信客户支持对话：用户收到了错误的包裹，客服确认订单并安排换货，语气克制友善。', '生成朋友协调周末看展的微信对话：商量地点、时间，最后发一个位置。', '生成新用户入群的欢迎对话，介绍三条简明规则，并留下一个自然的提问。', '生成两个人在武康路见面前的对话，对方请路人拍了一张照片并发来，请生成这张照片。', '生成一段合成评测对话，包含一次时间变更和一次明确确认，保留可检查的日期。', '根据我上传的截图重建可编辑的聊天结构，保留主要样式与消息顺序。'],
     capabilitiesError: '连接状态读取失败 · 重试',
     capabilityConnected: (model) => `${model} · 消息配图已连接`, capabilityImageReady: '消息配图已连接', capabilityImageMissing: '生图服务待配置',
     capabilityModelMissing: '模型服务待配置', capabilityConnecting: '正在连接 Agent…',
@@ -734,7 +738,7 @@ const zh: AppCopy = {
     editPerson: '编辑人物', createPerson: '创建人物', addPerson: '新建另一个人物', newMemberHint: '新人物', name: '人物姓名', avatar: '头像',
     removeAvatar: '移除头像', upload: '上传头像', clear: '清除', describePortrait: '描述想生成的头像',
     generateAvatar: 'AI 生成头像', generatingAvatar: '正在生成…', stopGenerating: '停止生成头像',
-    makeDefault: '作为我的默认人物（新对话自动使用）', portraitGenerated: '头像已生成。保存后可在之后的对话中复用。',
+    makeDefault: '作为我的默认人物（新对话自动使用）', portraitGenerated: '头像已更新，正在自动同步。',
     portraitFailed: '未收到生成的头像，请重试。', savedOk: '人物已保存。', applied: (name) => `已应用 ${name}，姓名和头像一起更新。`,
     removed: '已从人物库移除，现有画面保持不变。', savedCurrent: '当前人物已保存。', autoSaveUpdated: '自动保存设置已更新。',
     defaultCleared: '已取消默认人物。', uploadFailed: '图片读取失败，请重新选择。', noAvatar: '头像', avatarAlt: (name) => `${name}的头像`,
@@ -837,6 +841,7 @@ const zh: AppCopy = {
 };
 
 const en: AppCopy = {
+  devices: {'legacy360':'Generic phone 360×640','macos-window':'macOS window'},
   messageTypes: { text:'Text', image:'Image', location:'Location', system:'System notice', contact:'Contact', transfer:'Transfer', voice:'Voice', video:'Video', link:'Link', album:'Album' },
   platforms: {wechat:'WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'RedNote',instagram:'Instagram',slack:'Slack'},
   reference: {title:'Edit layers & position',selected:'Selected layer',all:'All layers',text:'Text',image:'Image asset',axes:['Left','Top','Width','Height'],font:'Font size (source pixels)',color:'Text color',background:'Background',remove:'Remove this layer'},
@@ -871,7 +876,8 @@ const en: AppCopy = {
     projectRules: 'Project rules', currentProject: 'Current project', manageProjects: 'Manage projects →',
     sampleLink: 'Open the synthetic case · Repaid today ↗',
     dropTitle: 'Drop an image here', dropOr: 'or click to choose a reference',
-    ideas: ['Weekend art trip with a friend — keep it light', 'Write an English WhatsApp travel chat that ends with a location', 'Rebuild the chat from a screenshot and rename the other person'],
+    ideaLabels: ['Customer support', 'Make a plan', 'Onboarding', 'A photo story', 'Evaluation set', 'From a screenshot'],
+    ideas: ['Create a WhatsApp support conversation: a customer received the wrong package; confirm the order and arrange a replacement, with a calm tone.', 'Create friends planning a weekend gallery visit in WhatsApp: agree on a time and finish with a location.', 'Write a welcome conversation for a new community member, with three brief rules and a natural question.', 'Create a conversation before meeting on Wukang Road. The other person asks a passerby to take a photo and sends it. Generate that photo.', 'Create a synthetic evaluation conversation with one rescheduled meeting and one explicit confirmation; keep dates verifiable.', 'Reconstruct my uploaded screenshot as an editable conversation, preserving the main layout and message order.'],
     capabilitiesError: 'Could not read connection status · retry',
     capabilityConnected: (model) => `${model} · image assets connected`, capabilityImageReady: 'image assets connected', capabilityImageMissing: 'image service not configured',
     capabilityModelMissing: 'Model service not configured', capabilityConnecting: 'Connecting to the Agent…',
@@ -959,7 +965,7 @@ const en: AppCopy = {
     editPerson: 'Edit person', createPerson: 'Create a person', addPerson: 'Add another person', newMemberHint: 'New person', name: 'Name', avatar: 'Avatar',
     removeAvatar: 'Remove avatar', upload: 'Upload avatar', clear: 'Clear', describePortrait: 'Describe the avatar to create',
     generateAvatar: 'Create avatar with AI', generatingAvatar: 'Creating…', stopGenerating: 'Stop creating avatar',
-    makeDefault: 'Use as my default person (applies to new conversations)', portraitGenerated: 'Avatar created. Save it to reuse in later conversations.',
+    makeDefault: 'Use as my default person (applies to new conversations)', portraitGenerated: 'Avatar updated. Syncing automatically.',
     portraitFailed: 'No avatar came back. Please try again.', savedOk: 'Person saved.', applied: (name) => `Applied ${name}: name and avatar updated together.`,
     removed: 'Removed from the library; the current frame is unchanged.', savedCurrent: 'The current people were saved.', autoSaveUpdated: 'Auto-save setting updated.',
     defaultCleared: 'Default person cleared.', uploadFailed: 'The image could not be read. Choose another file.', noAvatar: 'Avatar', avatarAlt: (name) => `${name}'s avatar`,

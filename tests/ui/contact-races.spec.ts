@@ -48,3 +48,25 @@ test('edits during an in-flight save advance the revision and persist the newest
   await page.getByRole('button', { name: '人物与头像', exact: true }).click();
   await expect(page.getByLabel('人物姓名：保存期间继续编辑')).toHaveValue('保存期间继续编辑');
 });
+
+test('cache and network failure warn before a hash navigation can discard a pending person', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (value?.userId && value?.library) throw new DOMException('full', 'QuotaExceededError');
+      return key === undefined ? original.call(this, value) : original.call(this, value, key);
+    };
+  });
+  await page.route('**/api/contact-library', route => route.request().method() === 'PUT'
+    ? route.fulfill({ status: 503, json: { error: { message: 'synthetic offline' } } }) : route.continue());
+  const panel = await setup(page);
+  await panel.getByLabel(/^人物姓名：/).last().fill('只在内存中的人物');
+  await expect(panel.getByRole('alert').filter({ hasText: '本机缓存失败' })).toBeVisible();
+  await expect(panel.getByRole('alert').filter({ hasText: 'synthetic offline' })).toBeVisible();
+  const before = page.url();
+  const dialog = page.waitForEvent('dialog');
+  await page.getByRole('banner').getByRole('link', { name: '项目', exact: true }).click({ noWaitAfter: true });
+  await (await dialog).dismiss();
+  await expect(page).toHaveURL(before);
+  await expect(panel.getByLabel('人物姓名：只在内存中的人物')).toHaveValue('只在内存中的人物');
+});
