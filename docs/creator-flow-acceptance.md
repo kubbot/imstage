@@ -49,3 +49,9 @@ production build, including the concurrent lost-ack regression. TypeScript and
 the Vite production build passed. Private account data and raw logs remain outside Git.
 
 Production receipts will be appended after live acceptance.
+
+Live inspection found that a model can return an empty optional `headerText`.
+Empty/whitespace overrides now fall back to the contact or group title in both
+platform and custom layouts. The affected editor/project/journey subset passed
+16 browser tests after this fix; all 49 MCP tests passed and its renderer cache
+version was advanced so old cached PNGs cannot hide the correction.

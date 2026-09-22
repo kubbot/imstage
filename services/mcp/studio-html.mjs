@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const compiled = new URL('../../.local/mcp-renderer/studio.mjs', import.meta.url);
 const styleFile = new URL('../../apps/web/src/studio/studio.css', import.meta.url);
 let runtime;
-export const STUDIO_RENDERER_VERSION = 'studio-20260922-locale-v2';
+export const STUDIO_RENDERER_VERSION = 'studio-20260923-title-v3';
 
 /** Shared Web component; generated markup contains no user executable code. */
 export async function renderStudioHtml(scene, { width, height, outputKind }) {

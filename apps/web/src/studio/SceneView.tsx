@@ -117,7 +117,7 @@ function MessageBody({ message, pending = false, locale = 'zh' }: { message: Mes
 }
 
 function headerTitle(scene: Scene, locale: 'zh' | 'en' = 'zh'): string {
-  if (scene.headerText !== undefined) return scene.headerText;
+  if (scene.headerText?.trim()) return scene.headerText;
   const self = scene.participants.find((participant) => participant.id === scene.selfId);
   if (scene.participants.length <= 2) {
     const other = scene.participants.find((participant) => participant.id !== scene.selfId);

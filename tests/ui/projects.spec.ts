@@ -123,7 +123,8 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await expect(page.getByRole('heading', { name: '布局验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
-  const scene = { ...createScene(), id: crypto.randomUUID() };
+  const scene = { ...createScene(), id: crypto.randomUUID(), headerText: '' };
+  const otherName = scene.participants.find(person => person.id !== scene.selfId)!.name;
   const saved = await page.request.put(`/api/scenes/${scene.id}`, {
     headers: { Origin: origin, 'X-IMStage-Request': '1' },
     data: { scene, revision: 0 },
@@ -132,10 +133,12 @@ test('custom declarative layout can be created, edited and survives reload', asy
 
   await page.goto(`/#/workspace?scene=${scene.id}`);
   await expect(page.locator('.scene-view')).toBeVisible();
+  await expect(page.locator('.scene-header-name')).toHaveText(otherName);
   await page.getByRole('button', { name: '编辑设备状态' }).click();
   await page.locator('.property-advanced > summary', { hasText: '自定义布局' }).click();
   await page.getByRole('button', { name: '创建中性自定义布局', exact: true }).click();
   await expect(page.locator('.scene-view[data-layout="custom"]')).toBeVisible();
+  await expect(page.locator('.scene-header-name')).toHaveText(otherName);
   await page.getByLabel('布局名称').fill('中性格');
   await page.getByLabel('页头背景').fill('#101418');
   await page.getByLabel('页面背景').fill('#eef2f7');
