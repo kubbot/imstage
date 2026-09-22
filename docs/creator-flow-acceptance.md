@@ -48,7 +48,30 @@ The final integrated Playwright run passed **155/155** browser tests against the
 production build, including the concurrent lost-ack regression. TypeScript and
 the Vite production build passed. Private account data and raw logs remain outside Git.
 
-Production receipts will be appended after live acceptance.
+## Production acceptance
+
+Frontend and persistent API/MCP code revision: `4bfe475`.
+Canonical website: <https://imstage.org/>. Both server containers are healthy;
+consistent API/MCP database backups were verified before replacement.
+
+Real production checks passed:
+
+- Homepage Send invoked the hosted Agent once; the exact two requested messages
+  saved to the account and survived reload without replaying the request.
+- Template reuse created another saved scene without a provider call.
+- A two-item hosted Agent batch saved independent Ava/Noah scenes with distinct
+  requested dialogue; retry after template deletion recovered the same job.
+- Project settings automatically saved to the API and survived browser reload.
+- Agent changed a saved scene to a custom layout and exported a 1206 × 2622 PNG.
+  The final live pass verified actual custom bubble/header colors and neutral
+  timestamp styling, then confirmed an English completion for an English request.
+- MCP created a project/template and an atomic two-scene batch, deduplicated its
+  retry and rendered a 390 × 640 PNG. Final readback confirmed renderer version
+  `studio-20260923-custom-v4`.
+
+GitHub Actions on the code head could not start: the account was locked due to a
+billing issue. Vercel succeeded. Local and production acceptance do not replace
+those CI gates; PR #4 remains open until the exact final head passes.
 
 Live inspection found that a model can return an empty optional `headerText`.
 Empty/whitespace overrides now fall back to the contact or group title in both
