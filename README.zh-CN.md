@@ -10,6 +10,7 @@
 
 - **直接编辑。** 修改消息、人物、头像、时间和设备状态；支持撤销和独立的本机会话。
 - **用文字创作。** 登录后，让 Agent 生成或修改场景；参考截图可用于重建和局部编辑。
+- **复用创作。** 把可编辑画面存为模板，将姓名和照片设为变量，按项目规则批量生成差异版本；也能定制平台皮肤之外的布局。
 - **导出成品。** 下载普通截图、完整长图或可编辑的 JSON。预览和 PNG 使用同一个渲染器。
 - **接入自己的工具。** 自托管账号 API 与 Agent，或通过认证后的 MCP 服务创建和渲染场景。
 
@@ -39,9 +40,9 @@ npm start
 
 本机会话保存在当前浏览器。登录后，作品和人物修改会自动同步至服务器；发起 AI 请求时，相关场景、附件和指令会发送至配置的模型服务。
 
-MCP 使用**管理员配置的实例令牌和独立场景库**，不共用 Web 登录会话或“我的作品”。按客户分发的商业 API key、计费和邮件密码找回尚未实现。
+MCP 使用**管理员配置的实例令牌和独立场景库**，不共用 Web 登录会话或“我的作品”。MCP 批次保存调用方 AI 提供的内容；Web 项目批量任务则调用站内 Agent。按客户分发的商业 API key、计费和邮件密码找回尚未实现。
 
-[部署与运维](deploy/README.md) · [账号 API](services/api/README.md) · [Agent 配置](services/agent/README.md) · [MCP 工具](services/mcp/README.md)
+[模板与批量创作](docs/templates-and-projects.md) · [部署与运维](deploy/README.md) · [账号 API](services/api/README.md) · [Agent 配置](services/agent/README.md) · [MCP 工具](services/mcp/README.md)
 
 ## 开发验证
 

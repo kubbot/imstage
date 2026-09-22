@@ -114,7 +114,7 @@ test.describe('language', () => {
     await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
     await expect(hero(page)).toContainText('Where are you?');
     await expect(hero(page)).toContainText('Su Wan');
-    await expect(page.getByRole('banner').getByRole('link', { name: /^Scenes$/ })).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: /^Templates$/ })).toBeVisible();
     await expect(page.getByRole('contentinfo')).toContainText('A stage for every conversation.');
     await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
     await expect(page).toHaveTitle(/One prompt. A story unfolds./);

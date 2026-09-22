@@ -11,6 +11,7 @@ Start with an idea, edit the scene directly, and export the frame you need.
 
 - **Edit directly.** Change messages, people, avatars, timestamps and device settings. Undo mistakes and keep separate local sessions.
 - **Create with words.** The hosted Agent can draft and revise a scene after sign-in. Reference screenshots support reconstruction and focused edits.
+- **Reuse your work.** Save editable templates, expose names and photos as variables, and create project variations with shared rules. Customize the layout beyond app skins.
 - **Export the result.** Download a normal frame or a long PNG, or keep the editable scene as JSON. Preview and export share one renderer.
 - **Use your own tools.** Self-host the account API and Agent, or connect a client to the authenticated MCP service.
 
@@ -47,10 +48,10 @@ automatically sync to the server. AI requests send their scene, attachments and
 instruction to the configured providers.
 
 MCP uses an **administrator-configured instance token and its own scene store**.
-It does not share Web account sessions or the Web saved-scene library. Managed
+Its batch tools atomically save content supplied by the calling AI; Web project batches run the hosted Agent. It does not share Web account sessions or the Web saved-scene library. Managed
 per-customer API keys, billing and email password recovery are not implemented.
 
-[Deploy and operate](deploy/README.md) · [Account API](services/api/README.md) · [Agent configuration](services/agent/README.md) · [MCP tools](services/mcp/README.md)
+[Templates and batch creation](docs/templates-and-projects.md) · [Deploy and operate](deploy/README.md) · [Account API](services/api/README.md) · [Agent configuration](services/agent/README.md) · [MCP tools](services/mcp/README.md)
 
 ## Development
 
