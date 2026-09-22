@@ -8,7 +8,7 @@ async function ready(page:Page){
  const fixture=JSON.parse(await fs.readFile(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
  const scene={...fixture.scene,messages:Array.from({length:22},(_,i)=>({id:`line-${i}`,participantId:i%2?'me':'achuan',type:'text',text:`合成消息 ${i+1}：这是一段用于验证可见窗口截取位置的对话。`,date:i<11?'2025-09-21':'2026-09-21',time:`10:${String(i).padStart(2,'0')}`}))};
  await page.addInitScript(scene=>sessionStorage.setItem('imstage.agent.guest.case-loan-anniversary',JSON.stringify({scene})),scene);
- await page.setViewportSize({width:1800,height:1400});await page.goto('/#/create?case=loan-anniversary');
+ await page.setViewportSize({width:1800,height:1400});await page.goto('/?lang=zh#/create?case=loan-anniversary');
  await page.getByLabel('导出图片范围').selectOption('standard');
  await expect(page.locator('.agent-phone .scene-row')).toHaveCount(22);
 }

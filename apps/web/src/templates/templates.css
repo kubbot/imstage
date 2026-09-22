@@ -35,3 +35,14 @@
 .template-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .template-dialog .template-variable { display: flex; grid-auto-flow: column; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; }
 .template-dialog .template-variable small { color: var(--ink-soft, #6b7280); }
+
+.templates-columns { margin-top: 28px; }
+.templates-shell .workspace-library-heading { margin-top: 18px; }
+.template-panel, .template-card { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .templates-shell .workspace-sidebar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 10px 12px; }
+  .templates-shell .workspace-nav { width: auto; min-width: 0; padding: 8px 3px; white-space: normal; text-align: center; font-size: 11px; line-height: 1.4; }
+}
+@media (max-width: 360px) {
+  .templates-columns, .templates-grid { grid-template-columns: minmax(0, 1fr); }
+}

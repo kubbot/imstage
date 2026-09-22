@@ -3,8 +3,8 @@
 Local / self-hosted backend for IMStage accounts and owned scenes.
 
 `services/api/server.mjs` implements the real backend only: registration, login,
-logout, password change, opaque server-side sessions, and per-user scene
-persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
+logout, password change, opaque server-side sessions, and per-user scene,
+contact, template and project persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
 
 ## What this is (and is not)
 
@@ -161,6 +161,14 @@ rejects unknown platforms, invalid message/participant references, and remote
 asset/avatar URLs (only bounded local `data:image/...` values are accepted).
 No arbitrary metadata is stored: the scene JSON is capped by the request limit
 and the indexed columns are bounded.
+
+## Reusable templates and project batches
+
+Authenticated `/api/templates` routes create, list, read, update, delete and
+instantiate owner-scoped snapshots. Revisions prevent silent overwrites; normal
+scene autosave does not modify the original template. Project `batch-jobs`
+accept structured variants and freeze template values and common rules before
+the sequential Agent worker starts. See [the complete contracts and limits](../../docs/templates-and-projects.md).
 
 ## Limits and resource bounds
 

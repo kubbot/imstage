@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import sharp from 'sharp';
 import fs from 'node:fs';
+test.use({locale:'zh-CN'});
 const fixture=JSON.parse(fs.readFileSync(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
 
 async function ready(page:Page, login=false) {
@@ -24,7 +25,8 @@ async function drop(page:Page,count=1,invalid=false) {
 test('iPhone timeline has two dates, editable historical dates and full PNG; sample preserves normal draft',async({page})=>{
   await page.goto('/#/create');
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('保留我的正常草稿');
-  await page.getByRole('link',{name:/打开合成案例/}).click();
+  await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('已保存到本机');
+  await page.evaluate(()=>{location.hash='/create?case=loan-anniversary';});
   const dates=page.locator('.agent-phone .scene-date');
   await expect(dates).toHaveText(['2025年9月21日','今天']);
   await page.getByRole('button',{name:`选择消息：${fixture.scene.messages[0].text}`,exact:true}).click();

@@ -286,6 +286,25 @@ export default function TemplatesPage({ sceneId }: { sceneId?: string }) {
       {error && <div role="alert" className="account-error">{error} <button onClick={() => setReload(value => value + 1)}>{t.reload}</button></div>}
       {notice && <p role="status" className="template-notice">{notice}</p>}
 
+      <div className="workspace-library-heading">
+        <h2>{t.nav} <span>{items.length}</span></h2>
+        <button className="text-link" onClick={() => setReload(value => value + 1)}><IconRefresh size={15} /> {t.reload}</button>
+      </div>
+      {loading ? <p role="status" className="workspace-empty">{t.loading}</p> : !items.length ? <div className="workspace-empty"><IconBookmark size={30} /><h3>{error ? t.emptyErrorTitle : t.emptyTitle}</h3><p>{error ? t.emptyErrorBody : t.emptyBody}</p></div> : <div className="templates-grid">
+        {items.map(item => <article key={item.id} className="template-card">
+          <div className="template-card-body">
+            <strong>{item.name}</strong>
+            <small>{t.mode[item.mode] ?? item.mode} · {t.variableCount(item.variableCount)} · {t.revision(item.revision)}</small>
+            {item.description && <p>{item.description}</p>}
+          </div>
+          <div className="template-card-actions">
+            <button className="btn btn-primary" disabled={Boolean(usingId)} onClick={() => void use(item)}>{usingId === item.id ? <IconLoader2 size={15} className="projects-spin" /> : <IconRefresh size={15} />} {usingId === item.id ? t.using : t.use}</button>
+            <button className="icon-btn" aria-label={`${t.rename} ${item.name}`} onClick={() => { setRenaming(item); setRenameValue(item.name); }}><IconPencil size={16} /></button>
+            <button className="icon-btn" aria-label={`${t.delete} ${item.name}`} onClick={() => setDeleting(item)}><IconTrash size={16} /></button>
+          </div>
+        </article>)}
+      </div>}
+      <p className="template-muted templates-hint">{t.useHint}</p>
       <div className="templates-columns">
         <section className="template-panel" aria-label={t.createTitle}>
           <h2><IconScissors size={18} /> {t.createTitle}</h2>
@@ -337,32 +356,13 @@ export default function TemplatesPage({ sceneId }: { sceneId?: string }) {
 
         <section className="template-panel" aria-label={t.examplesTitle}>
           <h2><IconMessageCircle size={18} /> {t.examplesTitle}</h2>
-          <p className="template-muted">{t.examplesHint}</p>
+
           <div className="template-examples">
             {examples.map(([label, prompt]) => <button key={label} type="button" className="agent-button" onClick={() => openExample(prompt)}>{label}</button>)}
           </div>
         </section>
       </div>
 
-      <div className="workspace-library-heading">
-        <h2>{t.title} <span>{items.length}</span></h2>
-        <button className="text-link" onClick={() => setReload(value => value + 1)}><IconRefresh size={15} /> {t.reload}</button>
-      </div>
-      {loading ? <p role="status" className="workspace-empty">{t.loading}</p> : !items.length ? <div className="workspace-empty"><IconBookmark size={30} /><h3>{error ? t.emptyErrorTitle : t.emptyTitle}</h3><p>{error ? t.emptyErrorBody : t.emptyBody}</p></div> : <div className="templates-grid">
-        {items.map(item => <article key={item.id} className="template-card">
-          <div className="template-card-body">
-            <strong>{item.name}</strong>
-            <small>{t.mode[item.mode] ?? item.mode} · {t.variableCount(item.variableCount)} · {t.revision(item.revision)}</small>
-            {item.description && <p>{item.description}</p>}
-          </div>
-          <div className="template-card-actions">
-            <button className="btn btn-primary" disabled={Boolean(usingId)} onClick={() => void use(item)}>{usingId === item.id ? <IconLoader2 size={15} className="projects-spin" /> : <IconRefresh size={15} />} {usingId === item.id ? t.using : t.use}</button>
-            <button className="icon-btn" aria-label={`${t.rename} ${item.name}`} onClick={() => { setRenaming(item); setRenameValue(item.name); }}><IconPencil size={16} /></button>
-            <button className="icon-btn" aria-label={`${t.delete} ${item.name}`} onClick={() => setDeleting(item)}><IconTrash size={16} /></button>
-          </div>
-        </article>)}
-      </div>}
-      <p className="template-muted templates-hint">{t.useHint}</p>
       <p className="projects-back"><a className="text-link" href="#/workspace"><IconArrowLeft size={15} /> {t.back}</a></p>
     </section>
 
