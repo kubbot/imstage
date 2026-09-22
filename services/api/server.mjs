@@ -17,6 +17,7 @@
  */
 
 import http from 'node:http';
+import { isIP } from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -150,10 +151,16 @@ function normalizeEmail(value) {
   return String(value).trim().toLowerCase();
 }
 
-function remoteIp(req) {
-  // Deliberately ignore X-Forwarded-For / Forwarded: this server is meant to be
-  // bound to loopback, so the socket peer is the trustworthy source.
-  return req.socket?.remoteAddress ?? 'unknown';
+export function remoteIp(req, trustLoopbackProxy = false) {
+  const peer = req.socket?.remoteAddress ?? 'unknown';
+  // Opt-in only: the local reverse proxy MUST overwrite X-Real-IP. Never
+  // interpret arbitrary forwarding chains or accept this from non-loopback.
+  const loopback = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1';
+  const forwarded = req.headers?.['x-real-ip'];
+  if (trustLoopbackProxy && loopback && typeof forwarded === 'string' && isIP(forwarded)) {
+    return forwarded;
+  }
+  return peer;
 }
 
 function isUniqueConstraintError(err) {
@@ -767,7 +774,7 @@ function rateLimitedError(retryAfterMs) {
 }
 
 function throttleAuth(ctx, req, email) {
-  const ip = remoteIp(req);
+  const ip = remoteIp(req, ctx.config.trustLoopbackProxy);
   const ipResult = ctx.limiters.ip.consume(`ip:${ip}`, ctx.nowMs());
   if (!ipResult.allowed) throw rateLimitedError(ipResult.retryAfterMs);
   const emailKey = normalizeEmail(email).slice(0, 254);
@@ -1830,6 +1837,7 @@ function resolveConfig(options) {
     distDir,
     distRoot,
     nodeEnv,
+    trustLoopbackProxy: options.trustLoopbackProxy === true || env.IMSTAGE_TRUST_LOOPBACK_PROXY === '1',
     secureCookie: originUrl.protocol === 'https:',
     now,
     nowMs,
