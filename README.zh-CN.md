@@ -2,7 +2,7 @@
 
 一句话，创作对白、照片和可编辑的聊天画面。
 
-[打开 IMStage →](https://project-91bgj.vercel.app/?lang=zh) · [English](README.md) · [参与贡献](CONTRIBUTING.md)
+[打开 IMStage →](https://imstage.org/?lang=zh) · [English](README.md) · [参与贡献](CONTRIBUTING.md)
 
 ![IMStage 中文官网：AI 创作的武康路故事在微信中逐步展开](docs/images/landing-zh.png)
 

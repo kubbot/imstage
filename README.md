@@ -2,7 +2,7 @@
 
 Turn a prompt into dialogue, photos and an editable conversation.
 
-[Try IMStage →](https://project-91bgj.vercel.app/?lang=en) · [简体中文](README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
+[Try IMStage →](https://imstage.org/?lang=en) · [简体中文](README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
 
 ![IMStage in English: an AI-made Wukang Road story unfolds in WhatsApp](docs/images/landing-en.png)
 
