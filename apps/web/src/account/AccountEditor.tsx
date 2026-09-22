@@ -1,43 +1,119 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import { useAuth } from './Auth';
-import { api, ApiError, errorText, loginLink, type SavedScene } from './api';
+import { api, errorText, loginLink, type SavedScene } from './api';
 import { setNavigationGuard } from './navigation';
 import { createScene, validateScene, type Scene } from '../studio/model';
+import { useCloudAutosave, scenePayload, readWorkRevision, type CloudAutosave, type CloudSaveStatus } from '../cloudAutosave';
+import { useCopy, type AppCopy } from '../i18n';
 const Studio = lazy(() => import('../agent/AgentStudio'));
-export function AccountSave({ scene, disabled = false, projectId, localSessionId }: { scene: Scene; disabled?: boolean; projectId?:string; localSessionId?:string }) {
-  const { user } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const id = useRef(localSessionId || crypto.randomUUID());
-  const linkKey = localSessionId ? `imstage.work-link.${user?.id}.${localSessionId}` : null;
-  const [conflict,setConflict]=useState(false);
-  const [revision, setRevision] = useState(() => { try { const value=linkKey?Number(localStorage.getItem(linkKey)):0;return Number.isSafeInteger(value)&&value>0?value:0; } catch { return 0; } });
-  const snapshot = useRef('');
-  if (!user) return <a className="studio-btn" href={loginLink('/studio')}>登录保存作品</a>;
-  async function save() {
-    if (busy) return; setBusy(true); setStatus(''); const raw = JSON.stringify({scene,projectId});
-    try { const data = await api<{ item: SavedScene }>(`/scenes/${id.current}`, { method: 'PUT', body: { scene: { ...scene, id: id.current }, revision, projectId } }); setRevision(data.item.revision); snapshot.current = raw; setConflict(false); setStatus('已保存到我的作品');if(linkKey)try{localStorage.setItem(linkKey,String(data.item.revision));}catch{setStatus('作品已保存，但本机无法记录版本。下次请从我的作品打开。');} }
-    catch (error) { setConflict(error instanceof ApiError && error.status===409);setStatus(errorText(error)); } finally { setBusy(false); }
-  }
-  return <div className="account-save"><button className="studio-btn" onClick={save} disabled={disabled || busy || snapshot.current === JSON.stringify({scene,projectId})}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存到我的作品'}</button>{(status || revision>0) && <span className="account-save-message" role="status">{status || '已关联我的作品'} {(revision > 0 || conflict) && <a href={`#/workspace?scene=${id.current}`}>打开作品 →</a>}</span>}</div>;
+
+function cloudLabel(save: CloudAutosave, copy: AppCopy): string {
+  const labels: Record<CloudSaveStatus, string> = {
+    idle: '', local: copy.account.cloudPending, saving: copy.account.cloudSaving, saved: copy.account.cloudSaved,
+    offline: copy.account.cloudOffline, conflict: copy.account.cloudConflict, error: copy.account.cloudError,
+  };
+  return labels[save.status];
 }
+
+/** Compact status shared by creation sessions, the local studio and the editor. */
+function CloudStatus({ save, sceneId, locked, recovered = false, onSaveCopy, savingCopy = false, copyHref, children }: { save: CloudAutosave; sceneId: string; locked: boolean; recovered?: boolean; onSaveCopy?: () => void; savingCopy?: boolean; copyHref?: string; children?: React.ReactNode }) {
+  const copy = useCopy();
+  const needsRetry = save.status === 'offline' || save.status === 'error';
+  const text = save.deleted
+    ? copy.account.deletedNotice
+    : save.status === 'conflict'
+      ? copy.account.conflictNotice
+      : recovered ? copy.account.recoveredNote : cloudLabel(save, copy);
+  if (!text && !needsRetry && !children) return null;
+  return <span className="account-save-message" role="status" data-cloud={save.status}>
+    {text && <span>{text}</span>}
+    {needsRetry && <button type="button" disabled={locked} onClick={save.retry}>{copy.common.retry}</button>}
+    {save.status === 'conflict' && onSaveCopy && <button type="button" disabled={locked || savingCopy} onClick={onSaveCopy}>{copy.account.saveCopy}</button>}
+    {copyHref && <a href={copyHref}>{copy.account.openServerVersion}</a>}
+    {!copyHref && !save.deleted && save.revision > 0 && save.status !== 'conflict' && <a href={`#/workspace?scene=${sceneId}`}>{copy.account.openServerVersion}</a>}
+    {children}
+  </span>;
+}
+
+/** A stable id for surfaces without a creation session (the local studio). */
+function stableStudioId(userId?: string): string {
+  if (!userId) return crypto.randomUUID();
+  const key = `imstage.work-link.${userId}.studio-current`;
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existing)) return existing;
+    const next = crypto.randomUUID();
+    localStorage.setItem(key, next);
+    return next;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+export function AccountSave({ scene, disabled = false, projectId, localSessionId, autosave = true }: { scene: Scene; disabled?: boolean; projectId?: string; localSessionId?: string; autosave?: boolean }) {
+  const { user } = useAuth();
+  const copy = useCopy();
+  const id = useMemo(() => localSessionId || stableStudioId(user?.id), [localSessionId, user?.id]);
+  const [copyId, setCopyId] = useState('');
+  const [savingCopy, setSavingCopy] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const save = useCloudAutosave({
+    sceneId: id,
+    userId: user?.id,
+    projectId: projectId || '',
+    scene,
+    enabled: Boolean(user),
+    blocked: disabled || savingCopy,
+    autosave,
+    initialRevision: user ? readWorkRevision(user.id, id) : 0,
+    probe: autosave && Boolean(user),
+  });
+  async function saveIndependentCopy() {
+    if (!user || savingCopy) return;
+    setSavingCopy(true); setCopyError('');
+    const target = crypto.randomUUID();
+    try {
+      await api(`/scenes/${target}`, { method: 'PUT', body: { scene: { ...scene, id: target }, revision: 0, projectId } });
+      setCopyId(target);
+    } catch (error) { setCopyError(errorText(error)); }
+    finally { setSavingCopy(false); }
+  }
+  if (!user) return <a className="studio-btn" href={loginLink('/studio')}>{copy.common.signInToSave}</a>;
+  if (autosave) return <div className="account-save"><CloudStatus save={save} sceneId={id} locked={disabled} onSaveCopy={() => void saveIndependentCopy()} savingCopy={savingCopy} copyHref={copyId ? `#/workspace?scene=${copyId}` : undefined} />{copyError && <span role="alert">{copyError}</span>}</div>;
+  const dirty = save.dirty;
+  return <div className="account-save">
+    <button className="studio-btn" onClick={() => void save.saveNow(true)} disabled={disabled || save.status === 'saving' || (!dirty && save.status !== 'error' && save.status !== 'offline' && save.status !== 'local')}>
+      <IconDeviceFloppy size={16} />{save.status === 'saving' ? copy.account.savingToAccount : copy.account.saveWorks}
+    </button>
+    <CloudStatus save={save} sceneId={id} locked={disabled} onSaveCopy={() => void saveIndependentCopy()} savingCopy={savingCopy} copyHref={copyId ? `#/workspace?scene=${copyId}` : undefined} />
+    {copyError && <span role="alert">{copyError}</span>}
+  </div>;
+}
+
 export default function AccountEditor({ sceneId }: { sceneId: string }) {
   const { user } = useAuth();
+  const copy = useCopy();
   const [item, setItem] = useState<SavedScene | null>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setError(''); setItem(null);
-    if (sceneId === 'new') { const id = crypto.randomUUID(); setItem({ id, revision: 0, updatedAt: '', scene: { ...createScene(), id, title: '新的对话', selfId: 'me', participants: [{id:'me',name:'我'},{id:'other',name:'对方'}], messages: [] } }); return; }
+    if (sceneId === 'new') {
+      const id = crypto.randomUUID();
+      setItem({ id, revision: 0, updatedAt: '', scene: { ...createScene(), id, title: copy.account.newSceneTitle, selfId: 'me', participants: [{ id: 'me', name: copy.account.selfName }, { id: 'other', name: copy.account.otherName }], messages: [] } });
+      return;
+    }
     api<{ item: SavedScene }>(`/scenes/${encodeURIComponent(sceneId)}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setItem(data.item); }).catch(error => { if (!controller.signal.aborted) setError(errorText(error)); });
     return () => controller.abort();
   }, [sceneId, retry]);
-  if (error) return <section className="account-gate"><h1>暂时打不开这份作品</h1><p role="alert">{error}</p><button className="btn btn-secondary" onClick={() => setRetry(retry + 1)}>重试</button> <a className="text-link" href="#/workspace">返回我的作品</a></section>;
-  if (!item || !user) return <p className="page-loading" role="status">正在打开作品…</p>;
+  if (error) return <section className="account-gate"><h1>{copy.account.openWorkFailed}</h1><p role="alert">{error}</p><button className="btn btn-secondary" onClick={() => setRetry(retry + 1)}>{copy.common.retry}</button> <a className="text-link" href="#/workspace">{copy.account.backToWorks}</a></section>;
+  if (!item || !user) return <p className="page-loading" role="status">{copy.account.openingWork}</p>;
   return <EditorSession key={`${user.id}:${sceneId}:${retry}`} item={item} userId={user.id} draftId={sceneId} />;
 }
+
 function EditorSession({ item, userId, draftId }: { item: SavedScene; userId: string; draftId: string }) {
+  const copy = useCopy();
   const draftKey = `imstage.account.${userId}.${draftId}`;
   const [initial] = useState(() => {
     try {
@@ -47,43 +123,56 @@ function EditorSession({ item, userId, draftId }: { item: SavedScene; userId: st
     } catch { /* ignore unavailable/corrupt local recovery */ }
     return { scene: item.scene, id: item.id, revision: item.revision, projectId: item.projectIds?.[0] || '', recovered: false };
   });
-  const [projectId,setProjectId]=useState(initial.projectId);
+  const [projectId, setProjectId] = useState(initial.projectId);
   const [scene, setScene] = useState(initial.scene);
-  const [revision, setRevision] = useState(initial.revision);
-  const [id, setId] = useState(initial.id);
-  const [savedRaw, setSavedRaw] = useState(initial.recovered ? '' : item.revision ? JSON.stringify({scene:item.scene,projectId:item.projectIds?.[0] || ''}) : '');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState(initial.recovered ? '已恢复此标签页未保存的内容，请确认后保存。' : '');
-  const [conflict, setConflict] = useState(false);
+  const [recovered, setRecovered] = useState(initial.recovered);
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentStorageError, setAgentStorageError] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const [copying, setCopying] = useState(false);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const liveScene = useRef(scene); liveScene.current = scene;
-  const dirty = savedRaw !== JSON.stringify({scene,projectId});
+
+  const save = useCloudAutosave({
+    sceneId: initial.id,
+    userId,
+    projectId,
+    scene,
+    enabled: true,
+    blocked: agentBusy || copying,
+    autosave: true,
+    initialRevision: initial.revision,
+    initialSavedRaw: initial.recovered ? undefined : scenePayload(item.scene, item.projectIds?.[0] || '', initial.id),
+    onSaved: () => { if (draftId === 'new') { try { history.replaceState(null, '', `${location.pathname}${location.search}#/workspace?scene=${initial.id}`); } catch { /* the scene is already saved */ } } },
+  });
   useEffect(() => {
-    try { if (dirty) sessionStorage.setItem(draftKey, JSON.stringify({ id, scene, revision, projectId })); else sessionStorage.removeItem(draftKey); setStorageError(false); }
-    catch { setStorageError(true); }
-  }, [scene, revision, id, dirty, draftKey, projectId]);
-  useEffect(() => { const warn = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
-  useEffect(() => {
-    if ((!dirty || !storageError) && !agentStorageError) return;
-    return setNavigationGuard(() => window.confirm('当前修改尚未保存，浏览器也无法保存恢复副本。离开会丢失这些修改，确定离开？'));
-  }, [dirty, storageError, agentStorageError]);
-  async function save(copy = false) {
-    if (busy || agentBusy) return; setBusy(true); setStatus('');
-    const sent = liveScene.current; const raw = JSON.stringify({scene:sent,projectId}); const target = copy ? crypto.randomUUID() : id;
     try {
-      const result = await api<{ item: SavedScene }>(`/scenes/${target}`, { method: 'PUT', body: { scene: { ...sent, id: target }, revision: copy ? 0 : revision, projectId } });
+      if (save.dirty) sessionStorage.setItem(draftKey, JSON.stringify({ id: initial.id, scene, revision: save.revision, projectId }));
+      else { sessionStorage.removeItem(draftKey); setRecovered(false); }
+      setStorageError(false);
+    } catch { setStorageError(true); }
+  }, [scene, projectId, save.dirty, save.revision, draftKey, initial.id]);
+  useEffect(() => {
+    if (!storageError && !agentStorageError) return;
+    return setNavigationGuard(() => window.confirm(copy.account.beforeUnload));
+  }, [storageError, agentStorageError, copy.account.beforeUnload]);
+  async function saveCopy() {
+    if (copying || agentBusy) return;
+    setCopying(true); setCopyError('');
+    const target = crypto.randomUUID();
+    try {
+      const sent = liveScene.current;
+      const data = await api<{ item: SavedScene }>(`/scenes/${target}`, { method: 'PUT', body: { scene: { ...sent, id: target }, revision: 0, projectId } });
       if (!active.current) return;
-      setId(target); setRevision(result.item.revision); setSavedRaw(raw); setConflict(false); setStatus('已保存到账号');
-      if (JSON.stringify({scene:liveScene.current,projectId}) === raw && (draftId === 'new' || copy)) { try { sessionStorage.removeItem(draftKey); } catch {} location.hash = `/workspace?scene=${target}`; }
-    } catch (error) { if (!active.current) return; setStatus(errorText(error)); setConflict(error instanceof ApiError && error.status === 409); }
-    finally { if (active.current) setBusy(false); }
+      try { sessionStorage.removeItem(draftKey); } catch { /* navigation still works */ }
+      location.hash = `/workspace?scene=${data.item.id}`;
+    } catch (error) { if (active.current) setCopyError(errorText(error)); }
+    finally { if (active.current) setCopying(false); }
   }
-  return <><div className="account-editor-bar"><a href="#/workspace">← 我的作品</a><p>{dirty ? '有未保存的修改' : '已保存到账号'} · {storageError || agentStorageError ? '无法保存恢复副本，请先保存作品或导出 JSON' : '未保存的内容可在此标签页恢复'}</p></div>
-    {conflict && <div className="account-error account-editor-error" role="alert">服务端的版本已经改变，当前修改仍保留。可以下载场景 JSON，或另存一份作品。<button disabled={busy || agentBusy} onClick={() => save(true)}>另存为新作品</button></div>}
-    <Suspense fallback={<p className="page-loading" role="status">正在准备编辑器…</p>}><Studio initialProjectId={projectId} onProjectChange={setProjectId} initialScene={initial.scene} persistLocal={false} disabled={busy} onBusyChange={setAgentBusy} onStorageError={setAgentStorageError} onSceneChange={setScene} accountAction={(_, locked) => <div className="account-save"><button className="studio-btn" disabled={busy || locked || !dirty} onClick={() => save()}><IconDeviceFloppy size={16} />{busy ? '正在保存…' : '保存作品'}</button>{status && <span className="account-save-message" role="status">{status}</span>}</div>} /></Suspense>
+  return <><div className="account-editor-bar"><a href="#/workspace">{copy.account.backWorks}</a><p>{save.dirty ? copy.account.workDirty : copy.account.savedToAccount} · {storageError || agentStorageError ? copy.account.draftStorageFailed : copy.account.draftRecoverable}</p></div>
+    {copyError && <div className="account-error" role="alert">{copyError}</div>}
+    <Suspense fallback={<p className="page-loading" role="status">{copy.common.loading}</p>}><Studio initialProjectId={projectId} onProjectChange={setProjectId} initialScene={initial.scene} persistLocal={false} disabled={copying} onBusyChange={setAgentBusy} onStorageError={setAgentStorageError} onSceneChange={setScene} accountAction={(_, locked) => <CloudStatus save={save} sceneId={initial.id} locked={locked || copying} recovered={recovered} onSaveCopy={() => void saveCopy()} savingCopy={copying} />} /></Suspense>
   </>;
 }

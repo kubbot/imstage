@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createScene } from '../../apps/web/src/studio/model';
+test.use({ locale: 'zh-CN' });
 
 async function ready(page: Page, long = false) {
   await page.goto('/#/create');

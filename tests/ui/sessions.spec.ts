@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
+test.use({ locale: 'zh-CN' });
 const fixture=JSON.parse(fs.readFileSync(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
 const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6ioAAAAASUVORK5CYII=';
 async function seed(page:Page, long=false){
@@ -47,7 +48,7 @@ test('failed storage blocks switching, retains draft and retries without claimin
   await expect(page.getByRole('button',{name:'重试保存',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'新建会话',exact:true})).toBeEnabled();
   await expect(page.getByText('尚未保存',{exact:false})).toBeVisible();
-  await page.evaluate(()=>(window as any).__restorePut());await page.getByRole('button',{name:'重试保存',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);await page.reload();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('存储失败也要保留');
+  await page.evaluate(()=>(window as any).__restorePut());await page.getByRole('button',{name:'重试保存',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('已保存到本机');await page.reload();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('存储失败也要保留');
 });
 
 test('session list works on small screens in both themes and respects keyboard dismissal',async({page})=>{
@@ -76,18 +77,44 @@ test('switching preserves the visible screenshot crop and normal draft is separa
   await page.goto('/#/create?case=loan-anniversary');await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('去年借款，今天归还');await page.goto('/#/create');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('尚未发送的 A 草稿');
 });
 
-test('saving after switching back updates the same account work and still rejects remote revision conflicts',async({page})=>{
-  await page.goto('/#/create');const response=await page.request.post('/api/auth/register',{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{email:`work-session-${crypto.randomUUID()}@example.test`,name:'合成测试',password:'synthetic-session-password-2026'}});expect(response.ok()).toBeTruthy();await page.reload();
-  await page.getByLabel('描述想生成的聊天',{exact:true}).fill('保存关联测试');await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('保存关联测试');
-  await page.getByRole('button',{name:'保存到我的作品',exact:true}).click();await expect(page.getByText('已保存到我的作品',{exact:false})).toBeVisible();const href=await page.getByRole('link',{name:'打开作品 →'}).getAttribute('href');
-  await page.getByRole('button',{name:'新建会话',exact:true}).click();await open(page);await page.getByRole('button',{name:'打开会话：保存关联测试',exact:true}).click();await expect(page.getByRole('link',{name:'打开作品 →'})).toHaveAttribute('href',href!);
+test('account sessions autosave into one work and never overwrite a newer remote revision',async({page})=>{
+  await page.goto('/#/create');const response=await page.request.post('/api/auth/register',{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{email:`work-session-${crypto.randomUUID()}@example.test`,name:'合成测试',password:'synthetic-session-password-2026'}});expect(response.ok()).toBeTruthy();
+  await page.route('**/api/agent/run',async route=>{const {scene}=route.request().postDataJSON();const next={...scene,messages:[{id:'m1',participantId:scene.selfId,type:'text',text:'自动保存的一句话',time:'09:41'}]};await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:next},{type:'done'}].map(v=>JSON.stringify(v)).join('\n')+'\n'});});
+  await page.reload();
+  await page.getByLabel('描述想生成的聊天',{exact:true}).fill('生成一句用于自动保存的话');await page.getByRole('button',{name:'开始生成',exact:true}).click();
+  await expect(page.locator('.agent-phone')).toContainText('自动保存的一句话');
+  // The debounced autosave links the session to exactly one work with a stable id.
+  const link=page.getByRole('link',{name:'打开服务端版本 →'});await expect(link).toBeVisible({timeout:15000});
+  const href=await link.getAttribute('href');const workId=href!.split('scene=')[1];expect(workId).toBeTruthy();
+  await expect.poll(async()=>(await(await page.request.get('/api/scenes')).json()).items.length).toBe(1);
+  const first=await(await page.request.get(`/api/scenes/${workId}`)).json();
+  // Editing during the debounce window keeps flowing and the newest snapshot wins.
   await page.getByRole('button',{name:'编辑会话标题',exact:true}).click();await page.getByLabel('会话标题',{exact:true}).fill('新的作品标题');
-  const updated=page.waitForResponse(r=>r.request().method()==='PUT'&&r.url().includes('/api/scenes/'));await page.getByRole('button',{name:'保存到我的作品',exact:true}).click();const saved=await(await updated).json();expect(saved.item.revision).toBe(2);expect(saved.item.id).toBe(href!.split('scene=')[1]);
-  const all=await(await page.request.get('/api/scenes')).json();expect(all.items).toHaveLength(1);
-  // A server-side edit in another client must not be silently overwritten by the local session.
-  const remote=await page.request.put(`/api/scenes/${saved.item.id}`,{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{scene:{...saved.item.scene,title:'另一个客户端更新'},revision:2}});expect(remote.ok()).toBeTruthy();
-  await page.getByLabel('会话标题',{exact:true}).fill('旧版本的本地编辑');await page.getByRole('button',{name:'保存到我的作品',exact:true}).click();await expect(page.locator('.account-save-message')).toContainText('更新');
-  const unchanged=await(await page.request.get(`/api/scenes/${saved.item.id}`)).json();expect(unchanged.item.revision).toBe(3);expect(unchanged.item.scene.title).toBe('另一个客户端更新');
+  await page.getByLabel('会话标题',{exact:true}).fill('最终的作品标题');
+  await expect.poll(async()=>(await(await page.request.get(`/api/scenes/${workId}`)).json()).item.scene.headerText).toBe('最终的作品标题');
+  const saved=await(await page.request.get(`/api/scenes/${workId}`)).json();expect(saved.item.revision).toBeGreaterThan(first.item.revision);
+  // A server-side edit from another client must not be silently overwritten by the local session.
+  const remote=await page.request.put(`/api/scenes/${workId}`,{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{scene:{...saved.item.scene,title:'另一个客户端更新'},revision:saved.item.revision}});expect(remote.ok()).toBeTruthy();
+  await page.getByLabel('会话标题',{exact:true}).fill('旧版本的本地编辑');
+  await expect(page.locator('.account-save-message')).toContainText('版本已经改变',{timeout:15000});
+  const unchanged=await(await page.request.get(`/api/scenes/${workId}`)).json();expect(unchanged.item.scene.title).toBe('另一个客户端更新');
+  expect((await(await page.request.get('/api/scenes')).json()).items).toHaveLength(1);
+});
+
+test('a send intent whose durable write fails dispatches nothing and retries once',async({page})=>{
+  await page.goto('/#/create');const response=await page.request.post('/api/auth/register',{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{email:`intent-${crypto.randomUUID()}@example.test`,name:'合成测试',password:'synthetic-session-password-2026'}});expect(response.ok()).toBeTruthy();
+  // Fail only the durable write of a `running` intent; session creation still works.
+  await page.addInitScript(()=>{const put=IDBObjectStore.prototype.put;(window as any).__restoreIntentPut=()=>{IDBObjectStore.prototype.put=put;};IDBObjectStore.prototype.put=function(this:IDBObjectStore,value:any){if(this.name==='drafts'&&value?.draft?.intent?.status==='running')throw new DOMException('Synthetic quota failure','QuotaExceededError');return put.call(this,value);};});
+  const runs:string[]=[];page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/api/agent/run'))runs.push(r.postData()||'');});
+  await page.evaluate(scene=>sessionStorage.setItem('imstage.agent.login-handoff',JSON.stringify({scene,prompt:'一次性发送的意图',intent:{id:crypto.randomUUID(),prompt:'一次性发送的意图',status:'staged',createdAt:Date.now(),attempts:0}})),fixture.scene);
+  await page.reload();
+  await expect(page.getByRole('button',{name:'重试发送',exact:true})).toBeVisible({timeout:10000});
+  await page.waitForTimeout(600);
+  expect(runs).toEqual([]);
+  await page.evaluate(()=>(window as any).__restoreIntentPut());
+  await page.getByRole('button',{name:'重试发送',exact:true}).click();
+  await expect.poll(()=>runs.length).toBe(1);
+  expect(runs[0]).toContain('一次性发送的意图');
 });
 
 test('interrupted generation is restored as interrupted, not as an indefinitely running assistant',async({page})=>{

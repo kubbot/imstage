@@ -29,7 +29,7 @@ test('a plain English handoff starts a blank WhatsApp session instead of fabrica
   await page.goto('/#/create?new=1&lang=en');
   await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
   await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
-  await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Describe the chat to generate', { exact: true })).toHaveValue('');
   await expect(page.locator('.agent-phone .scene-header-name')).toHaveText('Ava');
 });
 
@@ -38,18 +38,19 @@ test('the new-session handoff is consumed: reloading resumes the same session', 
   await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
   const firstId = await page.evaluate((key) => sessionStorage.getItem(key), pointerKey);
   expect(firstId).toBeTruthy();
-  await openSessions(page);
+  await page.getByRole('button', { name: 'Manage sessions' }).click();
+  await expect(page.getByLabel('Creation sessions')).toBeVisible();
   const before = await page.locator('.session-item').count();
   await page.reload();
-  await expect(page.getByRole('button', { name: '管理创作会话' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Manage sessions' })).toBeVisible();
   expect(await page.evaluate((key) => sessionStorage.getItem(key), pointerKey)).toBe(firstId);
-  await openSessions(page);
+  await page.getByRole('button', { name: 'Manage sessions' }).click();
   expect(await page.locator('.session-item').count()).toBe(before);
 });
 
 test('the studio draft and PNG export keep working after using the landing demo', async ({ page }, testInfo) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '导出这张画面', exact: true })).toBeEnabled();
+  await expect(page.getByTestId('hero-export')).toBeEnabled();
   await page.goto('/#/studio');
   await page.getByRole('textbox', { name: '文本内容', exact: true }).fill('首页之后仍然可以创作');
   const download = page.waitForEvent('download');

@@ -82,6 +82,7 @@ export interface LandingCopy {
   promptLabel: string;
   promptHint: string;
   promptPlaceholder: string;
+  needPrompt: string;
   primary: string;
   secondary: string;
   exporting: string;
@@ -162,9 +163,10 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     h1b: '让故事发生。',
     promise: 'AI 写对白、生成画面，全部可编辑。',
     promptLabel: '你的指令',
-    promptHint: '写下你的版本；在创作页交给 AI。',
+    promptHint: '写下你的指令；点击发送后立即开始一次 AI 创作。',
     promptPlaceholder: '描述一个场景，例如一次见面的地点。',
-    primary: '用 AI 创作',
+    primary: '发送并创建',
+    needPrompt: '先写下一句指令，再交给 AI 创作。',
     secondary: '导出这张画面',
     exporting: '正在导出 PNG…',
     exportDone: 'PNG 已导出。',
@@ -257,9 +259,10 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     h1b: 'A story unfolds.',
     promise: 'AI writes the dialogue and creates the image — all editable.',
     promptLabel: 'Your instruction',
-    promptHint: 'Write your own version and hand it to AI in the studio.',
+    promptHint: 'Write your instruction; sending starts one AI run.',
     promptPlaceholder: 'Describe a scene, for example a place to meet.',
-    primary: 'Create with AI',
+    primary: 'Send & create',
+    needPrompt: 'Write an instruction before handing it to AI.',
     secondary: 'Export this frame',
     exporting: 'Exporting PNG…',
     exportDone: 'PNG exported.',

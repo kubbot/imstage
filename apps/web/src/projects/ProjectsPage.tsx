@@ -26,31 +26,13 @@ import {
   type SceneSummary,
 } from '../account/api';
 import { PLATFORMS, PLATFORM_LABELS, type Platform } from '../studio/model';
+import { useCopy } from '../i18n';
 import './projects.css';
 
 const MAX_PROMPTS = 10;
 const MAX_ITEMS = 20;
 const POLL_MS = 2_000;
 const TERMINAL_JOB_STATUSES: BatchJob['status'][] = ['done', 'partial', 'failed', 'cancelled', 'interrupted'];
-
-const JOB_STATUS_LABELS: Record<BatchJob['status'], string> = {
-  queued: '排队中',
-  running: '生成中',
-  done: '已完成',
-  partial: '部分完成',
-  failed: '失败',
-  cancelled: '已取消',
-  interrupted: '已中断',
-};
-
-const TASK_STATUS_LABELS: Record<BatchTask['status'], string> = {
-  queued: '等待中',
-  running: '生成中',
-  done: '已保存',
-  failed: '失败',
-  cancelled: '已取消',
-  interrupted: '已中断',
-};
 
 function isTerminal(status: BatchJob['status']) {
   return TERMINAL_JOB_STATUSES.includes(status);
@@ -81,6 +63,8 @@ function ProjectList() {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const p = useCopy().projects;
+  const a = useCopy().account;
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -145,25 +129,25 @@ function ProjectList() {
     <div className="projects-shell">
       <header className="projects-heading">
         <div>
-          <span className="account-kicker">PROJECTS</span>
-          <h1>项目与批量生成</h1>
-          <p>为一个主题保存规则和默认平台，一次生成最多 {MAX_ITEMS} 个新作品。</p>
+          <span className="account-kicker">{p.listKicker}</span>
+          <h1>{p.listTitle}</h1>
+          <p>{p.listLede}</p>
         </div>
       </header>
 
       <form className="project-create" onSubmit={create}>
-        <h2>新建项目</h2>
+        <h2>{p.newProject}</h2>
         <label>
-          项目名称
+          {p.nameLabel}
           <input
             value={name}
             maxLength={80}
-            placeholder="例如：秋季新品发布"
+            placeholder={p.namePlaceholder}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
         <label>
-          默认平台
+          {p.platformLabel}
           <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
             {PLATFORMS.map((value) => (
               <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
@@ -171,50 +155,50 @@ function ProjectList() {
           </select>
         </label>
         <label>
-          项目规则（可选，最多 4000 字）
+          {p.rulesLabel}
           <textarea
             value={rules}
             maxLength={4000}
             rows={3}
-            placeholder="例如：保持轻松语气，只写中文，不要出现真实品牌。"
+            placeholder={p.rulesPlaceholder}
             onChange={(event) => setRules(event.target.value)}
           />
         </label>
         <button className="btn btn-primary" disabled={busy || name.trim() === ''}>
           {busy ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
-          {busy ? '正在创建…' : '创建项目'}
+          {busy ? p.creating : p.create}
         </button>
       </form>
 
       {error && (
         <div role="alert" className="account-error projects-error">
-          {error} <button onClick={() => setReload(reload + 1)}>重新加载</button>
+          {error} <button onClick={() => setReload(reload + 1)}>{p.reload}</button>
         </div>
       )}
 
       {loading ? (
-        <p role="status" className="page-loading">正在读取项目…</p>
+        <p role="status" className="page-loading">{p.loading}</p>
       ) : !items.length ? (
         <div className="workspace-empty">
           <IconFolder size={30} />
-          <h3>还没有项目</h3>
-          <p>先创建一个项目，把场景灵感和项目规则放在一起。</p>
+          <h3>{p.emptyTitle}</h3>
+          <p>{p.emptyBody}</p>
         </div>
       ) : (
         <div className="projects-grid">
           {items.map((item) => (
             <article key={item.id} className="project-card">
-              <a href={`#/projects?project=${encodeURIComponent(item.id)}`} aria-label={`打开项目 ${item.name}`}>
+              <a href={`#/projects?project=${encodeURIComponent(item.id)}`} aria-label={`${p.open} ${item.name}`}>
                 <div className="project-card-body">
                   <IconFolder size={26} stroke={1.4} />
                   <strong>{item.name}</strong>
-                  <small>{PLATFORM_LABELS[item.platform]} · {item.sceneCount} 个作品</small>
-                  <p>{item.rules.trim() ? item.rules.trim().slice(0, 80) : '未设置项目规则'}</p>
+                  <small>{PLATFORM_LABELS[item.platform]} · {p.sceneCount(item.sceneCount)}</small>
+                  <p>{item.rules.trim() ? item.rules.trim().slice(0, 80) : p.noRules}</p>
                 </div>
               </a>
               <button
                 className="icon-btn project-delete"
-                aria-label={`删除项目 ${item.name}`}
+                aria-label={`${p.delete} ${item.name}`}
                 onClick={() => setSelected(item)}
               >
                 <IconTrash size={17} />
@@ -224,7 +208,7 @@ function ProjectList() {
         </div>
       )}
 
-      <p className="projects-back"><a className="text-link" href="#/workspace"><IconArrowLeft size={15} /> 返回我的作品</a></p>
+      <p className="projects-back"><a className="text-link" href="#/workspace"><IconArrowLeft size={15} /> {a.backWorks}</a></p>
 
       <dialog
         ref={dialog}
@@ -234,15 +218,14 @@ function ProjectList() {
           else setSelected(null);
         }}
       >
-        <h2>删除项目「{selected?.name}」？</h2>
+        <h2>{p.deleteTitle}</h2>
         <p>
-          项目会被永久删除，其中关联的 {selected?.sceneCount ?? 0} 个作品会保留在「我的作品」中，只解除关联。
-          进行中的批量生成会同时取消。
+          {p.deleteConfirm} {p.cancelWarning}
         </p>
         <div>
-          <button className="btn btn-secondary" disabled={deleting} onClick={() => setSelected(null)}>保留项目</button>
+          <button className="btn btn-secondary" disabled={deleting} onClick={() => setSelected(null)}>{p.keep}</button>
           <button className="btn btn-primary" disabled={deleting} onClick={remove}>
-            {deleting ? '正在删除…' : '确认删除项目'}
+            {deleting ? p.deleting : p.confirmDelete}
           </button>
         </div>
       </dialog>
@@ -285,6 +268,8 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const dirtyRef=useRef(false);dirtyRef.current=Boolean(item)&&saved!==JSON.stringify({name,rules,platform});
   const retrying=useRef(false);
   const [retryBusy,setRetryBusy]=useState(false);
+  const p = useCopy().projects;
+  const a = useCopy().account;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -372,7 +357,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   const dirty = Boolean(item) && saved !== JSON.stringify({ name, rules, platform });
   useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
-  useEffect(()=>dirty?setNavigationGuard(()=>window.confirm('项目规则尚未保存，离开会丢失修改，确定离开？')):undefined,[dirty]);
+  useEffect(()=>dirty?setNavigationGuard(()=>window.confirm(p.leaveConfirm)):undefined,[dirty]);
   const attachedIds = useMemo(() => new Set(scenes.map((scene) => scene.id)), [scenes]);
   const attachable = useMemo(() => available.filter((scene) => !attachedIds.has(scene.id)), [available, attachedIds]);
 
@@ -395,7 +380,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       setPlatform(data.item.platform);
       setSaved(JSON.stringify({ name: data.item.name, rules: data.item.rules, platform: data.item.platform }));
       setConflict(false);
-      setStatus('已保存项目设置');
+      setStatus(p.settingsSaved);
     } catch (err) {
       setStatus(errorText(err));
       setConflict(err instanceof ApiError && err.status === 409);
@@ -441,19 +426,19 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     event.preventDefault();
     if (submitting) return;
     if (promptLines.length === 0) {
-      setBatchError('请至少输入 1 条提示词，每行一条。');
+      setBatchError(p.needPrompt);
       return;
     }
     if (promptLines.length > MAX_PROMPTS) {
-      setBatchError(`最多 ${MAX_PROMPTS} 条提示词。`);
+      setBatchError(p.maxPrompts(MAX_PROMPTS));
       return;
     }
     if (platforms.length === 0) {
-      setBatchError('请至少选择一个平台。');
+      setBatchError(p.needPlatform);
       return;
     }
     if (totalItems > MAX_ITEMS) {
-      setBatchError(`一次最多 ${MAX_ITEMS} 个作品（提示词 × 平台）。`);
+      setBatchError(p.maxItems(MAX_ITEMS));
       return;
     }
     // One stable key per submit attempt: a timed-out retry returns the same job
@@ -505,13 +490,13 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     } finally {retrying.current=false;setRetryBusy(false);}
   }
 
-  if (loading && !item) return <p role="status" className="page-loading">正在打开项目…</p>;
+  if (loading && !item) return <p role="status" className="page-loading">{p.loading}</p>;
   if (!item) {
     return (
       <section className="account-gate">
-        <h1>暂时打不开这个项目</h1>
-        <p role="alert">{error || '项目不存在或已删除。'}</p>
-        <a className="btn btn-secondary" href="#/projects">返回项目列表</a>
+        <h1>{p.openFailed}</h1>
+        <p role="alert">{error || p.missing}</p>
+        <a className="btn btn-secondary" href="#/projects">{p.back}</a>
       </section>
     );
   }
@@ -521,12 +506,12 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   return (
     <div className="projects-shell projects-detail">
-      <p className="projects-back"><a className="text-link" href="#/projects"><IconArrowLeft size={15} /> 返回项目列表</a></p>
+      <p className="projects-back"><a className="text-link" href="#/projects"><IconArrowLeft size={15} /> {p.back}</a></p>
       <header className="projects-heading">
         <div>
           <span className="account-kicker">PROJECT</span>
           <h1>{item.name}</h1>
-          <p>{PLATFORM_LABELS[item.platform]} · {scenes.length} 个作品 · 版本 {item.revision}</p>
+          <p>{PLATFORM_LABELS[item.platform]} · {p.scenesVersion(scenes.length, item.revision)}</p>
         </div>
       </header>
 
@@ -534,20 +519,20 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
       <div className="projects-columns">
         <section className="project-panel">
-          <h2><IconSettings size={18} /> 项目规则</h2>
+          <h2><IconSettings size={18} /> {p.detailRules}</h2>
           {conflict && (
             <div className="account-error" role="alert">
-              项目已在其他标签页更新。当前修改仍保留，请重新加载后再保存。
-              <button onClick={() => { if(window.confirm("重新加载会放弃当前未保存的项目规则，继续？")){initializedProject.current="";setReload((value)=>value+1);} }}>重新加载</button>
+              {p.conflictNotice}
+              <button onClick={() => { if(window.confirm(p.reloadConfirm)){initializedProject.current="";setReload((value)=>value+1);} }}>{p.reload}</button>
             </div>
           )}
           <form className="project-form" onSubmit={save}><fieldset disabled={busy} style={{border:0,padding:0,margin:0}}>
             <label>
-              名称
+              {p.nameLabel}
               <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
             </label>
             <label>
-              默认平台
+              {p.platformLabel}
               <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
                 {PLATFORMS.map((value) => (
                   <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
@@ -555,18 +540,18 @@ function ProjectDetail({ projectId }: { projectId: string }) {
               </select>
             </label>
             <label>
-              规则（最多 4000 字）
+              {p.rulesLabel}
               <textarea
                 value={rules}
                 maxLength={4000}
                 rows={5}
-                placeholder="规则会作为独立说明提供给生成任务，不会写入你的作品。"
+                placeholder={p.rulesNote}
                 onChange={(event) => setRules(event.target.value)}
               />
             </label>
             <div className="project-form-actions">
               <button className="btn btn-primary" disabled={busy || !dirty}>
-                <IconDeviceFloppy size={16} /> {busy ? '正在保存…' : '保存项目'}
+                <IconDeviceFloppy size={16} /> {busy ? p.saving : p.saveProject}
               </button>
               {status && <span className="project-status" role="status">{status}</span>}
             </div>
@@ -574,20 +559,20 @@ function ProjectDetail({ projectId }: { projectId: string }) {
         </section>
 
         <section className="project-panel">
-          <h2><IconLayoutGrid size={18} /> 项目作品 <span>{scenes.length}</span></h2>
+          <h2><IconLayoutGrid size={18} /> {p.works} <span>{scenes.length}</span></h2>
           {scenes.length === 0 ? (
-            <p className="project-muted">还没有作品。可以在下方批量生成，或从「我的作品」中关联已有作品。</p>
+            <p className="project-muted">{p.noWorks}</p>
           ) : (
             <ul className="project-scene-list">
               {scenes.map((scene) => (
                 <li key={scene.id}>
                   <a href={`#/workspace?scene=${encodeURIComponent(scene.id)}`}>
-                    <strong>{scene.title || '未命名对话'}</strong>
-                    <small>{PLATFORM_LABELS[scene.platform]} · {scene.messageCount} 条消息</small>
+                    <strong>{scene.title || a.untitled}</strong>
+                    <small>{PLATFORM_LABELS[scene.platform]} · {a.cardMessages(scene.messageCount)}</small>
                   </a>
                   <button
                     className="icon-btn"
-                    aria-label={`解除关联 ${scene.title || '未命名对话'}`}
+                    aria-label={`${p.detach} ${scene.title || a.untitled}`}
                     disabled={detachingId === scene.id}
                     onClick={() => void detach(scene.id)}
                   >
@@ -599,38 +584,38 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           )}
           <form className="project-attach" onSubmit={attach}>
             <label>
-              关联已有作品
+              {p.attachWork}
               <select value={attachId} onChange={(event) => setAttachId(event.target.value)}>
-                <option value="">选择我的作品…</option>
+                <option value="">{p.chooseWork}</option>
                 {attachable.map((scene) => (
-                  <option key={scene.id} value={scene.id}>{scene.title || '未命名对话'}</option>
+                  <option key={scene.id} value={scene.id}>{scene.title || a.untitled}</option>
                 ))}
               </select>
             </label>
             <button className="btn btn-secondary" disabled={!attachId || attaching}>
-              {attaching ? <IconLoader2 size={15} className="projects-spin" /> : <IconPlus size={15} />} 关联
+              {attaching ? <IconLoader2 size={15} className="projects-spin" /> : <IconPlus size={15} />} {p.attach}
             </button>
           </form>
         </section>
       </div>
 
       <section className="project-panel project-batch">
-        <h2><IconRefresh size={18} /> 批量生成</h2>
+        <h2><IconRefresh size={18} /> {p.batch}</h2>
         <p className="project-muted">
-          每行一条提示词，最多 {MAX_PROMPTS} 条；提示词 × 平台最多 {MAX_ITEMS} 个作品。规则和平台会在提交时快照。
+          {p.batchHint(MAX_PROMPTS, MAX_ITEMS)}
         </p>
         <form onSubmit={startBatch}>
           <label>
-            提示词（每行一条）
+            {p.prompts}
             <textarea
               value={promptsText}
               rows={4}
-              placeholder={'和朋友约周末去看展，聊得轻松一点\n写一段新品发布的群聊预告'}
+              placeholder={p.promptsHint}
               onChange={(event) => setPromptsText(event.target.value)}
             />
           </label>
           <fieldset className="project-platforms">
-            <legend>平台</legend>
+            <legend>{p.platformShort}</legend>
             {PLATFORMS.map((value) => (
               <label key={value} className="project-checkbox">
                 <input type="checkbox" checked={platforms.includes(value)} onChange={() => togglePlatform(value)} />
@@ -641,9 +626,9 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           <div className="project-form-actions">
             <button className="btn btn-primary" disabled={submitting || running}>
               {submitting ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
-              {submitting ? '正在提交…' : running ? '已有任务进行中' : `生成 ${promptLines.length && platforms.length ? totalItems : 0} 个作品`}
+              {submitting ? p.generating : running ? p.taskRunning : `${p.generate} ${promptLines.length && platforms.length ? totalItems : 0}`}
             </button>
-            <span className="project-status">提示词 {promptLines.length}/{MAX_PROMPTS} · 作品 {totalItems}/{MAX_ITEMS}</span>
+            <span className="project-status">{p.promptCount(promptLines.length)}/{MAX_PROMPTS} · {p.sceneCount(totalItems)}/{MAX_ITEMS}</span>
           </div>
           {batchError && <p className="account-error" role="alert">{batchError}</p>}
         </form>
@@ -651,8 +636,8 @@ function ProjectDetail({ projectId }: { projectId: string }) {
         {job && (
           <div className="project-job">
             <div className="project-job-head">
-              <strong>任务 {JOB_STATUS_LABELS[job.status]}</strong>
-              <span>{job.succeeded} 成功 · {job.failed} 失败 · 共 {job.total}</span>
+              <strong>{p.history} {p.jobStatus[job.status]}</strong>
+              <span>{p.success} {job.succeeded} · {p.failed} {job.failed} · {p.total(job.total)}</span>
             </div>
             <div className="project-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={jobProgress(job)}>
               <span style={{ width: `${jobProgress(job)}%` }} />
@@ -668,10 +653,10 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                     <span className="task-status">
                       {task.status === 'done' && task.sceneId ? (
                         <a href={`#/workspace?scene=${encodeURIComponent(task.sceneId)}`}>
-                          <IconCheck size={14} /> 打开作品
+                          <IconCheck size={14} /> {p.openScene}
                         </a>
                       ) : (
-                        TASK_STATUS_LABELS[task.status]
+                        p.taskStatus[task.status]
                       )}
                     </span>
                   </li>
@@ -681,12 +666,12 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             <div className="project-form-actions">
               {running && (
                 <button className="btn btn-secondary" onClick={cancelJob} type="button">
-                  <IconPlayerStop size={16} /> 取消生成
+                  <IconPlayerStop size={16} /> {p.cancel}
                 </button>
               )}
               {canRetry && (
                 <button className="btn btn-secondary" onClick={retryJob} disabled={retryBusy} type="button">
-                  <IconRefresh size={16} /> 重试失败项
+                  <IconRefresh size={16} /> {p.retryFailed}
                 </button>
               )}
             </div>
@@ -695,17 +680,17 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
         {jobs.length > 1 && (
           <details className="project-history">
-            <summary>历史任务（{jobs.length}）</summary>
+            <summary>{p.history} ({jobs.length})</summary>
             <ul>
               {jobs.map((entry) => (
                 <li key={entry.id}>
-                  <span>{JOB_STATUS_LABELS[entry.status]}</span>
-                  <span>{entry.succeeded} 成功 · {entry.failed} 失败 · 共 {entry.total}</span>
+                  <span>{p.jobStatus[entry.status]}</span>
+                  <span>{p.success} {entry.succeeded} · {p.failed} {entry.failed} · {p.total(entry.total)}</span>
                   <button className="text-link" type="button" onClick={async () => {
                     const data = await api<{ item: BatchJob }>(`/projects/${item.id}/batch-jobs/${entry.id}`);
                     lastJobStatus.current = '';
                     setJob(data.item);
-                  }}>查看</button>
+                  }}>{p.view}</button>
                 </li>
               ))}
             </ul>
@@ -714,12 +699,11 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       </section>
 
       <section className="project-panel project-warning">
-        <h2><IconAlertTriangle size={18} /> 关于批量生成</h2>
+        <h2><IconAlertTriangle size={18} /> {p.aboutBatch}</h2>
         <p>
-          只有模型完整生成并通过校验的作品才会作为新作品保存；失败、取消或服务重启中断的任务会如实记录，不会伪装成成功。
-          项目删除只解除关联，不会删除作品。
+          {p.batchNote} {p.batchNote2}
         </p>
-        <p><a className="text-link" href="#/workspace">在我的作品中管理全部作品 <IconArrowRight size={15} /></a></p>
+        <p><a className="text-link" href="#/workspace">{p.manageAll} <IconArrowRight size={15} /></a></p>
       </section>
     </div>
   );

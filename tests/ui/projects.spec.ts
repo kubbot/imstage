@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {createScene} from '../../apps/web/src/studio/model';
+test.use({ locale: 'zh-CN' });
 
 test('project membership recovers, detaches and keeps element editing usable on mobile',async({page})=>{
  await page.goto('/#/register');

@@ -151,3 +151,42 @@ body:has(.agent-workspace) .nav-wrap{width:100%}
 .agent-phone[data-mode=standard] .scene-messages{overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain;touch-action:pan-y;cursor:grab;user-select:none}
 .agent-phone[data-mode=standard] .scene-messages::-webkit-scrollbar{display:none}
 .agent-phone[data-mode=standard] .scene-messages[data-dragging=true],.agent-phone[data-mode=standard] .scene-messages[data-dragging=true] *{cursor:grabbing}
+
+/* Compact creator toolbar: scene title + save status + actions, no banner. */
+.agent-heading-compact{min-height:54px;padding:8px 18px;gap:10px}
+.agent-heading-title{display:flex;align-items:center;gap:9px;min-width:0}
+.agent-heading-title>svg{color:var(--accent);flex-shrink:0}
+.agent-scene-title{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:38ch}
+.agent-scene-count{font-size:10px;color:var(--muted);flex-shrink:0}
+.agent-heading-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.agent-intent{border-color:var(--accent);flex-wrap:wrap}
+.agent-intent>button{border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:11px;background:var(--surface);color:var(--text);min-height:32px}
+
+/* Notebook-like creation panel: readable 13px body, fine borders, compact examples. */
+.agent-chat .agent-transcript,.agent-chat .agent-composer textarea{font-size:13px}
+.agent-chat .agent-turn>p{line-height:1.75}
+.agent-ideas button{font-size:12px;line-height:1.6}
+.agent-sample-link{font-size:12px}
+.agent-capability{font-size:11px}
+.agent-input-dock>small{font-size:10px}
+
+/* Inline people editing. */
+.contact-status-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.contact-sync{font-size:10px;color:var(--muted);white-space:nowrap}
+.contact-inline{min-width:0;flex:1;display:grid;gap:4px}
+.contact-name-input{width:100%;border:1px solid transparent;background:transparent;color:var(--text);font-size:13px;font-weight:600;padding:4px 6px;border-radius:6px}
+.contact-name-input:hover{border-color:var(--line)}
+.contact-name-input:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+.contact-avatar-button{position:relative;flex-shrink:0;width:48px;height:48px;border:1px solid var(--line);border-radius:10px;padding:0;overflow:hidden;background:var(--soft);display:grid;place-items:center}
+.contact-avatar-button>img{width:100%;height:100%;object-fit:cover}
+.contact-avatar-button .contact-monogram{width:100%;height:100%;border-radius:0}
+.contact-avatar-edit{position:absolute;right:2px;bottom:2px;width:18px;height:18px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;color:var(--accent)}
+.contact-row-actions{display:flex;gap:8px;flex-wrap:wrap}
+.contact-error{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.contact-validation{font-size:11px;color:var(--accent)}
+.contact-portrait{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px;background:var(--bg)}
+.contact-portrait-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.contact-portrait-preview{width:64px;height:64px;object-fit:cover;border-radius:10px}
+.contact-panel label{display:grid;gap:6px;font-size:12px;color:var(--muted)}
+.contact-panel select,.contact-panel textarea{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;padding:8px}
+@media(max-width:660px){.agent-heading-compact{padding:6px 10px;min-height:52px}.agent-scene-title{max-width:22ch}.agent-heading-title>svg{display:none}}

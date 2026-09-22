@@ -8,6 +8,7 @@
  * The workspace reads and deletes the token only for a genuinely new session.
  */
 import type { Scene } from '../studio/model';
+import { normalizeIntent, type SendIntent } from '../sendIntent.ts';
 
 export const HANDOFF_PREFIX = 'imstage.marketing.handoff.';
 /** Bound for one handed-off scene; data-URI avatars and the story photo add up. */
@@ -29,6 +30,11 @@ export interface HandoffPayload {
   scene: unknown;
   /** Bounded instruction; only honoured for an explicitly fresh session. */
   prompt?: string;
+  /**
+   * Present only for an explicit Send/Create submission. Scenario browsing and
+   * bare navigation never carry an intent, so they can never auto-start a run.
+   */
+  intent?: SendIntent;
 }
 
 function boundPrompt(value: unknown): string | undefined {
@@ -42,11 +48,13 @@ function boundPrompt(value: unknown): string | undefined {
  * token, or `null` when storage is unusable. The prompt travels inside
  * sessionStorage — never as a query value that could leak or truncate.
  */
-export function writeHandoffScene(scene: Scene, prompt?: string): string | null {
+export function writeHandoffScene(scene: Scene, prompt?: string, intent?: SendIntent | null): string | null {
   try {
     const payload: HandoffPayload = { scene };
     const bounded = boundPrompt(prompt);
     if (bounded) payload.prompt = bounded;
+    const normalized = normalizeIntent(intent);
+    if (normalized) payload.intent = normalized;
     const json = JSON.stringify(payload);
     if (json.length > MAX_HANDOFF_BYTES) return null;
     const token = crypto.randomUUID();
@@ -68,7 +76,8 @@ export function readHandoffPayload(token: unknown): HandoffPayload | null {
     const record = parsed as Record<string, unknown>;
     const scene = 'scene' in record ? record.scene : record;
     const prompt = boundPrompt(record.prompt);
-    return prompt ? { scene, prompt } : { scene };
+    const intent = normalizeIntent(record.intent);
+    return { scene, ...(prompt ? { prompt } : {}), ...(intent ? { intent } : {}) };
   } catch {
     return null;
   }

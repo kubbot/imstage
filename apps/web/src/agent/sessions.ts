@@ -3,10 +3,11 @@ import { createScene, validateScene, type Scene } from '../studio/model.ts';
 import { createScenario, isSceneKind } from '../marketing/scenes.ts';
 import type { Locale } from '../marketing/locale';
 import { MAX_HANDOFF_PROMPT } from '../marketing/handoff.ts';
+import { recoverIntent, type SendIntent } from '../sendIntent.ts';
 import type { ChatEntry, ToolEvent } from './client';
 
 export type Turn = ChatEntry & { id: string; tools?: ToolEvent[]; target?: string; failed?: boolean; attachments?: string[] };
-export type SessionDraft = { scene: Scene; prompt: string; editPrompt: string; turns: Turn[]; attachments: string[]; selected: string; projectId: string; full: boolean; scopeSelected: boolean; viewportTop: number; generating: boolean };
+export type SessionDraft = { scene: Scene; prompt: string; editPrompt: string; turns: Turn[]; attachments: string[]; selected: string; projectId: string; full: boolean; scopeSelected: boolean; viewportTop: number; generating: boolean; intent: SendIntent | null };
 export type SessionMeta = { owner: string; id: string; title: string; named: boolean; origin: string; updatedAt: number; createdAt: number; revision: number; preview: string; count: number };
 export type SessionRecord = SessionMeta & { draft: SessionDraft };
 const DB = 'imstage-creation-sessions';
@@ -35,7 +36,7 @@ export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
   } else {
     scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
   }
-  return { scene, prompt: typeof seed.prompt === 'string' ? seed.prompt.slice(0, MAX_HANDOFF_PROMPT) : '', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false };
+  return { scene, prompt: typeof seed.prompt === 'string' ? seed.prompt.slice(0, MAX_HANDOFF_PROMPT) : '', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false, intent:null };
 }
 export function recoverDraft(raw: Partial<SessionDraft> | null, fallback = emptyDraft()): SessionDraft {
   const scene = validateScene(raw?.scene);
@@ -44,7 +45,8 @@ export function recoverDraft(raw: Partial<SessionDraft> | null, fallback = empty
     turns:Array.isArray(raw?.turns)?raw.turns.filter(t=>['user','assistant'].includes(t.role)&&typeof t.id==='string'&&typeof t.content==='string').map((t,i)=>({...t,...(raw.generating&&i===raw.turns!.length-1&&t.role==='assistant'?{failed:true,content:'上次生成已中断，已保留收到的内容。可以继续输入需求。'}:{}),tools:t.tools?.map(tool=>tool.state==='running'?{...tool,state:'error',detail:'上次生成已中断'}:tool)})):[],
     attachments:Array.isArray(raw?.attachments)?raw.attachments.filter(a=>typeof a==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(a)&&a.length<6*1024*1024).slice(0,3):[],
     selected:typeof raw?.selected==='string'?raw.selected:'', projectId:typeof raw?.projectId==='string'?raw.projectId:fallback.projectId,
-    full:typeof raw?.full==='boolean'?raw.full:fallback.full,scopeSelected:!!raw?.scopeSelected,generating:false,viewportTop:typeof raw?.viewportTop==='number'&&Number.isFinite(raw.viewportTop)?Math.max(0,raw.viewportTop):0 };
+    full:typeof raw?.full==='boolean'?raw.full:fallback.full,scopeSelected:!!raw?.scopeSelected,generating:false,viewportTop:typeof raw?.viewportTop==='number'&&Number.isFinite(raw.viewportTop)?Math.max(0,raw.viewportTop):0,
+    intent: raw?.intent === undefined ? fallback.intent : recoverIntent(raw.intent) };
 }
 export function newSession(owner:string, origin:string, draft:SessionDraft, title?:string):SessionRecord {
   return {owner,id:crypto.randomUUID(),title:title||'新的会话',named:!!title,origin,updatedAt:Date.now(),createdAt:Date.now(),revision:0,preview:'',count:0,draft};
@@ -73,19 +75,21 @@ export async function readSession(owner:string,id:string):Promise<SessionRecord>
 /** Compare-and-swap both stores atomically; stale tabs cannot overwrite or resurrect a session. */
 export async function writeSession(record:SessionRecord):Promise<SessionRecord> {
   const db=await database();try{return await new Promise((resolve,reject)=>{
-    const tx=db.transaction(['meta','drafts'],'readwrite');const store=tx.objectStore('meta');let conflict=false;let next:SessionRecord;
+    const tx=db.transaction(['meta','drafts'],'readwrite');const store=tx.objectStore('meta');let conflict=false;let failure:unknown=null;let next:SessionRecord;
     const request=store.get([record.owner,record.id]);request.onsuccess=()=>{
-      if((request.result?.revision??0)!==record.revision || (!request.result&&record.revision!==0)){conflict=true;tx.abort();return;}
-      const meta=metadata({...record,updatedAt:Date.now(),revision:record.revision+1});next={...meta,draft:record.draft};
-      store.put(meta);tx.objectStore('drafts').put({owner:record.owner,id:record.id,draft:record.draft});
+      try {
+        if((request.result?.revision??0)!==record.revision || (!request.result&&record.revision!==0)){conflict=true;tx.abort();return;}
+        const meta=metadata({...record,updatedAt:Date.now(),revision:record.revision+1});next={...meta,draft:record.draft};
+        store.put(meta);tx.objectStore('drafts').put({owner:record.owner,id:record.id,draft:record.draft});
+      } catch (error) { failure=error; tx.abort(); }
     };
-    tx.oncomplete=()=>resolve(next);tx.onabort=()=>reject(conflict?new SessionConflict():tx.error||new Error('会话未保存'));tx.onerror=()=>{};
+    tx.oncomplete=()=>resolve(next);tx.onabort=()=>reject(conflict?new SessionConflict():failure instanceof Error?failure:tx.error||new Error('会话未保存'));tx.onerror=()=>{};
   });}finally{db.close();}
 }
 export async function removeSession(record:SessionMeta):Promise<void> {
   const db=await database();try{return await new Promise((resolve,reject)=>{
-    const tx=db.transaction(['meta','drafts'],'readwrite');const store=tx.objectStore('meta');let conflict=false;
-    const request=store.get([record.owner,record.id]);request.onsuccess=()=>{if(request.result?.revision!==record.revision){conflict=true;tx.abort();return;}store.delete([record.owner,record.id]);tx.objectStore('drafts').delete([record.owner,record.id]);};
-    tx.oncomplete=()=>resolve();tx.onabort=()=>reject(conflict?new SessionConflict():tx.error);tx.onerror=()=>{};
+    const tx=db.transaction(['meta','drafts'],'readwrite');const store=tx.objectStore('meta');let conflict=false;let failure:unknown=null;
+    const request=store.get([record.owner,record.id]);request.onsuccess=()=>{try{if(request.result?.revision!==record.revision){conflict=true;tx.abort();return;}store.delete([record.owner,record.id]);tx.objectStore('drafts').delete([record.owner,record.id]);}catch(error){failure=error;tx.abort();}};
+    tx.oncomplete=()=>resolve();tx.onabort=()=>reject(conflict?new SessionConflict():failure instanceof Error?failure:tx.error);tx.onerror=()=>{};
   });}finally{db.close();}
 }

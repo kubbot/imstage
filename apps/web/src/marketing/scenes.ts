@@ -10,7 +10,7 @@
 import type { Message, Platform, Scene } from '../studio/model';
 import type { Locale } from './locale';
 
-export type SceneKind = 'coffee' | 'weekend' | 'product' | 'wukang';
+export type SceneKind = 'coffee' | 'weekend' | 'product' | 'wukang' | 'support' | 'onboarding' | 'event' | 'evaluation';
 
 export const SELF_ID = 'self';
 export const OTHER_ID = 'other';
@@ -63,10 +63,14 @@ export const SCENARIOS: readonly ScenarioMeta[] = [
     label: { zh: '产品讨论', en: 'Product notes' },
     caption: { zh: '把一次小改动，说明白就好。', en: 'One small change, explained clearly.' },
   },
+  { kind: 'support', label: { zh: '一次耐心的售后', en: 'A thoughtful follow-up' }, caption: { zh: '从没收到快递，到问题真正解决。', en: 'From a missing parcel to a resolved conversation.' } },
+  { kind: 'onboarding', label: { zh: '新同事的第一天', en: 'The first day' }, caption: { zh: '欢迎、交接与一句让人安心的话。', en: 'A welcome, a handover, and a little reassurance.' } },
+  { kind: 'event', label: { zh: '开场前十分钟', en: 'Ten minutes to doors' }, caption: { zh: '时间、位置、分工，一次说清楚。', en: 'Time, place and who does what.' } },
+  { kind: 'evaluation', label: { zh: '同一个问题，不同回答', en: 'One question, different replies' }, caption: { zh: '固定上下文，为评测保留差异。', en: 'Keep the context. Vary the response for evaluation.' } },
 ];
 
 export function isSceneKind(value: unknown): value is SceneKind {
-  return value === 'coffee' || value === 'weekend' || value === 'product' || value === 'wukang';
+  return typeof value === 'string' && SCENARIOS.some(scenario => scenario.kind === value);
 }
 
 /**
@@ -268,11 +272,40 @@ function wukang(locale: Locale): Scene {
       });
 }
 
+/** Small, reusable creator briefs: each is real editable content, not a screenshot. */
+const PRACTICAL = {
+  support: {
+    zh: { name: '小乔', time: '14:20', lines: ['快递显示签收了，但我还没收到。', '我帮你查签收记录，十分钟内给你消息。', '找到了，在楼下驿站。谢谢你跟进。', '收到就好。下次我请快递员先联系你。'] },
+    en: { name: 'Jamie', time: '14:20', lines: ['It says delivered, but nothing arrived.', 'I’ll check the delivery note and get back to you in ten minutes.', 'Found it at reception. Thanks for following up.', 'Glad it turned up. I’ll add a note to call you next time.'] },
+  },
+  onboarding: {
+    zh: { name: '阿宁', time: '09:30', lines: ['早上好，我到办公室了。', '欢迎！先坐窗边，电脑已经准备好了。', '有一点紧张，今天需要先做什么？', '先喝杯咖啡，十点我带你认识大家。'] },
+    en: { name: 'Alex', time: '09:30', lines: ['Morning! I’m at the office.', 'Welcome! Your laptop is by the window.', 'A little nervous. What should I start with?', 'Get a coffee first. I’ll introduce you to everyone at ten.'] },
+  },
+  event: {
+    zh: { name: '小满', time: '18:50', lines: ['还有十分钟开场，你到哪了？', '我在南门，拿着两张票。', '我带了相机，从地铁口过来。', '别急，我在入口右边等你。'] },
+    en: { name: 'Robin', time: '18:50', lines: ['Doors open in ten minutes. Where are you?', 'At the south entrance, with both tickets.', 'Bringing the camera. Walking over from the station.', 'No rush. I’ll wait on the right of the entrance.'] },
+  },
+  evaluation: {
+    zh: { name: '测试对象 A', time: '16:05', lines: ['这周末要不要一起去看展？', '我还没定，周五再告诉你可以吗？', '当然。需要我先帮你留一张票吗？', '好呀，谢谢。周五中午前我确认。'] },
+    en: { name: 'Sample A', time: '16:05', lines: ['Want to see the exhibition this weekend?', 'Not sure yet. Can I let you know on Friday?', 'Of course. Shall I hold a ticket for you?', 'Yes, thanks. I’ll confirm by Friday noon.'] },
+  },
+} as const;
+function practical(kind: keyof typeof PRACTICAL, locale: Locale): Scene {
+  const entry = PRACTICAL[kind][locale];
+  return build(kind, locale, {
+    title: entry.name, deviceTime: entry.time, date: locale === 'zh' ? '今天' : 'Today', battery: 78,
+    participants: [{ id: SELF_ID, name: locale === 'zh' ? '我' : 'You' }, { id: OTHER_ID, name: entry.name }],
+    messages: entry.lines.map((text, index) => ({ id: `m${index + 1}`, participantId: index % 2 ? SELF_ID : OTHER_ID, type: 'text', text, time: entry.time })),
+  });
+}
+
 /** Build a fresh, independent scene. Edits never leak between calls. */
 export function createScenario(kind: SceneKind, locale: Locale): Scene {
   if (kind === 'wukang') return wukang(locale);
   if (kind === 'weekend') return weekend(locale);
   if (kind === 'product') return product(locale);
+  if (kind === 'support' || kind === 'onboarding' || kind === 'event' || kind === 'evaluation') return practical(kind, locale);
   return coffee(locale);
 }
 

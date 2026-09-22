@@ -1,30 +1,25 @@
 /**
- * Production landing page — the AI story stage.
+ * Production landing page — an editable, scroll-directed scene.
  *
  * Journey: one instruction becomes believable dialogue, a pause, a photo and a
- * reply, replayed by a bounded state machine; then the same editable scene goes
- * to the real Agent. The replay is explicitly an authored AI-made example and
- * never claims a paid model is running. Below the fold stay the capability
- * strip, real scenario previews, one edit→export section, honest self-host/MCP
+ * reply; scrolling reveals direct editing and independent variations. The same
+ * editable scene goes to the real Agent. The authored AI-made example
+ * never claims a paid model is running. Below the fold are real scenario
+ * previews, one edit→export section, honest self-host/MCP
  * notes, native FAQ and a single final call to action.
  *
  * The page is usable without an account: all editing is local, the only network
  * reads are bounded same-origin assets (two portraits and one story photo), and
  * creation links hand off to the Agent through an explicit query token.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   IconAlertTriangle,
   IconArrowUpRight,
   IconBrandGithub,
   IconCheck,
   IconDownload,
-  IconMaximize,
-  IconPhoto,
-  IconPlayerPause,
-  IconPlayerPlay,
   IconRefresh,
-  IconSparkles,
   IconX,
 } from '@tabler/icons-react';
 import { SceneView } from '../studio/SceneView';
@@ -35,6 +30,7 @@ import { createHandoffHref, type Locale } from './locale';
 import { useDemoAvatars, useStoryPhoto } from './avatars';
 import { injectAvatars, injectStoryPhoto, portableScene, type DemoAvatars, type DemoStories } from './portable';
 import { MAX_HANDOFF_PROMPT, writeHandoffScene } from './handoff';
+import { createSendIntent } from '../sendIntent';
 import { createRevisionQueue, type RevisionQueue } from './renderQueue';
 import { deviceProfile } from '../studio/device-profiles';
 import {
@@ -51,8 +47,7 @@ import {
   WUKANG_PROMPT,
   type SceneKind,
 } from './scenes';
-import { BEATS, PROCESS_STEPS, STORY_STEP_COUNT, framePhotoPending, sceneForFrame } from './story';
-import { useStoryPlayback } from './useStoryPlayback';
+import { ScrollJourney } from './ScrollJourney';
 import { ExportStage, ScaledSceneFrame, DEMO_DEVICE } from './DeviceFrame';
 import { downloadDataUrl, renderScenePng, sceneFileName } from './png';
 import { useReveal } from './reveal';
@@ -70,22 +65,6 @@ function buildScene(kind: SceneKind, locale: Locale, avatars: DemoAvatars | null
   if (avatars) scene = injectAvatars(scene, avatars, locale);
   if (kind === 'wukang' && photo) scene = injectStoryPhoto(scene, photo, WUKANG_PHOTO_ID);
   return scene;
-}
-
-/** Read the OS motion preference once, then follow changes. */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(query.matches);
-    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
 }
 
 function Reveal({ id, className, children }: { id?: string; className?: string; children: ReactNode }) {
@@ -126,6 +105,7 @@ export default function MarketingSite() {
   const [scene, setScene] = useState<Scene>(() => buildScene(kind, locale, null, undefined));
   const [storyScene, setStoryScene] = useState<Scene>(() => buildScene('wukang', locale, null, undefined));
   const [heroStatus, setHeroStatus] = useState('');
+  const [staging, setStaging] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' });
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -136,20 +116,12 @@ export default function MarketingSite() {
   const storyExportRef = useRef<HTMLDivElement>(null);
   const contrastRef = useRef<HTMLElement>(null);
   const lightboxRef = useRef<HTMLDialogElement>(null);
-  const storyHostRef = useRef<HTMLDivElement>(null);
   const previewStarted = useRef(false);
   const exportingRef = useRef(false);
   const avatarsRef = useRef<DemoAvatars | null>(null);
   avatarsRef.current = avatars;
   const photoRef = useRef<string | undefined>(undefined);
   photoRef.current = storyPhoto;
-
-  const reducedMotion = usePrefersReducedMotion();
-  const playback = useStoryPlayback({ storyKey: `wukang:${locale}`, reducedMotion, hostRef: storyHostRef });
-  const frame = playback.frame;
-  const photoPending = framePhotoPending(frame, photoReady);
-  // The shared renderer never sees an image message without its asset.
-  const visibleStory = useMemo(() => sceneForFrame(storyScene, frame, photoReady), [storyScene, frame, photoReady]);
 
   // Export and save read the validated, data-URI scene; the visible preview can
   // render slightly earlier while the bounded assets are loading.
@@ -327,33 +299,56 @@ export default function MarketingSite() {
     }
   }, [assetsReady, copy.exportDone, copy.exportFail, copy.exporting, photoReady, portable, requestPreview, scene, sceneNeedsPhoto]);
 
+  const stagingRef = useRef(false);
   /**
    * Hand a scene to the Agent. Navigation is never allowed to race the payload:
    * the link is always cancelled, and a missing asset or unusable storage is
    * reported instead of silently dropping the visitor's scene or instruction.
+   *
+   * `send` is only true for an explicit Send/Create submission. Scenario
+   * browsing calls the same helper without it, so it can only prefill.
    */
   const stageHandoff = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>, source: Scene, scenario: SceneKind, instruction?: string) => {
+    (event: { preventDefault(): void }, source: Scene, scenario: SceneKind, instruction?: string, send = false) => {
       event.preventDefault();
-      const result = portableScene(source, avatars, stories);
+      if (stagingRef.current) return;
+      // Sending a new idea does not depend on marketing assets. A compact,
+      // empty scene reaches the workspace immediately; the Agent creates its
+      // own content. Editing an example still requires its portable assets.
+      const freshScene: Scene = {
+        ...source, id: crypto.randomUUID(), title: '', date: '', messages: [],
+        participants: [{ id: 'self', name: locale === 'zh' ? '我' : 'You' }, { id: 'other', name: locale === 'zh' ? '对方' : 'Other' }],
+        selfId: 'self', watermark: '', reference: undefined, backgroundImage: undefined,
+      };
+      const result = send ? { ok: true, scene: freshScene } : portableScene(source, avatars, stories);
       const needsPhoto = scenario === 'wukang';
-      if (!assetsReady || !result.ok || !result.scene || (needsPhoto && !photoReady)) {
+      if (!result.ok || !result.scene || (!send && (!assetsReady || (needsPhoto && !photoReady)))) {
         setHeroStatus(copy.handoffLoading);
         return;
       }
-      const token = writeHandoffScene(result.scene, instruction);
+      const intent = send ? createSendIntent(instruction ?? prompt) : null;
+      if (send && !intent) { setHeroStatus(copy.needPrompt); return; }
+      stagingRef.current = true; setStaging(true);
+      const token = writeHandoffScene(result.scene, instruction, intent);
       if (!token) {
+        stagingRef.current = false; setStaging(false);
         setHeroStatus(copy.handoffStorage);
         return;
       }
       window.location.hash = createHandoffHref(locale, scenario, token);
     },
-    [assetsReady, avatars, copy.handoffLoading, copy.handoffStorage, locale, photoReady, stories],
+    [assetsReady, avatars, copy.handoffLoading, copy.handoffStorage, copy.needPrompt, locale, photoReady, prompt, stories],
   );
 
-  /** The story CTA adds the visitor's bounded instruction to the same handoff. */
+  /** The hero Send/Create authorizes exactly one Agent request. */
+  const submitStory = useCallback(
+    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined, true),
+    [prompt, stageHandoff, storyScene],
+  );
+
+  /** The closing navigation stages content; only the labelled Send form dispatches AI. */
   const handoffStory = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined),
+    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined),
     [prompt, stageHandoff, storyScene],
   );
 
@@ -370,180 +365,35 @@ export default function MarketingSite() {
       ? `${preview.width} × ${preview.height}`
       : `${DEMO_DEVICE.width * profile.pixelRatio} × ${DEMO_DEVICE.height * profile.pixelRatio}`;
 
-  const storyStatus =
-    playback.status === 'playing'
-      ? `${copy.storyPlaying} · ${Math.min(frame.step + 1, STORY_STEP_COUNT)}/${STORY_STEP_COUNT}`
-      : playback.status === 'paused'
-        ? copy.storyPaused
-        : playback.status === 'done'
-          ? copy.storyDone
-          : copy.storyIdle;
-  const playLabel = playback.status === 'playing' ? copy.storyPause : playback.status === 'paused' ? copy.storyResume : copy.storyPlay;
-  const progress = playback.status === 'done' ? 1 : Math.max(0, (frame.beatIndex + 1) / BEATS.length);
-
   return (
     <div className="mark" data-locale={locale}>
-      <section className="mark-hero" aria-labelledby="mark-hero-title">
-        <div className="mark-shell mark-hero-in">
-          <div className="mark-hero-left">
-            <div className="mark-hero-copy">
-              <p className="mark-eyebrow">{copy.eyebrow}</p>
-              <h1 className="mark-h1" id="mark-hero-title">
-                <span>{copy.h1a}</span>
-                <span className="mark-h1-em">{copy.h1b}</span>
-              </h1>
-              <p className="mark-promise">{copy.promise}</p>
-            </div>
-
-            <div className="mark-hero-composer">
-              <label htmlFor="mark-instruction">{copy.promptLabel}</label>
-              <textarea
-                id="mark-instruction"
-                value={prompt}
-                rows={3}
-                maxLength={MAX_HANDOFF_PROMPT}
-                spellCheck={false}
-                placeholder={copy.promptPlaceholder}
-                onChange={(event) => {
-                  setPrompt(event.target.value);
-                  setPromptEdited(true);
-                }}
-              />
-              <p className="mark-composer-hint">
-                <IconSparkles size={14} stroke={1.7} aria-hidden="true" />
-                {copy.promptHint}
-              </p>
-            </div>
-
-            <div className="mark-hero-actions">
-              <div className="mark-actions">
-                <a className="mark-btn" href={createHandoffHref(locale, 'wukang')} data-testid="hero-start" onClick={handoffStory}>
-                  {copy.primary}
-                  <IconArrowUpRight size={17} aria-hidden="true" />
-                </a>
-                <button type="button" className="mark-btn mark-btn-ghost" data-testid="hero-export" onClick={() => void exportStory()} disabled={exporting || !storyExportReady}>
-                  <IconDownload size={16} stroke={1.7} aria-hidden="true" />
-                  {exporting ? copy.exporting : copy.secondary}
-                </button>
-              </div>
-              <p className="mark-status" role="status" aria-live="polite">
-                {heroStatus}
-              </p>
-              <p className="mark-note mark-boundary">{copy.storyBoundary}</p>
-            </div>
-
-            <ol className="mark-process" aria-label={copy.storyProcess}>
-              {PROCESS_STEPS[locale].map((step, index) => (
-                <li key={step} className={index === frame.step ? 'is-active' : index < frame.step ? 'is-done' : undefined}>
-                  <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="mark-hero-stage" ref={storyHostRef}>
-            <div className="mark-stage-top">
-              <span className="mark-preview-note">{copy.storyLabel}</span>
-              <span className="mark-stage-top-actions">
-                {photoReady && (
-                  <button type="button" className="mark-inline-btn mark-icon-btn" aria-label={copy.photoZoom} title={copy.photoZoom} onClick={() => setPhotoOpen(true)}>
-                    <IconMaximize size={15} stroke={1.7} aria-hidden="true" />
-                  </button>
-                )}
-                <span className="mark-platform">{copy.previewNote}</span>
-              </span>
-            </div>
-            <ScaledSceneFrame label={`${copy.storyLabel} · ${copy.synthetic}`}>
-              <div className="mark-story-phone" data-story-status={playback.status} data-story-beat={frame.beatIndex}>
-                <SceneView scene={visibleStory} locale={locale} />
-                {photoPending ? (
-                  <div className="mark-preparing" aria-hidden="true">
-                    <IconPhoto size={15} stroke={1.7} />
-                    <span>{copy.storyPreparing}</span>
-                  </div>
-                ) : frame.typing ? (
-                  <div className="mark-typing" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                ) : null}
-              </div>
-            </ScaledSceneFrame>
-
-            <div className="mark-story-progress" aria-hidden="true">
-              <span style={{ transform: `scaleX(${progress})` }} />
-            </div>
-
-            <div className="mark-story-controls" role="group" aria-label={copy.storyControls}>
-              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.toggle} disabled={exporting || playback.status === 'done'}>
-                {playback.status === 'playing' ? <IconPlayerPause size={15} aria-hidden="true" /> : <IconPlayerPlay size={15} aria-hidden="true" />}
-                {playLabel}
+      <ScrollJourney locale={locale} scene={storyScene} avatars={avatars} onChange={setStoryScene}
+        continueHref={createHandoffHref(locale, 'wukang')}
+        onContinue={(event, source) => stageHandoff(event, source, 'wukang')}
+        onPhoto={() => setPhotoOpen(true)} onExport={() => void exportStory()}
+        exportDisabled={exporting || !storyExportReady} photoReady={photoReady}
+        composer={<>
+          <form className="mark-hero-composer" onSubmit={submitStory}>
+            <label htmlFor="mark-instruction">{copy.promptLabel}</label>
+            <textarea id="mark-instruction" value={prompt} rows={3} maxLength={MAX_HANDOFF_PROMPT}
+              spellCheck={false} placeholder={copy.promptPlaceholder}
+              onChange={event => { setPrompt(event.target.value); setPromptEdited(true); }}
+              onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) submitStory(event); }} />
+            <div className="journey-composer-bottom">
+              <small>{copy.previewNote}</small>
+              <button className="mark-btn" type="submit" data-testid="hero-start" disabled={staging || exporting}>
+                {copy.primary}<IconArrowUpRight size={17} aria-hidden="true" />
               </button>
-              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.replay} disabled={exporting}>
-                <IconRefresh size={15} aria-hidden="true" />
-                {copy.storyReplay}
-              </button>
-              <button type="button" className="mark-btn mark-btn-ghost mark-btn-sm" onClick={playback.showResult} disabled={exporting || playback.status === 'done'}>
-                <IconCheck size={15} aria-hidden="true" />
-                {copy.storyShowResult}
-              </button>
-              <span className="mark-story-state" data-story-state={playback.status}>
-                {storyStatus}
-              </span>
             </div>
-
-            <div className="mark-story-assets">
-              {photoState.status === 'loading' && <p className="mark-asset-status">{copy.photoLoading}</p>}
-              {photoState.status === 'error' && (
-                <p className="mark-asset-status is-error" role="alert">
-                  <IconAlertTriangle size={14} aria-hidden="true" />
-                  {copy.photoError}
-                  <button type="button" className="mark-inline-btn" onClick={retryPhoto}>
-                    {copy.photoRetry}
-                  </button>
-                </p>
-              )}
-              {avatarState.status === 'loading' && <p className="mark-asset-status">{copy.avatarLoading}</p>}
-              {avatarState.status === 'error' && (
-                <p className="mark-asset-status is-error" role="alert">
-                  <IconAlertTriangle size={14} aria-hidden="true" />
-                  {copy.avatarError}
-                  <button type="button" className="mark-inline-btn" onClick={retryAvatars}>
-                    {copy.avatarRetry}
-                  </button>
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <Reveal className="mark-strip" id="mark-capabilities">
-        <div className="mark-shell">
-          <div className="mark-strip-head">
-            <p className="mark-label">{copy.capabilitiesLabel}</p>
-            <h2 className="mark-h2">{copy.capabilitiesTitle}</h2>
-          </div>
-          <ul className="mark-capabilities">
-            {copy.capabilities.map((item, index) => (
-              <li key={item.title}>
-                <span className="mark-cap-index" aria-hidden="true">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-                <h3>{item.title}</h3>
-                <p>{item.detail}</p>
-              </li>
-            ))}
-          </ul>
-          <ul className="mark-usecases" aria-label={copy.capabilitiesLabel}>
-            {copy.useCases.map((useCase) => (
-              <li key={useCase}>{useCase}</li>
-            ))}
-          </ul>
-        </div>
-      </Reveal>
+          </form>
+          <p className="mark-status" role="status" aria-live="polite">{heroStatus}</p>
+        </>}
+        assetStatus={<>
+          {photoState.status === 'loading' && <p className="mark-asset-status">{copy.photoLoading}</p>}
+          {photoState.status === 'error' && <p className="mark-asset-status is-error" role="alert"><IconAlertTriangle size={14} aria-hidden="true" />{copy.photoError}<button type="button" className="mark-inline-btn" onClick={retryPhoto}>{copy.photoRetry}</button></p>}
+          {avatarState.status === 'loading' && <p className="mark-asset-status">{copy.avatarLoading}</p>}
+          {avatarState.status === 'error' && <p className="mark-asset-status is-error" role="alert"><IconAlertTriangle size={14} aria-hidden="true" />{copy.avatarError}<button type="button" className="mark-inline-btn" onClick={retryAvatars}>{copy.avatarRetry}</button></p>}
+        </>} />
 
       <Reveal id="mark-scenarios">
         <div className="mark-shell">

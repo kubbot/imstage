@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
+test.use({ locale: 'zh-CN' });
 const fixture=JSON.parse(fs.readFileSync(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
 async function ready(page:Page){
  await page.addInitScript(scene=>{if(sessionStorage.getItem('layout-seeded'))return;sessionStorage.setItem('layout-seeded','1');sessionStorage.setItem('imstage.agent.guest.draft',JSON.stringify({scene,prompt:'把这段对话写得更自然，保留原来的约定。'}));sessionStorage.setItem('imstage.agent.guest.draft.chat',JSON.stringify([{id:'u',role:'user',content:'编一段朋友约定一年后归还借款的故事。先展示去年的约定，再展示今天的兑现。'},{id:'a',role:'assistant',content:'已编排好两个时间段：去年的约定与今天的归还。\n你可以继续修改人物、消息和语气，也可以在右侧预览中点选具体内容。'}]));},fixture.scene);
