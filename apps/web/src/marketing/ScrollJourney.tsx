@@ -14,7 +14,7 @@ const COPY = {
     scroll: '向下探索', steps: '对话 → 编辑 → 系列',
     editTitle: ['刚好的停顿。', '你想要的语气。'], editBody: '点选消息，直接修改。人物、照片与样式也可以继续交给 AI。',
     editLabel: '改一句，画面随之改变', edited: '已在画面中更新',
-    variantsTitle: ['同一个设定。', '不同的故事。'], variantsBody: '把共同规则留在 Project。每一条只描述差异：名字、照片、语言，或一个新的转折。',
+    variantsTitle: ['同一个设定。', '不同的故事。'], variantsBody: '共同设定留在项目里。每一条，只改人物、照片或情节。',
     rows: [['苏晚', '武康路 · 路人抓拍'], ['阿禾', '见面前 · 发张自拍'], ['林森', '初次见面 · 认个人']],
     reply: ['看见你了。别动，我过来。', '我点好咖啡了，靠窗的位置。', '票拿到了，我们门口见。'],
     project: '打开 Project', editAction: '在工作台继续',
@@ -27,9 +27,9 @@ const COPY = {
     scroll: 'Scroll to explore', steps: 'Create → Refine → Vary',
     editTitle: ['The right pause.', 'Your kind of voice.'], editBody: 'Select a message and change it. Ask AI to refine people, photos and the details around them.',
     editLabel: 'Change a line. See it in the scene.', edited: 'Updated in the scene',
-    variantsTitle: ['One premise.', 'Different stories.'], variantsBody: 'Keep shared rules in a Project. Describe only what changes: names, photos, language, or a new turn in the story.',
+    variantsTitle: ['One premise.', 'Different stories.'], variantsBody: 'Keep the premise in a project. Change the people, photos or plot of each story.',
     rows: [['Su Wan', 'Wukang Road · A candid photo'], ['Ava', 'Before we meet · A selfie'], ['Noah', 'First meeting · A familiar face']],
-    reply: ['I see you. Stay there — coming over.', 'Coffee is ready. I found a window seat.', 'Got the tickets. Meet you at the entrance.'],
+    reply: ['I see you. Stay right there, I am on my way.', 'Coffee is ready. I found a window seat.', 'Got the tickets. Meet you at the entrance.'],
     project: 'Open a Project', editAction: 'Continue in the workspace',
     demo: 'Fictional people · AI-made example', photo: 'View the example photo', export: 'Export PNG',
     select: 'Select a message', selected: 'Editing', example: 'Example variation',
@@ -150,6 +150,7 @@ export function ScrollJourney({ locale, scene, avatars, composer, assetStatus, o
           </div>
           <span className="journey-annotation"><IconPencil size={13} aria-hidden="true" />{chapter === 2 ? `${copy.example} ${variant + 1}/3` : chapter === 1 ? copy.selected : copy.select}</span>
         </div>
+        <p className="journey-chapter-note" aria-hidden="true"><span>{`0${chapter + 1} / 03`}</span>{copy.labels[chapter]}</p>
         <div className="journey-caption"><span>{copy.demo}</span><div>
           {chapter === 2 ? <a href={continueHref} className="journey-text-action" onClick={event => onContinue(event, visibleScene)}>{copy.editAction}<IconArrowUpRight size={14} /></a> : <><button type="button" aria-label={copy.photo} title={copy.photo} onClick={onPhoto} disabled={!photoReady}><IconMaximize size={15} /></button>
           <button type="button" aria-label={copy.export} title={copy.export} onClick={onExport} disabled={exportDisabled} data-testid="hero-export"><IconDownload size={15} /></button></>}

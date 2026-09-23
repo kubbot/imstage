@@ -64,14 +64,14 @@ html[data-theme='dark'] .mark {
 .mark-h2 {
   font-family: var(--display);
   font-weight: 700;
-  font-size: clamp(28px, 3.4vw, 44px);
-  line-height: 1.14;
-  letter-spacing: -0.04em;
+  font-size: clamp(27px, 3vw, 40px);
+  line-height: 1.16;
+  letter-spacing: -0.035em;
   margin: 0 0 16px;
 }
 html[lang='zh-CN'] .mark-h2 {
-  letter-spacing: -0.02em;
-  line-height: 1.24;
+  letter-spacing: -0.012em;
+  line-height: 1.26;
 }
 .mark-lede {
   font-size: 14px;
@@ -95,6 +95,13 @@ html[lang='zh-CN'] .mark-h2 {
 }
 .mark-section-head-row > div {
   max-width: 620px;
+}
+.mark-open-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  flex: none;
 }
 
 /* ------------------------------------------------------------------- hero */
@@ -1046,7 +1053,7 @@ html[data-theme='dark'] .mark-export-card {
   text-align: center;
 }
 .mark-cta-title {
-  font-size: clamp(30px, 4.4vw, 52px);
+  font-size: clamp(30px, 3.4vw, 42px);
   margin-bottom: 16px;
 }
 .mark-cta .mark-lede {

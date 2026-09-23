@@ -191,6 +191,13 @@ test('mobile keeps a useful story, the CTA and touch-sized controls without over
   // The compact CTA row is in the first viewport, before the phone.
   await expect(heroCta(page)).toBeInViewport();
   await expect(hero(page)).toBeVisible();
+  // The authored scene photo starts in the first viewport, not just its frame:
+  // the primary prompt and action still sit above it.
+  await readyToExport(page);
+  const photo = await page.locator('.journey-device .scene-image').boundingBox();
+  expect(photo).not.toBeNull();
+  expect(photo!.y).toBeLessThan(844);
+  expect(844 - photo!.y).toBeGreaterThanOrEqual(80);
   await hero(page).scrollIntoViewIfNeeded();
   await expect(hero(page).locator('.scene-row').first()).toBeInViewport();
   for (const selector of ['.mark-btn', '.mark-toggle button', '.mark-story-controls button']) {
@@ -306,8 +313,10 @@ test.describe('refinements', () => {
       };
     });
     await page.goto('/');
-    await page.locator('#mark-export').scrollIntoViewIfNeeded();
+    // Arm before scrolling triggers the first render; a fast capture can finish
+    // between scrollIntoViewIfNeeded and a later gate installation.
     await page.evaluate(() => (window as unknown as { __gateFonts: () => void }).__gateFonts());
+    await page.locator('#mark-export').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-export-preview="loading"]')).toBeVisible();
 
     // Edit while the render is held, then release: the stale frame must be dropped.

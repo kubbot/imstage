@@ -9,14 +9,23 @@ test('scroll chapters expose real editing and independent people without an AI c
   await page.goto('/?lang=zh');
   await expect(page.getByTestId('hero-export')).toBeEnabled();
   await expect(page.locator('.mark-story-controls')).toHaveCount(0);
+  // A quiet, localized chapter caption follows the sticky scene itself.
+  const stageNote = page.locator('.journey-chapter-note');
+  await expect(stageNote).toBeVisible();
+  await expect(stageNote).toContainText('01 / 03');
+  await expect(stageNote).toContainText('从一句话开始');
   const device = page.locator('.journey-device');
   await expect(device).toContainText('你到哪里了？');
   await page.locator('#journey-edit').scrollIntoViewIfNeeded();
   await expect(page.locator('.journey')).toHaveAttribute('data-journey-step', '1');
+  await expect(stageNote).toContainText('02 / 03');
+  await expect(stageNote).toContainText('每一处都能改');
   await page.getByLabel('改一句，画面随之改变', { exact: true }).fill('我看到你了，路灯旁边等我。');
   await expect(device).toContainText('我看到你了，路灯旁边等我。');
   await page.locator('#journey-projects').scrollIntoViewIfNeeded();
   await expect(page.locator('.journey')).toHaveAttribute('data-journey-step', '2');
+  await expect(stageNote).toContainText('03 / 03');
+  await expect(stageNote).toContainText('从一张到一组');
   expect(await page.locator('.journey-paper-back span').first().evaluate(element => getComputedStyle(element).writingMode)).toBe('horizontal-tb');
   const original = await device.locator('.scene-image img').getAttribute('src');
   await page.getByRole('button', { name: /02.*阿禾/ }).click();
@@ -33,7 +42,9 @@ test('English mobile and reduced motion retain editable examples without overflo
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/?lang=en');
   await expect(page.getByTestId('hero-start')).toHaveText(/Send/);
+  await expect(page.locator('.journey-chapter-note')).toContainText('Start with a line');
   await page.locator('#journey-edit').scrollIntoViewIfNeeded();
+  await expect(page.locator('.journey-chapter-note')).toContainText('Make it yours');
   await page.getByLabel('Change a line. See it in the scene.', { exact: true }).fill('Wait by the bookshop. I can see you.');
   await expect(page.locator('#journey-edit .journey-mobile-preview')).toContainText('Wait by the bookshop. I can see you.');
   await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform', 'whatsapp');

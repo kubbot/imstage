@@ -20,7 +20,8 @@ import { createApp, start, remoteIp } from '../services/api/server.mjs';
 /* Scoped runtime directory                                            */
 /* ------------------------------------------------------------------ */
 
-const ARTIFACT_BASE = process.env.IMSTAGE_ARTIFACT_DIR || os.tmpdir();
+// Symlink fixtures need absolute targets even when CI supplies a relative artifact directory.
+const ARTIFACT_BASE = path.resolve(process.env.IMSTAGE_ARTIFACT_DIR || os.tmpdir());
 fs.mkdirSync(ARTIFACT_BASE, { recursive: true });
 const RUNTIME_ROOT = fs.mkdtempSync(path.join(ARTIFACT_BASE, 'imstage-auth-api-'));
 
