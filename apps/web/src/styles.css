@@ -33,3 +33,8 @@ body .agent-workspace button:disabled{
 .studio-advanced[open] > summary { margin-bottom:14px; }
 .studio-advanced > .studio-field { margin-top:12px; }
 @media(min-width:901px){.studio-controls{max-height:calc(100dvh - 175px)}.studio-canvas{top:16px}.studio-head{padding-bottom:20px}}
+
+/* Public navigation keeps the artwork as the first decision. */
+.main-nav .nav-github{width:44px;height:44px;justify-content:center;color:var(--text);border-radius:8px;flex-shrink:0}
+.main-nav .nav-github:hover{background:var(--surface-2)}
+.account-connections-link{margin:24px 0}

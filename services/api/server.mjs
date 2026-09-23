@@ -49,6 +49,21 @@ import {
   writeNdjsonLine,
   finishNdjsonResponse,
 } from '../agent/index.mjs';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import { installIntegrationSchema } from '../integrations/schema.mjs';
+import { IntegrationError } from '../integrations/errors.mjs';
+import {
+  createPersonalToken,
+  deleteConnection,
+  listConnections,
+  revokeAllForUser,
+  validateTokenName,
+} from '../integrations/connections.mjs';
+import { createOAuthIntegration } from '../integrations/oauth.mjs';
+import { createAccountMcpServer } from '../integrations/account-mcp.mjs';
+import { REQUIRED_SCOPE, RECENT_SESSION_MS } from '../integrations/scopes.mjs';
+import { createRenderService, resolveChromiumExecutable } from '../mcp/render.mjs';
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -137,7 +152,19 @@ const DEFAULT_RATE_LIMITS = Object.freeze({
   ip: { windowMs: 10 * 60 * 1000, max: 300, maxKeys: 10_000 },
   email: { windowMs: 10 * 60 * 1000, max: 10, maxKeys: 20_000 },
   user: { windowMs: 10 * 60 * 1000, max: 20, maxKeys: 10_000 },
+  // Account-owned ChatGPT/MCP connections. Every OAuth endpoint, connection
+  // management call and MCP request is bounded per client IP (and the MCP
+  // endpoint is additionally bounded by the authenticated account).
+  oauth: { windowMs: 10 * 60 * 1000, max: 120, maxKeys: 10_000 },
+  oauthToken: { windowMs: 10 * 60 * 1000, max: 180, maxKeys: 10_000 },
+  oauthRegister: { windowMs: 60 * 60 * 1000, max: 30, maxKeys: 10_000 },
+  connections: { windowMs: 10 * 60 * 1000, max: 60, maxKeys: 20_000 },
+  mcp: { windowMs: 10 * 60 * 1000, max: 600, maxKeys: 20_000 },
 });
+
+/** Bounds for the account-owned /api/mcp surface. */
+export const ACCOUNT_MCP_BODY_LIMIT = 12 * 1024 * 1024; // 12 MiB (scene JSON + inline images)
+export const ACCOUNT_MCP_DEADLINE_MS = 60_000;
 
 /* ------------------------------------------------------------------ */
 /* Small utilities                                                    */
@@ -412,6 +439,10 @@ function openDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_scenes_user_updated ON scenes(user_id, updated_at DESC);
   `);
 
+  // Account-owned ChatGPT/MCP connection tables (OAuth clients, grants, tokens,
+  // consent requests, owner-scoped idempotency and PNG cache). Additive only.
+  installIntegrationSchema(db);
+
   // Projects add tables only (no data reset, no scene migration required for
   // existing accounts): scenes associate through `scene_projects`.
   projects.installProjectSchema(db);
@@ -523,7 +554,7 @@ function loadSession(ctx, req) {
   if (!token) return null;
   const row = ctx.db
     .prepare(
-      `SELECT s.id AS session_id, s.user_id, s.expires_at_ms, u.email, u.name
+      `SELECT s.id AS session_id, s.user_id, s.expires_at_ms, s.created_at, u.email, u.name
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -536,6 +567,7 @@ function loadSession(ctx, req) {
   return {
     sessionId: row.session_id,
     user: { id: row.user_id, email: row.email, name: row.name },
+    createdAtMs: Date.parse(row.created_at),
   };
 }
 
@@ -662,7 +694,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof TemplateError) {
+  if (err instanceof HttpError || err instanceof IntegrationError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof TemplateError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -954,6 +986,9 @@ async function handlePasswordChange(ctx, req, res) {
     if (result.changes !== 1) throw new HttpError(409, 'password_changed', '密码已经改变，请重新登录');
     // Revoke every session, including the caller's: re-login is required.
     ctx.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(session.user.id);
+    // Changing the password also revokes every ChatGPT/MCP connection and
+    // token for this account, so old credentials can never keep API access.
+    revokeAllForUser(ctx.db, session.user.id);
   });
 
   clearSessionCookie(res, ctx.config);
@@ -1607,6 +1642,268 @@ async function handleAgentRun(ctx, req, res) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Account ChatGPT/MCP connections                                     */
+/* ------------------------------------------------------------------ */
+
+function throttleBucket(ctx, limiterName, key) {
+  const result = ctx.limiters[limiterName].consume(key, ctx.nowMs());
+  if (!result.allowed) throw rateLimitedError(result.retryAfterMs);
+}
+
+function connectionIpKey(ctx, req, limiterName) {
+  return `${limiterName}:${remoteIp(req, ctx.config.trustLoopbackProxy)}`;
+}
+
+/**
+ * Public connection bootstrap. The advertised URL is derived *only* from the
+ * configured `appOrigin`; the request `Host` header is never trusted, so a
+ * spoofed Host can never change the discovery document.
+ */
+function handleConnectionsConfig(ctx, req, res) {
+  sendJson(req, res, 200, {
+    mcpUrl: `${ctx.config.appOrigin}/api/mcp`,
+    authorizationSupported: true,
+    directoryUrl: null,
+    manualSetupRequired: true,
+  });
+}
+
+function handleConnectionsList(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { items: listConnections(ctx.db, session.user.id) });
+}
+
+async function handleConnectionTokenCreate(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const name = validateTokenName(body.name);
+  throttleBucket(ctx, 'connections', `connections:${session.user.id}`);
+  recheckSession(ctx, req, session);
+  const { token, connection } = createPersonalToken(ctx.db, {
+    userId: session.user.id,
+    name,
+    resource: ctx.oauth.resourceUrl.href,
+    nowMs: ctx.nowMs(),
+  });
+  // The plaintext token is returned exactly once and never logged or stored.
+  sendJson(req, res, 200, { token, connection });
+}
+
+async function handleConnectionDelete(ctx, req, res, grantId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  throttleBucket(ctx, 'connections', `connections:${session.user.id}`);
+  recheckSession(ctx, req, session);
+  const deleted = deleteConnection(ctx.db, session.user.id, grantId);
+  if (!deleted) throw new HttpError(404, 'not_found', '连接不存在');
+  sendJson(req, res, 200, { ok: true });
+}
+
+function handleOauthConsentGet(ctx, req, res, requestId) {
+  const session = requireSession(ctx, req);
+  throttleBucket(ctx, 'connections', connectionIpKey(ctx, req, 'connections'));
+  const consent = ctx.oauth.getConsent({
+    requestId,
+    userId: session.user.id,
+    recheck: () => recheckSession(ctx, req, session),
+  });
+  sendJson(req, res, 200, consent);
+}
+
+async function handleOauthConsentPost(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  throttleBucket(ctx, 'connections', `connections:${session.user.id}`);
+  const requestId = body.requestId;
+  if (typeof requestId !== 'string' || requestId.length < 8 || requestId.length > 128) {
+    throw new HttpError(400, 'invalid_request', 'requestId 无效');
+  }
+  if (typeof body.approved !== 'boolean') {
+    throw new HttpError(400, 'invalid_request', 'approved 必须是布尔值');
+  }
+  // `decideConsent` re-checks the session inside its transaction so a concurrent
+  // account change can never approve for one user while writing another.
+  const result = ctx.oauth.decideConsent({
+    requestId,
+    approved: body.approved,
+    session,
+    recheck: () => recheckSession(ctx, req, session),
+  });
+  sendJson(req, res, 200, { redirectUrl: result.redirectUrl });
+}
+
+function applyOAuthThrottle(ctx, req, pathname) {
+  let limiter = 'oauth';
+  if (pathname === '/api/oauth/register') limiter = 'oauthRegister';
+  else if (pathname === '/api/oauth/token') limiter = 'oauthToken';
+  throttleBucket(ctx, limiter, connectionIpKey(ctx, req, limiter));
+}
+
+/* ------------------------------------------------------------------ */
+/* Account MCP resource server (/api/mcp)                              */
+/* ------------------------------------------------------------------ */
+
+function sendMcpJsonRpcError(req, res, status, code, message, extraHeaders = undefined) {
+  if (res.headersSent) return;
+  const body = JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null });
+  const headers = {
+    ...API_SECURITY_HEADERS,
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Access-Control-Expose-Headers': 'WWW-Authenticate',
+    ...(extraHeaders ?? {}),
+  };
+  // If an unauthenticated POST body was never read, drain it (bounded) so the
+  // client can read the 401/403 instead of seeing a connection reset.
+  const methodHasBody = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET');
+  if (methodHasBody && !req.readableEnded) {
+    headers.Connection = 'close';
+    res.once('finish', () => {
+      try {
+        req.resume();
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+  res.writeHead(status, headers);
+  res.end(body);
+}
+
+function mcpBearerChallenge(ctx, errorCode, description) {
+  const parts = [`Bearer error="${errorCode}"`];
+  if (description) parts.push(`error_description="${description}"`);
+  parts.push(`resource_metadata="${ctx.oauth.prmUrl}"`);
+  parts.push(`scope="${REQUIRED_SCOPE}"`);
+  return parts.join(', ');
+}
+
+/**
+ * Authenticated, owner-scoped MCP endpoint.
+ *
+ * Every call verifies the bearer access token (issuer/resource/scopes/expiry/
+ * revocation), derives the owning account from the token, and only then builds
+ * an MCP server whose store and renderer cache are scoped to that account.
+ */
+async function handleAccountMcp(ctx, req, res) {
+  const rawOrigin = req.headers.origin;
+  if (typeof rawOrigin === 'string' && rawOrigin.trim() !== '') {
+    let origin = null;
+    try {
+      origin = new URL(rawOrigin).origin;
+    } catch {
+      origin = null;
+    }
+    if (origin !== ctx.config.appOrigin) {
+      sendMcpJsonRpcError(req, res, 403, -32000, 'origin_not_allowed');
+      return;
+    }
+  }
+
+  throttleBucket(ctx, 'mcp', connectionIpKey(ctx, req, 'mcp'));
+
+  const header = req.headers.authorization;
+  let auth = null;
+  let presentedToken = null;
+  if (typeof header === 'string') {
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    if (match) {
+      presentedToken = match[1];
+      try {
+        auth = await ctx.oauth.provider.verifyAccessToken(presentedToken);
+      } catch (error) {
+        if (!(error instanceof InvalidTokenError)) throw error;
+        auth = null;
+      }
+    }
+  }
+  if (!auth) {
+    sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
+      'WWW-Authenticate': mcpBearerChallenge(ctx, 'invalid_token'),
+    });
+    return;
+  }
+  if (!auth.scopes.includes(REQUIRED_SCOPE)) {
+    sendMcpJsonRpcError(req, res, 403, -32003, 'insufficient_scope', {
+      'WWW-Authenticate': mcpBearerChallenge(ctx, 'insufficient_scope', 'missing scope'),
+    });
+    return;
+  }
+  const userId = auth.extra?.userId;
+  if (typeof userId !== 'string' || userId === '') {
+    sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
+      'WWW-Authenticate': mcpBearerChallenge(ctx, 'invalid_token'),
+    });
+    return;
+  }
+
+  throttleBucket(ctx, 'mcp', `mcp:user:${userId}`);
+
+  let parsedBody;
+  if (req.method === 'POST') {
+    let raw;
+    try {
+      raw = await readBody(req, ACCOUNT_MCP_BODY_LIMIT, ACCOUNT_MCP_DEADLINE_MS);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        sendMcpJsonRpcError(req, res, error.status, -32000, error.code);
+        return;
+      }
+      throw error;
+    }
+    if (raw.length > 0) {
+      try {
+        parsedBody = JSON.parse(raw.toString('utf8'));
+      } catch {
+        sendMcpJsonRpcError(req, res, 400, -32700, 'invalid_json');
+        return;
+      }
+    }
+  } else if (req.method !== 'GET' && req.method !== 'DELETE') {
+    sendMcpJsonRpcError(req, res, 405, -32601, 'method_not_allowed');
+    return;
+  }
+
+  // Re-verify the credential after reading the body and before any tool can run.
+  // A revoke or password change that lands while the (possibly 12 MiB) body is
+  // in flight must still block the delayed request.
+  try {
+    const rechecked = await ctx.oauth.provider.verifyAccessToken(presentedToken);
+    if (rechecked.extra?.userId !== userId || !rechecked.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+  } catch (error) {
+    if (error instanceof InvalidTokenError) {
+      sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
+        'WWW-Authenticate': mcpBearerChallenge(ctx, 'invalid_token'),
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const mcpServer = ctx.mcp.createServer(userId, {
+    // Also re-checked after the slow render step completes, so an in-flight
+    // render cannot persist or return a PNG for a now-revoked account.
+    authorizeCheck: async () => {
+      const info = await ctx.oauth.provider.verifyAccessToken(presentedToken);
+      if (info.extra?.userId !== userId || !info.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+    },
+  });
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  await mcpServer.connect(transport);
+  res.once('close', () => {
+    void transport.close();
+    void mcpServer.close();
+  });
+  await transport.handleRequest(req, res, parsedBody);
+}
+
+/* ------------------------------------------------------------------ */
 /* Static file serving (built web app)                                 */
 /* ------------------------------------------------------------------ */
 
@@ -1926,6 +2223,59 @@ async function route(ctx, req, res) {
     return;
   }
 
+  if (pathname === '/api/connections/config') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleConnectionsConfig(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/connections') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleConnectionsList(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/connections/tokens') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleConnectionTokenCreate(ctx, req, res);
+    return;
+  }
+
+  const connectionMatch = /^\/api\/connections\/([^/]+)$/.exec(pathname);
+  if (connectionMatch) {
+    const grantId = connectionMatch[1];
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(grantId)) throw new HttpError(404, 'not_found', '连接不存在');
+    if (method !== 'DELETE') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleConnectionDelete(ctx, req, res, grantId);
+    return;
+  }
+
+  if (pathname === '/api/oauth/consent') {
+    if (method === 'GET') {
+      const requestId = new URL(req.url, 'http://internal').searchParams.get('request');
+      handleOauthConsentGet(ctx, req, res, requestId);
+      return;
+    }
+    if (method === 'POST') {
+      await handleOauthConsentPost(ctx, req, res);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  if (pathname === '/api/mcp' || pathname === '/api/mcp/') {
+    await handleAccountMcp(ctx, req, res);
+    return;
+  }
+
+  const normalizedPath =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (ctx.oauth.paths.has(normalizedPath)) {
+    applyOAuthThrottle(ctx, req, normalizedPath);
+    ctx.oauth.app(req, res);
+    return;
+  }
+
   if (pathname === '/api' || pathname.startsWith('/api/')) {
     // Unknown API endpoints are never served as SPA fallback.
     throw new HttpError(404, 'not_found', '接口不存在');
@@ -1973,6 +2323,11 @@ function resolveConfig(options) {
     ip: { ...DEFAULT_RATE_LIMITS.ip, ...(options.rateLimit?.ip ?? {}) },
     email: { ...DEFAULT_RATE_LIMITS.email, ...(options.rateLimit?.email ?? {}) },
     user: { ...DEFAULT_RATE_LIMITS.user, ...(options.rateLimit?.user ?? {}) },
+    oauth: { ...DEFAULT_RATE_LIMITS.oauth, ...(options.rateLimit?.oauth ?? {}) },
+    oauthToken: { ...DEFAULT_RATE_LIMITS.oauthToken, ...(options.rateLimit?.oauthToken ?? {}) },
+    oauthRegister: { ...DEFAULT_RATE_LIMITS.oauthRegister, ...(options.rateLimit?.oauthRegister ?? {}) },
+    connections: { ...DEFAULT_RATE_LIMITS.connections, ...(options.rateLimit?.connections ?? {}) },
+    mcp: { ...DEFAULT_RATE_LIMITS.mcp, ...(options.rateLimit?.mcp ?? {}) },
   };
 
   let distRoot = null;
@@ -2002,6 +2357,14 @@ function resolveConfig(options) {
       ? options.hashConcurrency
       : 4,
     rateLimit,
+    allowLoopbackRedirects:
+      options.allowLoopbackRedirects === undefined
+        ? nodeEnv !== 'production'
+        : options.allowLoopbackRedirects === true,
+    recentSessionMs:
+      Number.isInteger(options.recentSessionMs) && options.recentSessionMs > 0
+        ? options.recentSessionMs
+        : RECENT_SESSION_MS,
     logger: options.logger ?? console,
   };
 }
@@ -2034,6 +2397,11 @@ export function createApp(options = {}) {
     ip: new FixedWindowLimiter(config.rateLimit.ip),
     email: new FixedWindowLimiter(config.rateLimit.email),
     user: new FixedWindowLimiter(config.rateLimit.user),
+    oauth: new FixedWindowLimiter(config.rateLimit.oauth),
+    oauthToken: new FixedWindowLimiter(config.rateLimit.oauthToken),
+    oauthRegister: new FixedWindowLimiter(config.rateLimit.oauthRegister),
+    connections: new FixedWindowLimiter(config.rateLimit.connections),
+    mcp: new FixedWindowLimiter(config.rateLimit.mcp),
   };
   const agentConfig = resolveAgentConfig(options.env ?? process.env, options.agent ?? {});
   const agentRuntime = withContactLibrary(createAgentRuntime(agentConfig, {
@@ -2053,6 +2421,28 @@ export function createApp(options = {}) {
   // silently resumed as if it had succeeded.
   projects.markInterruptedJobs(db, config.nowMs());
   batchQueue.start();
+
+  // Renderer is created once per process. Tests inject a deterministic stub, so
+  // ordinary test runs never launch Chromium.
+  let executablePath;
+  try {
+    executablePath = resolveChromiumExecutable(options.env ?? process.env) ?? undefined;
+  } catch (error) {
+    config.logger.warn?.(
+      `[imstage-api] Chromium 不可用，/api/mcp 渲染将在调用时失败：${error?.message ?? error}`,
+    );
+    executablePath = undefined;
+  }
+  const renderService =
+    options.renderService ?? createRenderService({ executablePath, maxConcurrent: 1 });
+  const oauth = createOAuthIntegration({
+    db,
+    appOrigin: config.appOrigin,
+    nowMs: config.nowMs,
+    allowLoopbackRedirects: config.allowLoopbackRedirects,
+    recentSessionMs: config.recentSessionMs,
+    logger: config.logger,
+  });
   const ctx = {
     config,
     db,
@@ -2062,6 +2452,19 @@ export function createApp(options = {}) {
     logger: config.logger,
     agent: { config: agentConfig, runtime: agentRuntime, limiter: agentLimiter },
     projects: { queue: batchQueue },
+    oauth,
+    mcp: {
+      renderService,
+      createServer: (userId, { authorizeCheck = null } = {}) =>
+        createAccountMcpServer({
+          db,
+          userId,
+          renderService,
+          logger: config.logger,
+          appOrigin: config.appOrigin,
+          authorizeCheck,
+        }),
+    },
   };
 
   const server = http.createServer((req, res) => {

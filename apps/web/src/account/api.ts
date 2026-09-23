@@ -120,7 +120,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 }
 export function errorText(error: unknown) { return error instanceof Error ? error.message : GENERIC[apiLocale()]; }
 export function safeNext(value: string | null) {
-  return value && /^\/(workspace|account|studio|create|projects|templates)(\?[^#]*)?$/.test(value) ? value : '/workspace';
+  return value && /^\/(workspace|account|studio|create|projects|templates|connect(?:\/authorize)?)(\?[^#]*)?$/.test(value) ? value : '/workspace';
 }
 export function loginLink(next = '/workspace') { return `#/login?next=${encodeURIComponent(safeNext(next))}`; }
 export function clearAccountDrafts(userId: string) {
