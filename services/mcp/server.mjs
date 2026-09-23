@@ -1225,7 +1225,7 @@ function decorateResult(result, webUrlFor) {
   const webUrl = webUrlFor(sceneId);
   return {
     ...result,
-    content: [...(result.content ?? []), { type: 'text', text: `网页打开：${webUrl}` }],
+    content: result.structuredContent?.widgetUri ? result.content : [...(result.content ?? []), { type: 'text', text: `网页打开：${webUrl}` }],
     structuredContent: { ...result.structuredContent, webUrl },
   };
 }

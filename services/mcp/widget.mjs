@@ -27,67 +27,64 @@ export function buildRenderWidgetHtml() {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${WIDGET_TITLE}</title>
 <style>
-  :root { color-scheme: light dark; }
-  *, *::before, *::after { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Segoe UI", Roboto, sans-serif;
-    background: transparent;
-    color: var(--color-text-primary, #111111);
-  }
-  .card { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
-  header { display: flex; align-items: flex-start; gap: 12px; }
-  .titles { flex: 1 1 auto; min-width: 0; }
-  h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; overflow-wrap: anywhere; }
-  .meta { margin: 0; font-size: 12px; color: var(--color-text-secondary, #6b7280); overflow-wrap: anywhere; }
-  .preview {
-    border: 1px solid var(--color-border-primary, #e5e7eb);
-    border-radius: 10px;
-    padding: 6px;
-    background: var(--color-background-secondary, #f8fafc);
-    max-height: 70vh;
-    overflow: auto;
-  }
-  .preview img { display: block; width: 100%; height: auto; border-radius: 6px; background: #ffffff; }
-  form { display: flex; flex-direction: column; gap: 6px; }
-  label { font-size: 12px; color: var(--color-text-secondary, #6b7280); }
-  .row { display: flex; gap: 8px; }
-  input[type="text"] {
-    flex: 1 1 auto; min-width: 0; padding: 8px 10px; font-size: 13px;
-    border: 1px solid var(--color-border-primary, #d1d5db); border-radius: 8px;
-    background: var(--color-background-primary, #ffffff); color: inherit;
-  }
-  button {
-    flex: 0 0 auto; padding: 8px 12px; font-size: 13px; font-weight: 600;
-    border: 1px solid var(--color-border-primary, #d1d5db); border-radius: 8px;
-    background: var(--color-background-primary, #ffffff); color: inherit; cursor: pointer;
-  }
-  button[disabled] { opacity: 0.5; cursor: default; }
-  .status { margin: 0; font-size: 12px; min-height: 16px; color: var(--color-text-secondary, #6b7280); }
-  [hidden] { display: none !important; }
+  :root { color-scheme: light dark; --ink:var(--color-text-primary,#242323); --muted:var(--color-text-secondary,#73716d); --surface:var(--color-background-primary,#fff); --line:var(--color-border-primary,#e5e3df); }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif; color:var(--ink); background:transparent; }
+  .card { max-width:900px; margin:auto; padding:16px; display:grid; gap:14px; }
+  h1 { margin:0; font-size:17px; font-weight:600; overflow-wrap:anywhere; }
+  .meta,.status,.hint { margin:0; color:var(--muted); font-size:12px; }
+  .heading { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+  .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:10px; background:var(--color-background-secondary,#f6f5f2); padding:12px; }
+  .preview img { display:block; width:auto; height:auto; max-width:100%; max-height:480px; object-fit:contain; }
+  .preview[data-fit="width"] img { width:auto; max-width:100%; max-height:none; }
+  .preview[data-fit="original"] { overflow:auto; max-height:80vh; justify-content:flex-start; }
+  .preview[data-fit="original"] img { max-width:none; max-height:none; }
+  .toolbar,.view-options,.row,.shortcuts { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  button,summary,a.action { min-height:40px; padding:8px 12px; font:inherit; font-size:13px; border:1px solid var(--line); border-radius:7px; color:inherit; background:var(--surface); cursor:pointer; text-decoration:none; }
+  .primary { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+  button:disabled { opacity:.5; cursor:default; }
+  button:hover:not(:disabled),summary:hover { filter:brightness(.96); }
+  :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+  .toolbar { position:relative; }
+  details.more { position:static; }
+  details.more summary { list-style:none; }
+  details.more summary::-webkit-details-marker { display:none; }
+  .more-content { position:absolute; right:0; top:46px; z-index:2; width:min(300px,75vw); padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px #0001; }
+  .more-content h2 { font-size:13px; margin:0 0 8px; }
+  .more-content p { overflow-wrap:anywhere; }
+  .more-content .action { display:block; margin-top:12px; }
+  .view-options { justify-content:center; }
+  .view-options button,.shortcuts button { min-height:32px; border:0; padding:5px 9px; color:var(--muted); background:transparent; font-size:12px; }
+  .view-options button[aria-pressed="true"] { background:var(--color-background-secondary,#f0eeea); color:var(--ink); }
+  form { display:grid; gap:8px; }
+  label { font-size:13px; font-weight:500; }
+  .row { flex-wrap:nowrap; align-items:stretch; }
+  input { min-width:0; flex:1; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface); color:inherit; }
+  .status { min-height:18px; }
+  [hidden] { display:none!important; }
+  @media(max-width:420px) { .card{padding:12px;gap:12px}.heading{display:block}.toolbar button,.toolbar summary,.toolbar a.action{min-height:44px}.preview{padding:8px}.preview img{max-height:420px} }
+  @media(prefers-color-scheme:dark) { :root { --ink:var(--color-text-primary,#eee);--muted:var(--color-text-secondary,#aaa);--surface:var(--color-background-primary,#202020);--line:var(--color-border-primary,#414141); }.preview{background:var(--color-background-secondary,#292929)}.view-options button[aria-pressed="true"]{background:var(--color-background-secondary,#333)} }
 </style>
 </head>
 <body>
 <main class="card">
-  <header>
-    <div class="titles">
-      <h1 id="scene-title">IMStage 渲染预览</h1>
-      <p class="meta" id="scene-meta">等待渲染结果…</p>
-    </div>
-    <button id="download" type="button" hidden>下载 PNG</button>
-  </header>
-  <div class="preview" id="preview" hidden>
-    <img id="preview-img" alt="IMStage 场景渲染预览" />
+  <header class="heading"><h1 id="scene-title">你的对话作品</h1><p class="meta" id="save-state" role="status">等待作品…</p></header>
+  <div class="preview" id="preview" data-fit="height" hidden><img id="preview-img" alt="完整对话作品预览" /></div>
+  <p id="long-hint" class="hint" hidden>这是一张长图。当前显示完整构图，可选择适合宽度展开阅读。</p>
+  <div class="view-options" id="view-options" aria-label="预览尺寸" hidden>
+    <button type="button" data-fit="height" aria-pressed="true">适合高度</button><button type="button" data-fit="width" aria-pressed="false">适合宽度</button><button type="button" data-fit="original" aria-pressed="false">查看原图 / 放大</button>
   </div>
-  <form id="edit-form">
-    <label for="edit-input">继续用自然语言修改（会把指令发回 ChatGPT）</label>
-    <div class="row">
-      <input id="edit-input" type="text" maxlength="500" autocomplete="off"
-             placeholder="例如：把标题改成「周末自驾」，再加一条阿远的回复" />
-      <button id="edit-submit" type="submit">发送修改</button>
-    </div>
-    <p class="status" id="status" role="status" aria-live="polite"></p>
+  <div class="toolbar" id="toolbar" hidden>
+    <button id="edit-work" class="primary" type="button">编辑作品</button>
+    <button id="download" type="button" hidden>下载 PNG</button>
+    <details class="more"><summary>更多</summary><div class="more-content"><h2>作品信息</h2><p class="meta" id="scene-meta"></p><p class="hint">头像、样式与标记可在网页编辑器中调整。</p><a id="web-link" class="action" target="_blank" rel="noopener noreferrer" hidden>在网页中打开</a></div></details>
+  </div>
+  <form id="edit-form" hidden>
+    <label for="edit-input">想改哪里？</label>
+    <div class="row"><input id="edit-input" type="text" maxlength="500" autocomplete="off" placeholder="例如：把最后一句改得更轻松" /><button id="edit-submit" type="submit">发送修改</button></div>
+    <div class="shortcuts"><button type="button" data-prompt="更换对方头像：">换头像</button><button type="button" data-prompt="调整对话时间为：">调整时间</button><button type="button" data-prompt="修改聊天样式为：">改样式</button></div>
   </form>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
 </main>
 <script>
 (function () {
@@ -95,7 +92,12 @@ export function buildRenderWidgetHtml() {
   var pending = Object.create(null);
   var nextId = 1;
   var hostCapabilities = {};
-  var latest = { sceneId: null, revision: null, renderId: null, downloadUri: null, dataUri: null, title: null };
+  var latest = { sceneId: null, revision: null, renderId: null, downloadUri: null, dataUri: null, title: null, webUrl: null };
+  var resultEpoch = 0;
+  var editing = false;
+  var editTimer = null;
+  var bridgeReady = false;
+  var lastResultKey = null;
 
   function post(method, params) {
     var id = nextId++;
@@ -122,12 +124,11 @@ export function buildRenderWidgetHtml() {
 
   function setText(id, value) {
     var el = document.getElementById(id);
-    if (el && typeof value === "string" && value) el.textContent = value;
+    if (el && typeof value === "string") el.textContent = value;
   }
 
   function renderFromResult(result) {
     if (!result || typeof result !== "object") return;
-    if(result.isError){ document.getElementById("preview").hidden=true; document.getElementById("download").hidden=true; setStatus("生成失败，请在对话中重试。"); return; }
     var structured = result.structuredContent && typeof result.structuredContent === "object" ? result.structuredContent : {};
     var meta = result._meta && typeof result._meta === "object" ? result._meta : {};
     var preview = meta.preview && typeof meta.preview === "object" ? meta.preview : {};
@@ -138,14 +139,33 @@ export function buildRenderWidgetHtml() {
         var block = result.content[i];
         if (block && block.type === "image" && typeof block.data === "string") {
           var mime = typeof block.mimeType === "string" ? block.mimeType : "image/png";
-          if (mime !== "image/png" && mime !== "image/jpeg" && mime !== "image/webp") mime = "image/png";
+          if (mime !== "image/png") continue;
           dataUri = "data:" + mime + ";base64," + block.data;
           break;
         }
       }
     }
-    if (dataUri && !/^data:image\\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUri)) dataUri = null;
+    if (dataUri && !/^data:image\\/(png);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUri)) dataUri = null;
 
+    var resultKey = JSON.stringify([Boolean(result.isError), structured.sceneId, structured.revision, structured.renderId, structured.title, structured.width, structured.height, structured.webUrl, dataUri]);
+    if (resultKey === lastResultKey) return;
+    lastResultKey = resultKey;
+    resultEpoch += 1;
+    var wasEditing = editing;
+    editing = false; clearTimeout(editTimer); document.getElementById("edit-submit").disabled = false;
+    latest = { sceneId:null, revision:null, renderId:null, downloadUri:null, dataUri:null, title:null, webUrl:null };
+    document.getElementById("preview").hidden = true;
+    document.getElementById("preview-img").removeAttribute("src");
+    document.getElementById("download").hidden = true;
+    document.getElementById("download").disabled = false;
+    document.getElementById("toolbar").hidden = true;
+    document.getElementById("edit-form").hidden = true;
+    document.getElementById("view-options").hidden = true;
+    document.getElementById("long-hint").hidden = true;
+    document.getElementById("web-link").hidden = true;
+    document.getElementById("web-link").removeAttribute("href");
+    setText("scene-title", "你的对话作品"); setText("scene-meta", "");
+    if(result.isError){ setText("save-state","生成未完成"); setStatus("生成失败，请在对话中重试。上一版本不会作为新结果下载。"); return; }
     latest.sceneId = typeof structured.sceneId === "string" ? structured.sceneId : null;
     latest.revision = Number.isInteger(structured.revision) ? structured.revision : null;
     latest.renderId = typeof structured.renderId === "string" ? structured.renderId : null;
@@ -156,6 +176,13 @@ export function buildRenderWidgetHtml() {
     latest.downloadUri = downloadUri && /^imstage:\\/\\/renders\\/rnd_[0-9a-f]{32}\\.png$/.test(downloadUri) ? downloadUri : null;
 
     if (latest.title) setText("scene-title", latest.title);
+    try {
+      var web = new URL(structured.webUrl);
+      if (web.protocol === "https:" && !web.username && !web.password && web.hash.startsWith("#/workspace?scene=")) latest.webUrl = web.href;
+    } catch (_) { /* no account-owned web link */ }
+    var link = document.getElementById("web-link");
+    if (latest.webUrl) { link.href = latest.webUrl; link.hidden = false; }
+    setText("save-state", latest.sceneId ? "作品已保存" : "预览已生成");
     var metaBits = [];
     if (latest.revision !== null) metaBits.push("revision " + latest.revision);
     if (latest.sceneId) metaBits.push(latest.sceneId);
@@ -169,10 +196,15 @@ export function buildRenderWidgetHtml() {
       latest.dataUri = dataUri;
       img.src = dataUri;
       previewBox.hidden = false;
+      document.getElementById("view-options").hidden = false;
+      document.getElementById("long-hint").hidden = !(structured.height > structured.width * 3);
+      setStatus(wasEditing ? "作品已更新。" : "");
     }
     document.getElementById("edit-form").hidden = !latest.sceneId;
+    document.getElementById("toolbar").hidden = !latest.sceneId && !dataUri;
+    if (!dataUri) { setText("save-state", "预览未就绪"); setStatus("未收到有效图片，请重新渲染作品。"); }
     var download = document.getElementById("download");
-    if (download && (latest.downloadUri || latest.dataUri)) download.hidden = false;
+    if (download && latest.dataUri) download.hidden = false;
   }
 
   function setStatus(value) {
@@ -180,8 +212,14 @@ export function buildRenderWidgetHtml() {
     if (el) el.textContent = value || "";
   }
 
+  document.getElementById("preview-img").addEventListener("error",function(){
+    latest.dataUri = null; document.getElementById("download").hidden = true;
+    document.getElementById("preview").hidden = true;
+    document.getElementById("view-options").hidden = true;
+    setText("save-state","预览未就绪");setStatus("图片无法显示，请在对话中重新渲染。");
+  });
   var exportedFiles = Object.create(null);
-  async function downloadWithOpenAi(name) {
+  async function downloadWithOpenAi(name, snapshot, epoch) {
     var api = window.openai;
     if (!api || typeof api.uploadFile !== "function" || typeof api.getFileDownloadUrl !== "function" || typeof api.openExternal !== "function") {
       setStatus("当前宿主不支持组件下载，请在对话中请求导出 PNG。"); return;
@@ -190,10 +228,10 @@ export function buildRenderWidgetHtml() {
     button.disabled = true;
     setStatus("正在准备 PNG…");
     try {
-      var key = latest.renderId || latest.dataUri;
+      var key = snapshot.dataUri;
       var fileId = exportedFiles[key];
       if (!fileId) {
-        var raw = atob(latest.dataUri.split(",")[1]);
+        var raw = atob(snapshot.dataUri.split(",")[1]);
         var bytes = Uint8Array.from(raw, function(c) { return c.charCodeAt(0); });
         var uploaded = await api.uploadFile(new File([bytes], name, {type:"image/png"}));
         fileId = uploaded && uploaded.fileId;
@@ -203,35 +241,70 @@ export function buildRenderWidgetHtml() {
       var download = await api.getFileDownloadUrl({fileId:fileId});
       var url = new URL(download.downloadUrl);
       if (url.protocol !== "https:" || url.username || url.password) throw new Error("invalid download URL");
+      if (epoch !== resultEpoch) return;
       await api.openExternal({href:url.href});
-      setStatus("已打开 PNG 下载链接。");
-    } catch (error) { setStatus("下载未完成，请重试或在对话中请求导出 PNG。"); }
-    finally { button.disabled = false; }
+      if (epoch === resultEpoch) setStatus("已打开 PNG 下载链接。");
+    } catch (error) { if (epoch === resultEpoch) setStatus("下载未完成，请重试或在对话中请求导出 PNG。"); }
+    finally { if (epoch === resultEpoch) button.disabled = false; }
   }
 
-  function downloadPng() {
+  async function downloadPng() {
     if(!latest.dataUri) return;
-    var name = "imstage-" + (latest.revision || "preview") + ".png";
-    if(!hostCapabilities.downloadFile){downloadWithOpenAi(name);return;}
-    post("ui/download-file", {contents:[{type:"resource",resource:{uri:"file:///"+name,mimeType:"image/png",blob:latest.dataUri.split(",")[1]}}]})
-      .then(function(result){if(result && result.isError) throw new Error("download rejected");setStatus("宿主已接受 PNG 下载请求。");})
-      .catch(function(){setStatus("下载未完成，请在对话中请求导出 PNG。");});
+    var snapshot = Object.assign({}, latest), epoch = resultEpoch;
+    var name = "imstage-" + (snapshot.revision || "preview") + ".png";
+    if(!hostCapabilities.downloadFile){await downloadWithOpenAi(name,snapshot,epoch);return;}
+    var button = document.getElementById("download"); button.disabled = true; setStatus("正在准备 PNG…");
+    try {
+      var result = await post("ui/download-file", {contents:[{type:"resource",resource:{uri:"file:///"+name,mimeType:"image/png",blob:snapshot.dataUri.split(",")[1]}}]});
+      if(result && result.isError) throw new Error("download rejected");
+      if(epoch === resultEpoch) setStatus("宿主已接受 PNG 下载请求。");
+    } catch (_) { if(epoch === resultEpoch) setStatus("下载未完成，请重试或在对话中请求导出 PNG。"); }
+    finally { if (epoch === resultEpoch) button.disabled = false; }
   }
 
-  function sendEdit(text) {
-    var scenePart = latest.sceneId ? "场景 " + latest.sceneId : "当前场景";
-    var revisionPart = latest.revision !== null ? "（revision " + latest.revision + "）" : "";
-    var message = "请修改 IMStage " + scenePart + revisionPart + "：" + text + "。请调用 imstage_update_scene 后重新调用 imstage_render_scene。";
-    post("ui/message", { role: "user", content: [{ type: "text", text: message }] }).then(function (result) {
-      if (result && result.isError) { throw new Error("host rejected"); }
-      setStatus("已把修改指令发回 ChatGPT。");
-    }).catch(function () {
-      var openai = typeof window.openai !== "undefined" ? window.openai : null;
-      if (openai && typeof openai.sendFollowUpMessage === "function") {
-        try { Promise.resolve(openai.sendFollowUpMessage({ prompt: message })).then(function(){setStatus("已把修改指令发回 ChatGPT。");}).catch(function(){setStatus("无法发送修改指令，请直接在对话中描述修改。");}); return; } catch (error) { /* fall through */ }
+  async function openEditor() {
+    if (!latest.webUrl) { document.getElementById("edit-input").focus(); return; }
+    try {
+      if (hostCapabilities.openLinks) {
+        var result = await post("ui/open-link", { url:latest.webUrl });
+        if (result && result.isError) throw new Error("rejected");
+      } else if(window.openai && typeof window.openai.openExternal === "function") {
+        await window.openai.openExternal({ href:latest.webUrl });
+      } else {
+        document.querySelector("details.more").open = true;
+        document.getElementById("web-link").focus();
+        setStatus("使用「在网页中打开」继续编辑。");
       }
-      setStatus("无法发送修改指令，请直接在对话中描述修改。");
-    });
+    } catch (_) { document.querySelector("details.more").open = true; setStatus("未能打开网页，请使用「在网页中打开」重试。"); }
+  }
+
+  async function sendEdit(text) {
+    if(editing || !latest.sceneId) return;
+    var epoch = resultEpoch, input = document.getElementById("edit-input");
+    var scenePart = "场景 " + latest.sceneId;
+    var revisionPart = latest.revision !== null ? "（revision " + latest.revision + "）" : "";
+    var message = "请修改 IMStage " + scenePart + revisionPart + "：" + text + "。保留未明确要求修改的头像和虚构标记设置。请调用 imstage_update_scene 后重新调用 imstage_render_scene。";
+    editing = true; document.getElementById("edit-submit").disabled = true; setStatus("正在发送修改…");
+    try {
+      var api = window.openai;
+      if (!bridgeReady && api && typeof api.sendFollowUpMessage === "function") await api.sendFollowUpMessage({prompt:message});
+      else {
+        var result = await post("ui/message", { role:"user", content:[{type:"text",text:message}] });
+        if(result && result.isError) throw new Error("rejected");
+      }
+      if(epoch !== resultEpoch) return;
+      if(input.value.trim() === text) input.value = "";
+      setStatus("已把修改指令发回对话，等待作品更新…");
+      editTimer = setTimeout(function(){
+        if(epoch !== resultEpoch) return;
+        editing = false; document.getElementById("edit-submit").disabled = false;
+        setStatus("尚未收到新作品，请查看对话中的执行结果，再决定是否重试。");
+      },45000);
+    } catch (_) {
+      if(epoch !== resultEpoch) return;
+      editing = false; document.getElementById("edit-submit").disabled = false;
+      setStatus("未确认发送成功，输入已保留。请查看对话后重试，或直接在对话中描述修改。");
+    }
   }
 
   window.addEventListener("message", function (event) {
@@ -249,13 +322,20 @@ export function buildRenderWidgetHtml() {
   }, { passive: true });
 
   document.getElementById("download").addEventListener("click", downloadPng);
+  document.getElementById("edit-work").addEventListener("click", openEditor);
+  document.querySelectorAll("button[data-fit]").forEach(function(button){ button.addEventListener("click",function(){
+    document.getElementById("preview").dataset.fit = button.dataset.fit;
+    document.querySelectorAll("button[data-fit]").forEach(function(other){other.setAttribute("aria-pressed",String(other === button));});
+  }); });
+  document.querySelectorAll("button[data-prompt]").forEach(function(button){button.addEventListener("click",function(){
+    var input = document.getElementById("edit-input"); input.value = button.dataset.prompt; input.focus();
+  });});
   document.getElementById("edit-form").addEventListener("submit", function (event) {
     event.preventDefault();
     var input = document.getElementById("edit-input");
     var text = input && typeof input.value === "string" ? input.value.trim() : "";
     if (!text) return;
-    sendEdit(text);
-    if (input) input.value = "";
+    void sendEdit(text);
   });
 
   // ChatGPT Work can provide the complete result only in response metadata.
@@ -275,7 +355,9 @@ export function buildRenderWidgetHtml() {
   }
   renderOpenAiGlobals();
   window.addEventListener("openai:set_globals", function(event) {
-    renderOpenAiGlobals(event.detail && event.detail.globals);
+    var globals = event.detail && event.detail.globals;
+    if (!globals || (!Object.prototype.hasOwnProperty.call(globals,"toolOutput") && !Object.prototype.hasOwnProperty.call(globals,"toolResponseMetadata"))) return;
+    renderOpenAiGlobals(globals);
   });
 
   post("ui/initialize", {
@@ -283,6 +365,7 @@ export function buildRenderWidgetHtml() {
     appCapabilities: { availableDisplayModes: ["inline"] },
     protocolVersion: "2026-01-26"
   }).then(function (result) {
+    bridgeReady = true;
     hostCapabilities = result && result.hostCapabilities || {};
     notify("ui/notifications/initialized", {});
 
