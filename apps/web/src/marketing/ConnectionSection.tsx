@@ -16,7 +16,9 @@ export default function ConnectionSection({ preview }: { preview: ReactNode }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
-      await navigator.clipboard.writeText(STARTER_PROMPTS[locale]);
+      const clipboard = navigator.clipboard;
+      if (!clipboard?.writeText) throw new Error('clipboard unavailable');
+      await clipboard.writeText(STARTER_PROMPTS[locale]);
       setCopied(true); setMessage(zh ? '示例指令已复制。连接后粘贴到 ChatGPT。' : 'Prompt copied. Paste it into ChatGPT after connecting.');
     } catch {
       setCopied(false); setMessage(zh ? '无法自动复制，请选中上面的指令复制。' : 'Select the prompt above and copy it manually.');
@@ -26,14 +28,14 @@ export default function ConnectionSection({ preview }: { preview: ReactNode }) {
     <div className="mark-shell connect-feature-layout">
       <div className="connect-feature-copy">
         <IconBrandOpenai size={36} stroke={1.5} aria-hidden="true" />
-        <h2 id="connect-feature-title">{zh ? <>你的下一张作品，<br />从 ChatGPT 开始。</> : <>Your next scene.<br />Starting in ChatGPT.</>}</h2>
+        <h2 id="connect-feature-title">{zh ? '连接 ChatGPT，用一句话创作和修改聊天截图。' : 'Connect ChatGPT. Create and edit chat screenshots with one sentence.'}</h2>
         <p className="mark-lede">{zh ? '连接一次，说出你的想法。继续聊、继续改，把作品带回 IMStage。' : 'Connect once. Describe your idea, refine it in conversation, and bring the scene back to IMStage.'}</p>
         <blockquote className="connect-prompt">{STARTER_PROMPTS[locale]}</blockquote>
         <div className="connect-feature-actions">
-          <a href="#/connect" className="mark-btn">{zh ? '在 ChatGPT 中使用' : 'Use in ChatGPT'}<IconArrowUpRight size={18} aria-hidden="true" /></a>
+          <a href="#/connect" className="mark-btn">{zh ? '连接 ChatGPT' : 'Connect ChatGPT'}<IconArrowUpRight size={18} aria-hidden="true" /></a>
           <button type="button" className="connect-copy" onClick={() => void copy()}>{copied ? <IconCheck size={17} aria-hidden="true" /> : <IconCopy size={17} aria-hidden="true" />}{zh ? '复制示例指令' : 'Copy starter prompt'}</button>
         </div>
-        <p className="connect-caption">{zh ? '首次使用需在 ChatGPT 添加连接并授权。' : 'First time? Add the connection in ChatGPT and authorize your account.'}</p>
+        <p className="connect-caption">{zh ? '首次使用需在 ChatGPT 手动添加 IMStage 并授权。' : 'First use: add IMStage in ChatGPT manually and authorize.'}</p>
         <p className="connect-feedback" role="status">{message}</p>
       </div>
       <figure className="connect-feature-art">{preview}<figcaption>{zh ? '产品发布 · 合成场景示例' : 'Product launch · Authored scene example'}</figcaption></figure>

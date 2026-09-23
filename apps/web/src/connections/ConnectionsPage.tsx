@@ -51,7 +51,7 @@ function loopbackSupported(config: Config | null): boolean {
 function CopyButton({ value, label, ariaLabel }: { value: string; label: string; ariaLabel?: string }) {
   const { locale } = useLocale();
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  useEffect(() => setState('idle'), [value]);
+  useEffect(() => setState('idle'), [value, locale]);
   return <div className="connection-copy-control"><button type="button" className="btn btn-secondary" aria-label={ariaLabel ?? label} onClick={async () => {
     try { await navigator.clipboard.writeText(value); setState('copied'); } catch { setState('failed'); }
   }}>{state === 'copied' ? <IconCheck size={17} aria-hidden="true" /> : <IconCopy size={17} aria-hidden="true" />}{label}</button>
@@ -120,11 +120,53 @@ function ConsentView({ requestId }: { requestId?: string }) {
   </section>;
 }
 
+const CHATGPT_PLUGINS_URL = 'https://chatgpt.com/plugins';
+
+/**
+ * One user click starts the clipboard write and opens the plugin page, both in
+ * the same click so neither the user gesture nor the popup allowance is lost.
+ * The async clipboard result may still fail and always falls back to the
+ * selectable URL and the independent link below.
+ */
+function CopyAndOpenButton({ value, zh }: { value: string; zh: boolean }) {
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [popup, setPopup] = useState<'idle' | 'opened' | 'blocked'>('idle');
+  useEffect(() => { setCopy('idle'); setPopup('idle'); }, [value, zh]);
+  function activate() {
+    // Start the write first and let it run; awaiting it before window.open
+    // would make the tab look unsolicited and lose the synchronous gesture.
+    let write: Promise<void> | null = null;
+    try {
+      const clipboard = navigator.clipboard;
+      write = clipboard?.writeText ? clipboard.writeText(value) : null;
+    } catch { write = null; }
+    let opened: Window | null = null;
+    try { opened = window.open(CHATGPT_PLUGINS_URL, '_blank'); } catch { opened = null; }
+    if (opened) { try { opened.opener = null; } catch { /* detached best-effort */ } }
+    setPopup(opened ? 'opened' : 'blocked');
+    if (!write) { setCopy('failed'); return; }
+    void write.then(() => setCopy('copied'), () => setCopy('failed'));
+  }
+  const status = copy === 'failed'
+    ? (zh ? '无法自动复制。请先选中上面的地址手动复制，再打开 ChatGPT。' : 'Could not copy automatically. Select the URL above to copy it manually, then open ChatGPT.')
+    : copy === 'copied'
+      ? popup === 'blocked'
+        ? (zh ? '地址已复制，但浏览器拦截了新标签页。请使用下方的“打开 ChatGPT”。' : 'URL copied, but the browser blocked the new tab. Use the “Open ChatGPT” link below.')
+        : (zh ? '地址已复制，并已打开 ChatGPT。' : 'URL copied and ChatGPT opened.')
+      : '';
+  return <div className="connection-copy-control">
+    <button type="button" className="btn btn-primary" onClick={activate}>
+      {copy === 'copied' ? <IconCheck size={17} aria-hidden="true" /> : <IconCopy size={17} aria-hidden="true" />}
+      {zh ? '复制地址并打开 ChatGPT' : 'Copy URL & open ChatGPT'}
+    </button>
+    <span role="status">{status}</span>
+  </div>;
+}
+
 function ChatGPTInstructions({ mcpUrl, zh }: { mcpUrl: string; zh: boolean }) {
   return <ol className="connection-steps">
-    <li><div><h2>{zh ? '复制连接地址' : 'Copy the connection URL'}</h2><p>{zh ? '这只是服务地址，不包含你的密码或令牌。' : 'This is the service address. It contains no password or token.'}</p><label className="sr-only" htmlFor="connection-url">{zh ? '连接地址' : 'Connection URL'}</label><input id="connection-url" readOnly value={mcpUrl} /><CopyButton value={mcpUrl} label={zh ? '复制地址' : 'Copy URL'} /></div></li>
-    <li><div><h2>{zh ? '在 ChatGPT 添加 IMStage' : 'Add IMStage in ChatGPT'}</h2><p>{zh ? '打开 Plugins，点击加号，进入 Create app / Create MCP App。名称填 IMStage，Server URL 粘贴上面的地址，Authentication 选择 OAuth。' : 'Open Plugins, click +, then Create app / Create MCP App. Set the name to IMStage, paste the URL into Server URL, and choose OAuth for Authentication.'}</p><a className="btn btn-secondary" href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer">{zh ? '打开 ChatGPT' : 'Open ChatGPT'}<IconArrowUpRight size={17} aria-hidden="true" /></a><details className="connection-help"><summary>{zh ? '没有看到添加入口？' : 'Can’t find the add button?'}</summary><p>{zh ? '在 ChatGPT 设置中的「安全与登录」开启开发者模式。入口可能受账号和工作区策略限制；当前需要手动添加，尚未通过公开目录安装。' : 'Enable Developer mode under Security and login in ChatGPT settings. Availability depends on your account and workspace policy. This connection currently requires manual setup; directory installation is not available.'}</p><a className="text-link" href="https://developers.openai.com/plugins/deploy/connect-chatgpt" target="_blank" rel="noreferrer">{zh ? '查看官方连接说明' : 'Official connection guide'}</a></details></div></li>
-    <li><div><h2>{zh ? '确认授权并检查工具' : 'Authorize and check the tools'}</h2><p>{zh ? '在授权页确认你的账号，回到 ChatGPT 选择 IMStage。连接页只有在真实的工具列表请求成功后才会显示“已连接”。' : 'Confirm your account on the authorization page and select IMStage back in ChatGPT. This page shows “Connected” only after a real tools list request succeeds.'}</p></div></li>
+    <li><div><h2>{zh ? '在 ChatGPT 添加 IMStage' : 'Add IMStage in ChatGPT'}</h2><p>{zh ? '打开 Plugins，点击加号，选择 Add plugin / Create plugin（不同版本也可能显示 Create app / Create MCP App）。名称填 IMStage，Server URL 粘贴下面的地址，Authentication 选择 OAuth。' : 'Open Plugins, click +, then choose Add plugin / Create plugin (some builds also show Create app / Create MCP App). Name it IMStage, paste the URL below into Server URL, and choose OAuth for Authentication.'}</p><label className="sr-only" htmlFor="connection-url">{zh ? '连接地址' : 'Connection URL'}</label><input id="connection-url" readOnly value={mcpUrl} onFocus={event => event.currentTarget.select()} /><CopyAndOpenButton value={mcpUrl} zh={zh} /><p className="connection-note"><a className="text-link" href={CHATGPT_PLUGINS_URL} target="_blank" rel="noreferrer">{zh ? '打开 ChatGPT' : 'Open ChatGPT'}<IconArrowUpRight size={16} aria-hidden="true" /></a></p><details className="connection-help"><summary>{zh ? '没有看到添加入口？' : 'Can’t find the add button?'}</summary><p>{zh ? '在 ChatGPT 设置中的「安全与登录」开启开发者模式。入口名称随版本变化（Add plugin、Create plugin、Create app 等）；入口也可能受账号和工作区策略限制。当前需要手动添加，尚未通过公开目录安装。' : 'Enable Developer mode under Security and login in ChatGPT settings. The entry name varies by version (Add plugin, Create plugin, Create app and so on), and availability depends on your account and workspace policy. This connection currently requires manual setup; directory installation is not available.'}</p><a className="text-link" href="https://developers.openai.com/plugins/deploy/connect-chatgpt" target="_blank" rel="noreferrer">{zh ? '查看官方连接说明' : 'Official connection guide'}</a></details></div></li>
+    <li><div><h2>{zh ? '登录并确认授权' : 'Sign in and confirm access'}</h2><p>{zh ? '回到 ChatGPT 选择 IMStage；ChatGPT 会打开授权页。在授权页登录 IMStage 并点击「允许连接」即可。添加应用前不需要先在网站登录。' : 'Back in ChatGPT, select IMStage; ChatGPT opens the authorization page. Sign in there and click Allow. You do not need to sign in on the website before adding the app.'}</p><p className="connection-note">{zh ? '只有真实的工具列表请求成功后，本页才会显示“已连接”。' : 'This page shows “Connected” only after a real tools list request succeeds.'}</p></div></li>
   </ol>;
 }
 
@@ -240,12 +282,19 @@ export default function ConnectionsPage({ requestId, consent = false }: { reques
   }
   const next = consent ? `/connect/authorize${requestId ? `?request=${encodeURIComponent(requestId)}` : ''}` : client === 'chatgpt' ? '/connect' : `/connect?client=${client}`;
   if (consent && user && !unavailable) return <div className="connections-page"><ConsentView requestId={requestId} /></div>;
-  const signIn = <div className="connection-signin"><p>{unavailable ? (zh ? '账号服务暂时不可用，请重试。' : 'Account service is unavailable. Please retry.') : (zh ? '使用你的 IMStage 账号，作品会保存在同一个工作台。' : 'Use your IMStage account to keep your scenes in the same workspace.')}</p>{unavailable ? <button className="btn btn-secondary" onClick={() => void refresh()}>{zh ? '重新连接' : 'Retry'}</button> : <a className="btn btn-primary" href={loginLink(next)}>{zh ? '登录并继续' : 'Sign in to continue'}<IconArrowUpRight size={17} aria-hidden="true" /></a>}</div>;
+  /** Consent needs a sign-in step; account management only offers it as a secondary action. */
+  function signIn(kind: 'consent' | 'management') {
+    const reason = unavailable
+      ? (zh ? '账号服务暂时不可用，请重试。' : 'Account service is unavailable. Please retry.')
+      : kind === 'consent'
+        ? (zh ? '登录你的 IMStage 账号以确认这次授权。' : 'Sign in to your IMStage account to confirm this authorization.')
+        : (zh ? '登录后可以在这里查看、刷新或断开连接。添加 ChatGPT 应用不需要先在网站登录。' : 'Sign in to view, refresh or disconnect connections here. Adding the ChatGPT app does not require signing in on the website first.');
+    return <div className={`connection-signin${kind === 'management' ? ' connection-signin-secondary' : ''}`}><p>{reason}</p>{unavailable ? <button className="btn btn-secondary" onClick={() => void refresh()}>{zh ? '重新连接' : 'Retry'}</button> : <a className="btn btn-primary" href={loginLink(next)}>{zh ? '登录并继续' : 'Sign in to continue'}<IconArrowUpRight size={17} aria-hidden="true" /></a>}</div>;
+  }
   const supported = loopbackSupported(config);
   return <div className="connections-page"><a className="text-link" href={user ? '#/account' : '#/'}>{zh ? '返回' : 'Back'}</a>
     <header className="connection-intro"><IconBrandOpenai size={38} aria-hidden="true" /><h1>{zh ? '把 IMStage 带进你的 AI 客户端。' : 'Bring IMStage into your AI client.'}</h1><p>{zh ? '先选择客户端，按对应步骤连接一次；之后用一句话开始创作。' : 'Choose your client, connect once with the matching steps, then start creating with a sentence.'}</p></header>
-    {loading ? <p role="status">{zh ? '正在读取账号…' : 'Loading your account…'}</p> : (!user || unavailable) && signIn}
-    {!consent && <>
+    {consent ? (loading ? <p role="status">{zh ? '正在读取账号…' : 'Loading your account…'}</p> : (!user || unavailable) && signIn('consent')) : <>
       {error && <div className="connection-error" role="alert"><p>{error}</p><button className="btn btn-secondary" onClick={() => setAttempt(n => n + 1)}>{zh ? '重试' : 'Retry'}</button></div>}
       {!config && !error && <p role="status">{zh ? '正在读取接入方式…' : 'Loading connection details…'}</p>}
       {config && config.authorizationSupported && <>
@@ -254,7 +303,7 @@ export default function ConnectionsPage({ requestId, consent = false }: { reques
         <StarterPrompt zh={zh} />
       </>}
       {config && !config.authorizationSupported && <p className="connection-note" role="note">{zh ? '该服务未启用授权连接。请使用下方的高级个人访问令牌。' : 'This server has authorization disabled. Use the advanced personal access token below.'}</p>}
-      {user && !unavailable && <ConnectionManager key={user.id} />}
+      {loading ? <p role="status">{zh ? '正在读取账号…' : 'Loading your account…'}</p> : user && !unavailable ? <ConnectionManager key={user.id} /> : signIn('management')}
     </>}
   </div>;
 }

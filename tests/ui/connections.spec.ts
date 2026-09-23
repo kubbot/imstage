@@ -21,7 +21,8 @@ test('homepage focuses navigation and leads to an honest connection setup', asyn
   await expect(header.locator('.nav-github svg')).toHaveAttribute('width', '24');
   const bounds = await header.locator('.nav-github').boundingBox();
   expect(bounds?.width).toBeGreaterThanOrEqual(44);
-  await page.locator('#chatgpt').getByRole('link', { name: '在 ChatGPT 中使用' }).click();
+  await expect(page.locator('#chatgpt')).toContainText('连接 ChatGPT，用一句话创作和修改聊天截图。');
+  await page.locator('#chatgpt').getByRole('link', { name: '连接 ChatGPT' }).click();
   await expect(page).toHaveURL(/#\/connect$/);
   await expect(page.getByLabel('连接地址', { exact: true })).toHaveValue(/\/api\/mcp$/);
   await page.getByText('没有看到添加入口？', { exact: true }).click();
@@ -35,6 +36,78 @@ test('consent is preserved through login and registration navigation', async ({ 
   await expect(page).toHaveURL(/next=%2Fconnect%2Fauthorize%3Frequest%3Dsynthetic-request/);
   await page.getByRole('link', { name: '创建账号', exact: true }).click();
   await expect(page).toHaveURL(/register\?next=%2Fconnect%2Fauthorize%3Frequest%3Dsynthetic-request/);
+});
+
+test('setup needs no website login, while consent still asks for an explicit signed-in confirmation', async ({ page }) => {
+  await config(page);
+  await page.goto('/?lang=zh#/connect');
+  // The instructions render without an account, and ChatGPT is where OAuth starts.
+  await expect(page.getByRole('heading', { name: '在 ChatGPT 添加 IMStage' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '登录并确认授权' })).toBeVisible();
+  await expect(page.locator('#connection-url')).toBeVisible();
+  // Account sign-in is secondary and lives with connection management, not the setup steps.
+  const secondary = page.locator('.connection-signin-secondary');
+  await expect(secondary.getByRole('link', { name: '登录并继续' })).toBeVisible();
+  await expect(page.locator('.connection-steps').getByRole('link', { name: '登录并继续' })).toHaveCount(0);
+
+  // The consent route keeps the explicit sign-in gate and the opaque request.
+  await page.goto('/?lang=zh#/connect/authorize?request=synthetic-request');
+  await expect(page.getByRole('link', { name: '登录并继续' })).toBeVisible();
+  await page.getByRole('link', { name: '登录并继续' }).click();
+  await expect(page).toHaveURL(/next=%2Fconnect%2Fauthorize%3Frequest%3Dsynthetic-request/);
+});
+
+test('one ChatGPT click copies the URL and opens the plugin page, with a selectable fallback', async ({ page, context }) => {
+  await config(page);
+  await page.goto('/?lang=zh#/connect');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin });
+  await context.route('https://chatgpt.com/plugins', route => route.fulfill({ body: 'synthetic plugin page' }));
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: '复制地址并打开 ChatGPT' }).click();
+  const opened = await popup;
+  await opened.waitForLoadState('domcontentloaded');
+  expect(opened.url()).toBe('https://chatgpt.com/plugins');
+  await expect(page.locator('.connection-steps .connection-copy-control').getByRole('status')).toHaveText(/地址已复制/);
+  // The clipboard really holds the canonical URL, not just a success label.
+  const mcpUrl = await page.getByLabel('连接地址', { exact: true }).inputValue();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(mcpUrl);
+  // The read-only URL and the independent link stay usable without the combined action.
+  const url = page.getByLabel('连接地址', { exact: true });
+  await expect(url).toHaveValue(/\/api\/mcp$/);
+  await expect(url).toHaveAttribute('readonly');
+  await expect(page.getByRole('link', { name: '打开 ChatGPT', exact: true })).toHaveAttribute('href', 'https://chatgpt.com/plugins');
+  await opened.close();
+});
+
+test('a blocked popup is reported while the copied URL is still available', async ({ page, context }) => {
+  await config(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'open', { configurable: true, value: () => null });
+  });
+  await page.goto('/?lang=zh#/connect');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin });
+  await page.getByRole('button', { name: '复制地址并打开 ChatGPT' }).click();
+  await expect(page.locator('.connection-steps .connection-copy-control').getByRole('status')).toHaveText(/拦截了新标签页/);
+  await expect(page.getByLabel('连接地址', { exact: true })).toHaveValue(/\/api\/mcp$/);
+  await expect(page.getByRole('link', { name: '打开 ChatGPT', exact: true })).toBeVisible();
+});
+
+test('a denied clipboard stays recoverable through the selectable URL and fallback link', async ({ page, context }) => {
+  await config(page);
+  await context.route('https://chatgpt.com/plugins', route => route.fulfill({ body: 'synthetic plugin page' }));
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.reject(new Error('clipboard denied')) },
+    });
+  });
+  await page.goto('/?lang=zh#/connect');
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: '复制地址并打开 ChatGPT' }).click();
+  await popup;
+  await expect(page.locator('.connection-steps .connection-copy-control').getByRole('status')).toHaveText(/无法自动复制/);
+  await expect(page.getByLabel('连接地址', { exact: true })).toHaveValue(/\/api\/mcp$/);
+  await expect(page.getByRole('link', { name: '打开 ChatGPT', exact: true })).toBeVisible();
 });
 
 test('consent requires an explicit decision and cancellation uses the backend validated return URL', async ({ page }) => {
