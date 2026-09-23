@@ -92,3 +92,8 @@ IMSTAGE_TEST_PORT=4596 CI=1 npx playwright test tests/ui/connections-live.spec.t
 - Codex 宿主真实联调：`codex mcp add` / `codex mcp login` 在真实账号下的浏览器授权、取消、过期、拒绝、撤销后重连恢复。
 - 生产发布、HTTPS 域名、Vercel 路由、公开目录提交与 Linear 状态更新。
 - 上述外部动作的成功与否不由本次本地测试证明。
+
+## 独立审查补充
+
+- 审查发现 SDK 的 loopback 比较不会拒绝实际授权地址里的 credentials / fragment，也不会应用运行时关闭配置。已在 GET/POST authorize 进入 SDK 前校验（包含省略 redirect_uri 时的注册值），并在读取与批准 consent 时再次校验。非法地址本地返回 400，无 Location。
+- 新增异常实际回调与服务重启后已有注册/待批准请求回归；完整后端测试 43/43 通过，独立 reviewer 复跑新增 2/2 通过，P2 已关闭，无 P0/P1。

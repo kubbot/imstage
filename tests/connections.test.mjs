@@ -1368,6 +1368,46 @@ test('production allows controlled loopback redirects but never arbitrary HTTP',
   });
 });
 
+test('actual authorization redirects reject credentials and fragments for GET and POST', async () => {
+  const { base } = await makeApp({ nodeEnv: 'production' });
+  const client = await registerClient(base);
+  for (const redirectUri of ['http://user:pass@127.0.0.1:51234/callback', 'http://127.0.0.1:51234/callback#fragment']) {
+    for (const method of ['GET', 'POST']) {
+      const url = new URL(authorizeUrl(base, { clientId: client.client_id, redirectUri, challenge: pkce().challenge }));
+      const res = await fetch(method === 'GET' ? url : `${base}/api/oauth/authorize`, {
+        method, redirect: 'manual',
+        ...(method === 'POST' ? { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: url.searchParams.toString() } : {}),
+      });
+      assert.equal(res.status, 400, `${method} ${redirectUri}`);
+      assert.equal(res.headers.get('location'), null);
+      assert.equal((await res.json()).error, 'invalid_request');
+    }
+  }
+});
+
+test('disabling loopback applies to existing clients and pending consent after restart', async () => {
+  const first = await makeApp();
+  const user = await register(first.base, 'disabled-existing');
+  const client = await registerClient(first.base);
+  const pending = await fetch(authorizeUrl(first.base, { clientId: client.client_id, challenge: pkce().challenge, resource: RESOURCE }), { redirect: 'manual' });
+  const requestId = requestIdFrom(pending.headers.get('location'));
+  assert.ok(requestId, pending.headers.get('location'));
+  await first.app.close(); activeApps.delete(first.app);
+  const { base } = await makeApp({ dbPath: path.join(first.dir, 'imstage.db'), allowLoopbackRedirects: false });
+  for (const omitted of [false, true]) {
+    const url = new URL(authorizeUrl(base, { clientId: client.client_id, challenge: pkce().challenge }));
+    if (omitted) url.searchParams.delete('redirect_uri');
+    const res = await fetch(url, { redirect: 'manual' });
+    assert.equal(res.status, 400); assert.equal(res.headers.get('location'), null);
+  }
+  assert.equal((await getConsent(base, user.cookie, requestId)).res.status, 400);
+  for (const approved of [false, true]) {
+    const result = await postConsent(base, user.cookie, { requestId, approved });
+    assert.equal(result.res.status, 400);
+    assert.equal(result.body.redirectUrl, undefined);
+  }
+});
+
 test('loopback redirects can be explicitly disabled without touching HTTPS', async () => {
   const { base } = await makeApp({ allowLoopbackRedirects: false });
   const config = await (await fetch(`${base}/api/connections/config`)).json();
