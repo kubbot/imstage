@@ -1,0 +1,20 @@
+.connect-feature{padding-bottom:48px}
+.connect-feature-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:40px 90px;align-items:center}
+.connect-feature-copy>svg{color:var(--accent);margin-bottom:24px}
+.connect-feature-copy h2{font-size:clamp(32px,3.8vw,52px);line-height:1.2;letter-spacing:-.04em;margin:0 0 22px;font-family:var(--display)}
+.connect-prompt{font-size:clamp(16px,1.4vw,19px);line-height:1.8;margin:28px 0;padding:4px 0 4px 22px;border-left:2px solid var(--accent);max-width:580px}
+.connect-feature-actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.connect-copy{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text)}
+.connect-copy:hover{color:var(--accent)}
+.connect-caption,.connect-feedback{font-size:12px;line-height:1.7;color:var(--muted);margin:14px 0 0}
+.connect-feedback{min-height:20px;margin-top:4px}
+.connect-feature-art{margin:0;justify-self:center;width:100%;max-width:350px;border-radius:28px;background:var(--surface-2);padding:24px 22px 16px;border:1px solid var(--line);transform:rotate(2deg)}
+.connect-feature-art .mark-crop{height:440px;border-radius:18px;overflow:hidden}
+.connect-feature-art figcaption{font-size:12px;color:var(--muted);margin:16px 0 0;text-align:center}
+.connect-feature-flow{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding-top:26px;font-size:15px}
+.connect-feature-flow>span[aria-hidden]{color:var(--accent)}
+@media(max-width:800px){.connect-feature-layout{gap:30px;grid-template-columns:1fr}.connect-feature-art{max-width:320px;transform:none}.connect-feature-art .mark-crop{height:360px}.connect-feature-flow{gap:12px;font-size:12px}.connect-feature-copy h2{font-size:36px}}
+@media(max-width:400px){.connect-feature-flow{font-size:11px;gap:6px}.connect-feature-actions{gap:8px 16px}.connect-prompt{padding-left:16px}}
+@media(prefers-reduced-motion:reduce){.connect-feature-art{transform:none}}
+
+.mark-open-simple{display:flex;justify-content:space-between;align-items:center;gap:32px}.mark-open-simple .mark-btn{flex-shrink:0}@media(max-width:800px){.mark-open-simple{align-items:flex-start;flex-direction:column}}

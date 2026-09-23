@@ -40,7 +40,9 @@ npm start
 
 本机会话保存在当前浏览器。登录后，作品、人物和项目设置修改会自动同步至服务器；发起 AI 请求时，相关场景、附件和指令会发送至配置的模型服务。
 
-MCP 使用**管理员配置的实例令牌和独立场景库**，不共用 Web 登录会话或“我的作品”。MCP 批次保存调用方 AI 提供的内容；Web 项目批量任务则调用站内 Agent。按客户分发的商业 API key、计费和邮件密码找回尚未实现。
+通过[账号连接页面](https://imstage.org/#/connect)接入 ChatGPT。账号 MCP（`/api/mcp`）采用 OAuth 登录授权，与网页“我的作品”共用作品；可以随时撤销连接，也可为其他客户端创建个人令牌。ChatGPT 当前需要手动添加，尚未提供公开目录安装。
+
+自托管 `/mcp` 保留管理员实例令牌和独立场景库。其批次工具保存调用方 AI 提供的内容；Web 项目批量任务则调用站内 Agent。计费和邮件密码找回尚未实现。两种接入方式见 [ChatGPT 连接说明](docs/chatgpt-connections.md)。
 
 [模板与批量创作](docs/templates-and-projects.md) · [部署与运维](deploy/README.md) · [账号 API](services/api/README.md) · [Agent 配置](services/agent/README.md) · [MCP 工具](services/mcp/README.md)
 

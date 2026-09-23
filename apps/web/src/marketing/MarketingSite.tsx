@@ -52,6 +52,7 @@ import { ExportStage, ScaledSceneFrame, DEMO_DEVICE } from './DeviceFrame';
 import { downloadDataUrl, renderScenePng, sceneFileName } from './png';
 import { useReveal } from './reveal';
 import './marketing.css';
+import ConnectionSection from './ConnectionSection';
 
 type PreviewState =
   | { status: 'idle' }
@@ -359,6 +360,15 @@ export default function MarketingSite() {
   const otherId = otherParticipantId(scene);
   const clock = scene.deviceTime;
   const profile = deviceProfile(scene);
+  const connectionScene = useMemo(() => {
+    const result = buildScene('product', locale, avatars, undefined);
+    result.title = locale === 'zh' ? '新品发布组' : 'Launch team';
+    const lines: Record<string, string> = locale === 'zh'
+      ? { m1: '新品文案定了：让每段对话，都有画面。', m2: '主视觉准备好了，明早十点发布？', m4: '就这么定。我们一起让它亮相。' }
+      : { m1: 'Launch headline: give every conversation a scene.', m2: 'The visuals are ready. Tomorrow at ten?', m4: 'It’s a plan. Let’s bring it to life.' };
+    result.messages = result.messages.map(message => lines[message.id] ? { ...message, text: lines[message.id] } : message);
+    return result;
+  }, [locale, avatars]);
   const exportDisabled = exporting || !exportReady;
   const resolution =
     preview.status === 'ready'
@@ -403,7 +413,7 @@ export default function MarketingSite() {
             <p className="mark-lede">{copy.scenariosLede}</p>
           </div>
           <div className="mark-scenarios">
-            {SCENARIOS.map((scenario) => {
+            {[...SCENARIOS].sort((a,b) => ['product','support','onboarding','event','wukang','coffee','weekend','evaluation'].indexOf(a.kind) - ['product','support','onboarding','event','wukang','coffee','weekend','evaluation'].indexOf(b.kind)).map((scenario) => {
               const active = scenario.kind === kind;
               return (
                 <article key={scenario.kind} className={`mark-scenario${active ? ' is-active' : ''}`}>
@@ -525,37 +535,13 @@ export default function MarketingSite() {
         </div>
       </section>
 
+      <ConnectionSection preview={<div className="mark-crop" aria-hidden="true"><ScaledSceneFrame size={DEMO_DEVICE}><SceneView scene={connectionScene} exportMode locale={locale} /></ScaledSceneFrame></div>} />
+
       <Reveal id="mark-open">
-        <div className="mark-shell">
-          <div className="mark-section-head mark-section-head-row">
-            <div>
-              <p className="mark-label">{copy.openLabel}</p>
-              <h2 className="mark-h2">{copy.openTitle}</h2>
-              <p className="mark-lede">{copy.openLede}</p>
-            </div>
-            <div className="mark-open-actions">
-              <a className="mark-btn mark-btn-ghost" href="https://github.com/kubbot/imstage" target="_blank" rel="noreferrer">
-                <IconBrandGithub size={17} aria-hidden="true" />
-                {copy.openGithub}
-                <IconArrowUpRight size={15} aria-hidden="true" />
-              </a>
-              <a className="text-link" href="#/docs">
-                {copy.openDocs}
-                <IconArrowUpRight size={15} aria-hidden="true" />
-              </a>
-            </div>
-          </div>
-          <ul className="mark-open-rows">
-            {copy.openRows.map((row) => (
-              <li key={row.title}>
-                <div>
-                  <h3>{row.title}</h3>
-                  <p>{row.detail}</p>
-                </div>
-                <span className="mark-tag">{row.tag}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="mark-shell mark-open-simple">
+          <div><h2 className="mark-h2">{locale === 'zh' ? '为下一次发布，准备好画面。' : 'Set the scene for your next launch.'}</h2>
+          <p className="mark-lede">{locale === 'zh' ? '产品演示、品牌故事、沟通培训。从一段对话，开始你的下一份内容。' : 'Product demos, brand stories, and team training. Start your next piece of content with a conversation.'}</p></div>
+          <a className="mark-btn mark-btn-ghost" href="https://github.com/kubbot/imstage" target="_blank" rel="noreferrer"><IconBrandGithub size={24} aria-hidden="true" />{locale === 'zh' ? '在 GitHub 一起构建' : 'Build with us on GitHub'}<IconArrowUpRight size={17} aria-hidden="true" /></a>
         </div>
       </Reveal>
 

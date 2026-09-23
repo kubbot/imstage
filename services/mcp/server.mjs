@@ -298,7 +298,7 @@ const BATCH_INPUT_SCHEMA = {
   additionalProperties: false,
 };
 
-const TOOL_DEFINITIONS = [
+export const TOOL_DEFINITIONS = [
   {
     name: 'imstage_get_capabilities',
     title: '读取 IMStage MCP 能力与契约',
@@ -495,7 +495,7 @@ const RESOURCE_TEMPLATES = [
   },
 ];
 
-const SERVER_INSTRUCTIONS =
+export const SERVER_INSTRUCTIONS =
   'IMStage 只做确定性 IM 聊天截图与确定性保存，不调用模型。单场景流程：imstage_create_scene → imstage_update_scene(expectedRevision) → imstage_render_scene。批量流程：imstage_create_project（规则）→ 可选 imstage_create_template（场景快照 + 命名变量）→ imstage_create_batch（projectId + 条目；条目要么提供完整 scene，要么 templateId + values/patch；可带 clientIdempotencyKey 幂等重试）→ imstage_get_batch 读回回执与 sceneId → imstage_render_scene 渲染。所有批次条目在同一个事务中先校验后写入，任一失败则整批不保存。scene.id 由服务端生成，禁止传入；不要传远程图片 URL，只接受内嵌 data:image/...;base64。ChatGPT 负责生成全部内容与图片，本服务不会代替模型生成。先读取 imstage_get_capabilities。';
 
 /* ------------------------------------------------------------------ */
@@ -545,6 +545,34 @@ function requireSceneOrThrow(store, sceneId, revision) {
   return found;
 }
 
+/**
+ * Resolve a previously recorded idempotent response for a scene operation.
+ *
+ * The standalone store keeps per-revision snapshots, so the exact revision is
+ * returned. A store without history (the account store) cannot retrieve an old
+ * revision after a later edit, so it falls back to the current scene and reports
+ * both the original operation revision and `latestRevision` instead of failing
+ * a safe retry. No write is performed either way.
+ */
+function resolveIdempotentScene(store, existing) {
+  const exact = Number.isInteger(existing.revision)
+    ? store.getScene(existing.sceneId, existing.revision)
+    : null;
+  const current = exact ?? store.getScene(existing.sceneId, null);
+  if (!current) {
+    fail('scene_not_found', `场景不存在：${existing.sceneId}`, {
+      details: { sceneId: existing.sceneId, revision: existing.revision ?? null },
+      recovery: '场景已被删除；重新调用 imstage_create_scene。',
+      status: 404,
+    });
+  }
+  return {
+    ...sceneSummary(current),
+    revision: existing.revision,
+    latestRevision: current.revision,
+  };
+}
+
 async function toolGetCapabilities() {
   const capabilities = buildCapabilities();
   return textOk(
@@ -553,7 +581,7 @@ async function toolGetCapabilities() {
   );
 }
 
-function toolCreateScene(args, { store }) {
+function toolCreateScene(args, { store, sceneIdFactory }) {
   const rawScene = objectField(args, 'scene', { required: true });
   const idempotencyKey = optionalIdempotencyKey(args);
   const requestHash = sha256Hex(stableStringify({ operation: 'create_scene', scene: rawScene }));
@@ -564,16 +592,16 @@ function toolCreateScene(args, { store }) {
   if (idempotencyKey) {
     const existing = store.findIdempotentResponse(idempotencyKey, 'create_scene', requestHash);
     if (existing) {
-      const stored = requireSceneOrThrow(store, existing.sceneId, existing.revision);
+      const summary = resolveIdempotentScene(store, existing);
       return textOk(`已创建场景 ${existing.sceneId}（幂等重试，未重复创建）。`, {
-        ...sceneSummary(stored),
+        ...summary,
         deduplicated: true,
-        next: `用 expectedRevision=${existing.revision} 调用 imstage_update_scene。`,
+        next: `先调用 imstage_get_scene 读取当前版本，再用 expectedRevision=${summary.latestRevision} 调用 imstage_update_scene。`,
       });
     }
   }
 
-  const scene = prepareCreateScene(rawScene);
+  const scene = prepareCreateScene(rawScene, sceneIdFactory ? { sceneId: sceneIdFactory() } : undefined);
   const created = store.createScene({ scene, requestHash, idempotencyKey });
   const stored = requireSceneOrThrow(store, created.sceneId, created.revision);
   return textOk(
@@ -609,9 +637,8 @@ function toolUpdateScene(args, { store }) {
   if (idempotencyKey) {
     const existing = store.findIdempotentResponse(idempotencyKey, 'update_scene', requestHash);
     if (existing) {
-      const stored = requireSceneOrThrow(store, existing.sceneId, existing.revision);
       return textOk(`已更新场景 ${sceneId} 到 revision ${existing.revision}（幂等重试，未重复递增）。`, {
-        ...sceneSummary(stored),
+        ...resolveIdempotentScene(store, existing),
         changed: existing.changed !== false,
         deduplicated: true,
       });
@@ -651,7 +678,8 @@ function toolUpdateScene(args, { store }) {
   );
 }
 
-async function toolRenderScene(args, { store, renderService }) {
+async function toolRenderScene(args, context) {
+  const { store, renderService } = context;
   const sceneId = stringField(args, 'sceneId', { min: 1 });
   const revision = integerField(args, 'revision', { min: 1 });
   const inlineScene = objectField(args, 'scene');
@@ -685,6 +713,10 @@ async function toolRenderScene(args, { store, renderService }) {
 
   const rendered = await renderService.render({ scene, ...options });
   const renderId = computeRenderId({ scene: { ...scene, _revision: sceneRef.revision }, ...options, rendererVersion: RENDERER_VERSION });
+  // Rendering is the slowest step. Re-check authorization after it completes so
+  // a revoke/password change during the render cannot persist or return a PNG
+  // for an account that is no longer permitted.
+  if (typeof context.authorizeCheck === 'function') await context.authorizeCheck();
   store.saveRender({
     renderId,
     sceneId: sceneRef.sceneId,
@@ -1055,6 +1087,17 @@ async function handleToolCall(request, context) {
   const name = request?.params?.name;
   const rawArgs = request?.params?.arguments;
   try {
+    // Execution allowlist: a filtered tools/list must also restrict tools/call,
+    // otherwise a hidden name could reach a handler that was never advertised.
+    if (!context.allowedToolNames?.has(name)) {
+      fail('invalid_request', `未知工具：${String(name)}`, { recovery: '调用 tools/list 查看可用工具。' });
+    }
+    if (typeof context.authorizeCheck === 'function') await context.authorizeCheck();
+    const extra = context.extraHandlers?.[name];
+    if (typeof extra === 'function') {
+      const extraArgs = rawArgs === undefined || rawArgs === null ? {} : asObject(rawArgs, 'arguments');
+      return await extra(extraArgs, context);
+    }
     const allowed = ARG_KEYS[name];
     if (!allowed) {
       fail('invalid_request', `未知工具：${String(name)}`, { recovery: '调用 tools/list 查看可用工具。' });
@@ -1171,30 +1214,71 @@ async function handleReadResource(request, { store }) {
 /* MCP server factory                                                  */
 /* ------------------------------------------------------------------ */
 
-export function createImstageMcpServer({ store, renderService, logger = console }) {
-  const context = { store, renderService, logger };
-  const server = new Server(
-    { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
-    {
-      capabilities: { tools: {}, resources: {} },
-      instructions: SERVER_INSTRUCTIONS,
-    },
+/**
+ * Append `webUrl` to scene-bearing results. The standalone instance server does
+ * not pass `webUrlFor`, so its output is unchanged.
+ */
+function decorateResult(result, webUrlFor) {
+  if (typeof webUrlFor !== 'function' || !result || result.isError) return result;
+  const sceneId = result.structuredContent?.sceneId;
+  if (typeof sceneId !== 'string' || sceneId === '') return result;
+  const webUrl = webUrlFor(sceneId);
+  return {
+    ...result,
+    content: [...(result.content ?? []), { type: 'text', text: `网页打开：${webUrl}` }],
+    structuredContent: { ...result.structuredContent, webUrl },
+  };
+}
+
+export function createImstageMcpServer({
+  store,
+  renderService,
+  logger = console,
+  tools = TOOL_DEFINITIONS,
+  extraHandlers = null,
+  webUrlFor = null,
+  sceneIdFactory = null,
+  authorizeCheck = null,
+  serverInfo = { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
+  instructions = SERVER_INSTRUCTIONS,
+} = {}) {
+  const allowedToolNames = new Set(tools.map((tool) => tool.name));
+  const context = {
+    store,
+    renderService,
+    logger,
+    extraHandlers,
+    sceneIdFactory,
+    webUrlFor,
+    authorizeCheck,
+    allowedToolNames,
+  };
+  const server = new Server(serverInfo, {
+    capabilities: { tools: {}, resources: {} },
+    instructions,
+  });
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  server.setRequestHandler(CallToolRequestSchema, async (request) =>
+    decorateResult(await handleToolCall(request, context), webUrlFor),
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_DEFINITIONS }));
-  server.setRequestHandler(CallToolRequestSchema, async (request) => handleToolCall(request, context));
+  const renderAvailable = tools.some((tool) => tool.name === 'imstage_render_scene');
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: [
-      {
-        uri: WIDGET_RESOURCE_URI,
-        name: WIDGET_TITLE,
-        title: WIDGET_TITLE,
-        description: 'imstage_render_scene 的内联预览组件（自包含，无远程资源）。',
-        mimeType: WIDGET_MIME_TYPE,
-      },
-    ],
-    resourceTemplates: RESOURCE_TEMPLATES,
+    resources: renderAvailable
+      ? [
+          {
+            uri: WIDGET_RESOURCE_URI,
+            name: WIDGET_TITLE,
+            title: WIDGET_TITLE,
+            description: 'imstage_render_scene 的内联预览组件（自包含，无远程资源）。',
+            mimeType: WIDGET_MIME_TYPE,
+          },
+        ]
+      : [],
+    resourceTemplates: renderAvailable ? RESOURCE_TEMPLATES : [],
   }));
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: RESOURCE_TEMPLATES }));
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+    resourceTemplates: renderAvailable ? RESOURCE_TEMPLATES : [],
+  }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => handleReadResource(request, context));
   return server;
 }

@@ -47,9 +47,15 @@ Local sessions stay in the current browser. Signed-in scene, people and project-
 automatically sync to the server. AI requests send their scene, attachments and
 instruction to the configured providers.
 
-MCP uses an **administrator-configured instance token and its own scene store**.
-Its batch tools atomically save content supplied by the calling AI; Web project batches run the hosted Agent. It does not share Web account sessions or the Web saved-scene library. Managed
-per-customer API keys, billing and email password recovery are not implemented.
+Connect ChatGPT through the [account connection page](https://imstage.org/#/connect).
+The account MCP endpoint (`/api/mcp`) uses OAuth login and shares your Web saved
+scenes. You can revoke connections or create personal tokens from your account.
+ChatGPT currently requires manual setup; public directory installation is not available.
+
+Self-hosted `/mcp` retains its administrator-configured instance token and separate
+scene store. Its batch tools save content supplied by the calling AI; Web project
+batches run the hosted Agent. Billing and email password recovery are not implemented.
+See [ChatGPT connections](docs/chatgpt-connections.md) for the two endpoints.
 
 [Templates and batch creation](docs/templates-and-projects.md) · [Deploy and operate](deploy/README.md) · [Account API](services/api/README.md) · [Agent configuration](services/agent/README.md) · [MCP tools](services/mcp/README.md)
 
