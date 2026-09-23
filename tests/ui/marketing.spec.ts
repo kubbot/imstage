@@ -313,8 +313,10 @@ test.describe('refinements', () => {
       };
     });
     await page.goto('/');
-    await page.locator('#mark-export').scrollIntoViewIfNeeded();
+    // Arm before scrolling triggers the first render; a fast capture can finish
+    // between scrollIntoViewIfNeeded and a later gate installation.
     await page.evaluate(() => (window as unknown as { __gateFonts: () => void }).__gateFonts());
+    await page.locator('#mark-export').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-export-preview="loading"]')).toBeVisible();
 
     // Edit while the render is held, then release: the stale frame must be dropped.
