@@ -68,7 +68,7 @@ import {
 export const MCP_INSTANCE_SCOPE = 'mcp-instance';
 import { computeRenderId, createRenderService, resolveChromiumExecutable, resolveRenderConfig } from './render.mjs';
 import { newEphemeralSceneId, newSceneId, sha256Hex, stableStringify, timingSafeEqualString } from './util.mjs';
-import { WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
+import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
 
 /* ------------------------------------------------------------------ */
 /* Tool schemas (plain JSON Schema; validated again in code)           */
@@ -1169,7 +1169,7 @@ function parseResourceUri(uri) {
 async function handleReadResource(request, { store }) {
   const uri = request?.params?.uri;
   if (typeof uri !== 'string') throw new McpError(ErrorCode.InvalidParams, 'uri 必须是字符串');
-  if (uri === WIDGET_RESOURCE_URI) return {contents:[buildWidgetResourceContent(uri)]};
+  if (uri === WIDGET_RESOURCE_URI || uri === LEGACY_WIDGET_RESOURCE_URI) return {contents:[buildWidgetResourceContent(uri)]};
   const parsed = parseResourceUri(uri);
   if (!parsed) throw new McpError(ErrorCode.InvalidParams, `未知资源：${uri}`);
 

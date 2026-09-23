@@ -13,7 +13,9 @@
 
 import { WIDGET_MIME_TYPE } from './limits.mjs';
 
-export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene.html';
+// Resource URIs are host cache keys; keep the old address readable for saved chats.
+export const LEGACY_WIDGET_RESOURCE_URI = 'ui://imstage/render-scene.html';
+export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v2.html';
 export const WIDGET_TITLE = 'IMStage 渲染预览';
 
 /** CSP for the widget: it connects to and loads from nowhere. */

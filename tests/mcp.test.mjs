@@ -29,7 +29,7 @@ import { resolveMcpConfig } from '../services/mcp/config.mjs';
 import { resolveChromiumExecutable } from '../services/mcp/render.mjs';
 import { EXAMPLE_CREATE_SCENE } from '../services/mcp/scene.mjs';
 import { startMcpServer } from '../services/mcp/server.mjs';
-import { WIDGET_RESOURCE_URI } from '../services/mcp/widget.mjs';
+import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI } from '../services/mcp/widget.mjs';
 
 const { PNG } = pngjs;
 const TOKEN = 'test-token-1234567890';
@@ -456,6 +456,8 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
     });
 
     await t.test('widget resource is self-contained and mutation tools have no widget', async () => {
+      const legacy = await client.readResource({ uri: LEGACY_WIDGET_RESOURCE_URI });
+      assert.equal(legacy.contents[0].uri, LEGACY_WIDGET_RESOURCE_URI);
       const resource = await client.readResource({ uri: WIDGET_RESOURCE_URI });
       assert.equal(resource.contents.length, 1);
       const content = resource.contents[0];

@@ -17,3 +17,5 @@ Missing or failed render results clear the previous image and download target. F
 - [MCP Apps open-link request](https://apps.extensions.modelcontextprotocol.io/api/interfaces/app.McpUiOpenLinkRequest.html): `ui/open-link` with a URL.
 
 Independent review found three P2 issues (host globals, mobile menu bounds, stale download status). All were fixed, covered by regression tests and independently rechecked; no P0/P1 remain in the card review.
+
+The redesigned card uses `ui://imstage/render-scene-v2.html` to avoid a host retaining the older template under its cache key; the former URI remains readable for saved chats. This follows the official [UI resource versioning guidance](https://developers.openai.com/plugins/build/chatgpt-ui). Both tool metadata keys and resource listing use the same exported versioned URI.
