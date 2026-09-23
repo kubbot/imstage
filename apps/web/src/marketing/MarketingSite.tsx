@@ -533,11 +533,17 @@ export default function MarketingSite() {
               <h2 className="mark-h2">{copy.openTitle}</h2>
               <p className="mark-lede">{copy.openLede}</p>
             </div>
-            <a className="mark-btn mark-btn-ghost" href="https://github.com/kubbot/imstage" target="_blank" rel="noreferrer">
-              <IconBrandGithub size={17} aria-hidden="true" />
-              {copy.openGithub}
-              <IconArrowUpRight size={15} aria-hidden="true" />
-            </a>
+            <div className="mark-open-actions">
+              <a className="mark-btn mark-btn-ghost" href="https://github.com/kubbot/imstage" target="_blank" rel="noreferrer">
+                <IconBrandGithub size={17} aria-hidden="true" />
+                {copy.openGithub}
+                <IconArrowUpRight size={15} aria-hidden="true" />
+              </a>
+              <a className="text-link" href="#/docs">
+                {copy.openDocs}
+                <IconArrowUpRight size={15} aria-hidden="true" />
+              </a>
+            </div>
           </div>
           <ul className="mark-open-rows">
             {copy.openRows.map((row) => (

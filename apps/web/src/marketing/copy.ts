@@ -147,6 +147,7 @@ export interface LandingCopy {
   openLede: string;
   openRows: readonly { title: string; detail: string; tag: string }[];
   openGithub: string;
+  openDocs: string;
   faqLabel: string;
   faqTitle: string;
   faq: readonly { q: string; a: string }[];
@@ -232,21 +233,22 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     contrastNote: '预览与导出读取同一份场景。',
     openLabel: '开源与自托管',
     openTitle: '代码在你手里。',
-    openLede: '前端可静态托管；账号、作品库与 Agent 由 Node 服务提供，模型凭据只在服务端读取。',
+    openLede: '代码开源，可自行托管。账号、作品库与 Agent 由服务端提供，模型凭据只在服务端读取。',
     openRows: [
       { title: '浏览器本地编辑', detail: '免登录可用，草稿只保存在当前浏览器。', tag: '已实现' },
       { title: '账号与 Agent', detail: '注册账号后保存作品，并使用已配置模型的 Agent 创作。', tag: '托管已部署' },
-      { title: 'MCP 与 API', detail: 'MCP 使用管理员配置的实例令牌与独立场景库；商业 API key 尚未实现。', tag: '令牌访问' },
+      { title: 'MCP 与 API', detail: 'MCP 使用实例令牌与独立场景库，不开放匿名调用；商业 API key 尚未实现。', tag: '令牌访问' },
     ],
     openGithub: '在 GitHub 查看',
+    openDocs: '接入与自托管',
     faqLabel: '细节说明',
     faqTitle: '开始之前。',
     faq: [
-      { q: '页面上这些对话是真的吗？', a: '不是。所有场景、人物头像、时间与地点都是合成的虚构内容，仅用于演示工具，不代表任何真实聊天、真人身份或交易记录。' },
-      { q: '我的内容保存在哪里？', a: '试用页面的编辑只在当前页面内存中，刷新即消失。进入工作台后，草稿保存在当前浏览器；登录账号并点击保存后，场景与素材会写入托管服务，按账号隔离。清理浏览器数据会删除本机草稿。' },
-      { q: '可以导出什么？', a: '可以导出普通截图或包含完整对话的长图 PNG，也可以下载 JSON 场景数据。导出尺寸由设备配置决定，例如 iPhone 17 Pro 为 1206 × 2622。' },
+      { q: '页面上这些对话是真的吗？', a: '不是。所有场景、头像、时间和地点都是合成的虚构内容，仅用于演示，不代表真实聊天、真人或交易记录。' },
+      { q: '我的内容保存在哪里？', a: '试用页面的编辑只存在内存中，刷新即消失。工作台草稿自动保存在当前浏览器；登录后自动同步到服务器，按账号隔离。清理浏览器数据会删除本机草稿。' },
+      { q: '可以导出什么？', a: '普通截图或包含完整对话的长图 PNG，也可以下载 JSON 场景数据。导出尺寸由设备配置决定，例如 iPhone 17 Pro 为 1206 × 2622。' },
       { q: '能还原真实 App 的截图吗？', a: '目前是视觉近似，尚未针对具体系统与 App 版本做像素级校准。请用于设计、教学和虚构叙事，不要当作真实截图证据。' },
-      { q: '托管服务和 MCP 怎么收费？', a: '项目采用 MIT 许可，浏览器本地编辑免费。托管站点已可注册使用；AI 能力需要服务端配置模型。MCP 使用实例令牌和独立场景库，不开放匿名调用，定价与商业 API key 尚未实现。' },
+      { q: '托管服务和 MCP 怎么收费？', a: '项目采用 MIT 许可，浏览器本地编辑免费。托管站点已可注册使用；AI 能力需要服务端配置模型。MCP 使用实例令牌和独立场景库，不开放匿名调用；定价与商业 API key 尚未实现。' },
     ],
     ctaTitle: '下一段对话，等你开场。',
     ctaBody: '免登录试改与导出，或进入工作台开始新的场景。',
@@ -257,7 +259,7 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     eyebrow: 'Open-source conversation staging',
     h1a: 'One prompt.',
     h1b: 'A story unfolds.',
-    promise: 'AI writes the dialogue and creates the image — all editable.',
+    promise: 'AI writes the dialogue and creates the image, all editable.',
     promptLabel: 'Your instruction',
     promptHint: 'Write your instruction; sending starts one AI run.',
     promptPlaceholder: 'Describe a scene, for example a place to meet.',
@@ -328,21 +330,22 @@ export const LANDING_COPY: Record<Locale, LandingCopy> = {
     contrastNote: 'Preview and export read the same scene.',
     openLabel: 'Open source & self-hosting',
     openTitle: 'The code is yours.',
-    openLede: 'The frontend can be hosted statically; accounts, the scene library and the Agent are served by Node, and model credentials are read only on the server.',
+    openLede: 'Open source and self-hostable. Accounts, the scene library and the Agent run on the server; model credentials are read only there.',
     openRows: [
       { title: 'Local editing', detail: 'Works without an account; drafts stay in this browser.', tag: 'Implemented' },
       { title: 'Account & Agent', detail: 'Create an account to save work and generate with a configured model.', tag: 'Hosted' },
-      { title: 'MCP & API', detail: 'MCP uses an administrator-configured instance token and a separate store; commercial API keys are not implemented.', tag: 'Token access' },
+      { title: 'MCP & API', detail: 'MCP uses an instance token and a separate store rather than anonymous calls; commercial API keys are not implemented.', tag: 'Token access' },
     ],
     openGithub: 'View on GitHub',
+    openDocs: 'Setup & self-hosting',
     faqLabel: 'The details',
     faqTitle: 'Before you start.',
     faq: [
-      { q: 'Are these conversations real?', a: 'No. Every scene, avatar, timestamp and place is synthetic fiction used to demonstrate the tool. Nothing here represents a real chat, a real person or a transaction.' },
-      { q: 'Where is my work saved?', a: 'Edits on this page live in memory and disappear on reload. In the studio, drafts are stored in this browser; after you sign in and save, scenes and media are written to the hosted service, isolated per account. Clearing browser data deletes local drafts.' },
-      { q: 'What can I export?', a: 'A short screenshot or a long capture of the full conversation as PNG, plus the scene as JSON. Output size follows the device profile — an iPhone 17 Pro export is 1206 × 2622.' },
+      { q: 'Are these conversations real?', a: 'No. Every scene, avatar, timestamp and place is synthetic fiction for demonstration only, not a real chat, person or transaction.' },
+      { q: 'Where is my work saved?', a: 'Edits on this page live in memory and disappear on reload. Studio drafts save automatically in this browser and sync to the server after sign-in, isolated per account. Clearing browser data deletes local drafts.' },
+      { q: 'What can I export?', a: 'A short screenshot or a long capture of the full conversation as PNG, plus the scene as JSON. Output size follows the device profile, for example 1206 × 2622 on iPhone 17 Pro.' },
       { q: 'Does it recreate real app screenshots?', a: 'It is a visual approximation and is not pixel-certified against a specific app or OS version. Use it for design, teaching and fiction, not as screenshot evidence.' },
-      { q: 'How are hosting and MCP priced?', a: 'The project is MIT-licensed and local editing is free. The hosted site is open for registration; AI features need a model configured on the server. MCP uses an instance token and separate scene store rather than anonymous calls, and pricing and commercial API keys are not implemented.' },
+      { q: 'How are hosting and MCP priced?', a: 'The project is MIT-licensed and local editing is free. The hosted site is open for registration; AI features need a model configured on the server. MCP uses an instance token and a separate store, not anonymous calls; pricing and commercial API keys are not implemented.' },
     ],
     ctaTitle: 'Your next conversation starts here.',
     ctaBody: 'Edit and export without an account, or open the studio and begin a new scene.',
