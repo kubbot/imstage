@@ -164,7 +164,7 @@ function clientFromRow(row) {
  * @param {import('node:sqlite').DatabaseSync} options.db
  * @param {string} options.appOrigin configured application origin (never a Host header)
  * @param {() => number} options.nowMs injectable clock
- * @param {boolean} [options.allowLoopbackRedirects] allow `http://127.0.0.1` redirect URIs
+ * @param {boolean} [options.allowLoopbackRedirects] allow controlled `http://` loopback redirect URIs. RFC 8252 §7.3 requires native clients on the same machine to use these, so this defaults to enabled in every environment (including production); only the explicit loopback host allowlist is accepted.
  * @param {number} [options.recentSessionMs] max age of a session allowed to approve consent
  * @param {Console} [options.logger]
  */
@@ -196,16 +196,23 @@ export function createOAuthIntegration({
     } catch {
       throw new InvalidClientMetadataError('redirect_uri 不是合法 URL');
     }
+    // Fragments and URL credentials are never valid redirect targets, and
+    // rejecting them first keeps scheme/host parsing unambiguous.
     if (url.hash !== '') throw new InvalidClientMetadataError('redirect_uri 不能包含 fragment');
     if (url.username !== '' || url.password !== '') {
       throw new InvalidClientMetadataError('redirect_uri 不能包含用户信息');
     }
+    if (url.hostname === '') throw new InvalidClientMetadataError('redirect_uri 缺少主机名');
     if (url.protocol === 'https:') return url.href;
+    // RFC 8252 §7.3 native-app loopback redirects: only the exact loopback
+    // hosts below, any local port, no arbitrary HTTP host or DNS suffix.
     const hostname = url.hostname.toLowerCase();
     if (url.protocol === 'http:' && LOOPBACK_HOSTS.has(hostname) && allowLoopbackRedirects) {
       return url.href;
     }
-    throw new InvalidClientMetadataError('redirect_uri 必须是 https（仅本地开发允许 loopback http）');
+    throw new InvalidClientMetadataError(
+      'redirect_uri 必须是 https（仅允许 localhost / 127.0.0.1 / [::1] 的 HTTP 回环回调）',
+    );
   }
 
   const clientsStore = {

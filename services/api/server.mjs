@@ -57,6 +57,7 @@ import {
   createPersonalToken,
   deleteConnection,
   listConnections,
+  markConnectionDiscovery,
   revokeAllForUser,
   validateTokenName,
 } from '../integrations/connections.mjs';
@@ -1665,6 +1666,10 @@ function handleConnectionsConfig(ctx, req, res) {
     authorizationSupported: true,
     directoryUrl: null,
     manualSetupRequired: true,
+    // RFC 8252 native-app loopback redirects are supported in every
+    // environment by default; the UI uses this to offer the Codex CLI flow
+    // truthfully and to fall back to a personal token when disabled.
+    loopbackRedirectsSupported: ctx.config.allowLoopbackRedirects === true,
   });
 }
 
@@ -1785,6 +1790,42 @@ function mcpBearerChallenge(ctx, errorCode, description) {
 }
 
 /**
+ * Capture a bounded JSON body from a ServerResponse without changing the bytes
+ * sent. Used to record MCP tool discovery only after a real successful
+ * `tools/list` response, so "connected" is evidence, not an assumption.
+ */
+function observeJsonResponse(res, onBody) {
+  const chunks = [];
+  let total = 0;
+  const capture = (chunk, encoding) => {
+    if (chunk === undefined || chunk === null || total >= 64 * 1024) return;
+    const buffer = Buffer.isBuffer(chunk)
+      ? chunk
+      : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8');
+    chunks.push(buffer);
+    total += buffer.length;
+  };
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+  res.write = function write(chunk, encoding, callback) {
+    capture(chunk, encoding);
+    return originalWrite.call(this, chunk, encoding, callback);
+  };
+  res.end = function end(chunk, encoding, callback) {
+    capture(chunk, encoding);
+    return originalEnd.call(this, chunk, encoding, callback);
+  };
+  res.once('finish', () => {
+    if (Number(res.statusCode) >= 400 || total === 0) return;
+    try {
+      onBody(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    } catch {
+      /* non-JSON or partial body: no discovery evidence */
+    }
+  });
+}
+
+/**
  * Authenticated, owner-scoped MCP endpoint.
  *
  * Every call verifies the bearer access token (issuer/resource/scopes/expiry/
@@ -1884,6 +1925,22 @@ async function handleAccountMcp(ctx, req, res) {
       return;
     }
     throw error;
+  }
+
+  // Record tool-discovery evidence only after a real successful `tools/list`.
+  // `last_used_at` is set by token validation alone, so the list status would
+  // otherwise claim a working client before the MCP handshake ever ran.
+  if (parsedBody?.method === 'tools/list') {
+    const grantId = auth.extra?.grantId;
+    observeJsonResponse(res, (payload) => {
+      const tools = payload?.result?.tools;
+      if (!Array.isArray(tools) || tools.length === 0) return;
+      try {
+        markConnectionDiscovery(ctx.db, userId, grantId, ctx.nowMs());
+      } catch (error) {
+        ctx.logger.warn?.('[imstage-api] failed to record MCP tool discovery:', error?.message ?? error);
+      }
+    });
   }
 
   const mcpServer = ctx.mcp.createServer(userId, {
@@ -2359,7 +2416,7 @@ function resolveConfig(options) {
     rateLimit,
     allowLoopbackRedirects:
       options.allowLoopbackRedirects === undefined
-        ? nodeEnv !== 'production'
+        ? true
         : options.allowLoopbackRedirects === true,
     recentSessionMs:
       Number.isInteger(options.recentSessionMs) && options.recentSessionMs > 0

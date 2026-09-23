@@ -32,16 +32,39 @@ create/get/update/render/list 的结果都带
 
 ### 连接页
 
+连接页先选择客户端（ChatGPT / Codex / 其他客户端），再展示各自的接入步骤；默认 ChatGPT。选中的客户端会写入 `#/connect?client=codex|other`，登录链接通过 `next` 保留该目标，登录后回到同一选择。页面不提供任何自造的“一键连接”深链或私有协议，只展示官方文档与客户端自身的命令/入口。
+
 1. `GET /api/connections/config`（公开）
    ```json
-   { "mcpUrl": "https://imstage.org/api/mcp", "authorizationSupported": true, "directoryUrl": null, "manualSetupRequired": true }
+   { "mcpUrl": "https://imstage.org/api/mcp", "authorizationSupported": true, "directoryUrl": null, "manualSetupRequired": true, "loopbackRedirectsSupported": true }
    ```
-   展示 `mcpUrl` 供手动添加；`directoryUrl` 为 `null`，不要写“已在目录发布”。
-2. `GET /api/connections` → `{ items: [{ id, clientName, createdAt, lastUsedAt, scopes, kind }] }`
+   展示 `mcpUrl` 供手动添加；`directoryUrl` 为 `null`，不要写“已在目录发布”。`loopbackRedirectsSupported` 表示服务端是否接受 `http://localhost|127.0.0.1|[::1]` 的 RFC 8252 回环回调（默认 true；显式关闭时为 false）。
+2. `GET /api/connections` → `{ items: [{ id, clientName, createdAt, lastUsedAt, toolsDiscoveredAt, status, scopes, kind }] }`
    `kind` 为 `oauth` 或 `token`；列表永远不含令牌或哈希。
+   - `lastUsedAt`：某个 token 至少被校验过一次（真实认证）。
+   - `toolsDiscoveredAt`：MCP `tools/list` 真实成功过一次（工具发现证据）。
+   - `status`：`awaiting_auth`（已授权但客户端尚未认证）→ `authenticated`（已认证、等待工具发现）→ `connected`（工具发现成功）。只有 `connected` 才能展示“已连接”。
 3. `DELETE /api/connections/:id` → `{ ok: true }`
 4. `POST /api/connections/tokens`，JSON `{ name }` → `{ token, connection }`
-   `token` 只在这次响应出现一次，请立即展示并提示“只显示一次”；不要放进 URL、日志或本地长期存储。
+   `token` 只在这次响应出现一次，请立即展示并提示“只显示一次”；不要放进 URL、日志或本地长期存储。个人令牌收在连接页的“高级接入”折叠区内，普通 OAuth 流程不展示令牌。
+
+### 各客户端入口
+
+- **ChatGPT**：手动在 Plugins → Create app / Create MCP App 添加 `mcpUrl`，Authentication 选 OAuth。官方说明见 <https://developers.openai.com/plugins/deploy/connect-chatgpt>。
+- **Codex**：使用 Codex CLI 官方命令（本机 `codex mcp add --help` / `codex mcp login --help` 已验证，codex-cli 0.149+）：
+  ```bash
+  codex mcp add imstage --url <mcpUrl>
+  codex mcp login imstage
+  ```
+  第二条命令会在浏览器中走 OAuth 授权，授权后自动回到本机 Codex，不需要复制令牌。若服务端显式关闭回环回调，UI 会引导改用个人访问令牌。
+- **其他客户端**：添加远程 / Streamable HTTP MCP 服务器 `mcpUrl`，认证选 OAuth 2.1（授权码 + PKCE）；只支持 Bearer 的客户端使用高级个人访问令牌。
+
+### 原生客户端回环回调（RFC 8252 §7.3）
+
+- 仅允许 `localhost`、`127.0.0.1`、`[::1]` 三个显式主机的 `http://` 回调；任何其他 HTTP 主机（含 `localhost.evil.com`、`127.0.0.1.evil.com`、公网域名）都被动态注册拒绝。
+- 本地端口可以随机：注册可以是 `http://127.0.0.1:4555/callback`，实际回调可以是 `http://127.0.0.1:51234/callback`。这只放宽端口，方案（http/https）、主机、路径、查询必须完全一致，由 MCP SDK 的 `redirectUriMatches` 执行。
+- 公网回调仍然必须是 HTTPS；带 fragment、URL 用户信息、非 http(s) 方案的 URI 一律拒绝。
+- 该行为在生产环境默认开启（`allowLoopbackRedirects` 默认 `true`），不再随 `NODE_ENV` 关闭；只有显式传入 `allowLoopbackRedirects: false` 才禁用，此时回环注册被拒绝而 HTTPS 不受影响。
 
 ### 授权同意页 `/#/connect/authorize?request=<opaque>`
 
@@ -63,9 +86,12 @@ create/get/update/render/list 的结果都带
 
 ```bash
 npm ci
-npm run build:mcp                 # 生成确定性渲染器（真实渲染需要）
+npm run build:mcp                 # 生成确定性渲染器（connections-live 浏览器联调需要）
 npm run typecheck
+npm run build                     # 连接页 UI 回归基于 dist
 node --test tests/connections.test.mjs   # 连接/OAuth/MCP 回归（注入 stub 渲染器）
+IMSTAGE_TEST_PORT=4591 CI=1 npx playwright test tests/ui/connections.spec.ts        # 连接页 UI 回归
+IMSTAGE_TEST_PORT=4591 CI=1 npx playwright test tests/ui/connections-live.spec.ts   # 真实 API + 浏览器 + 渲染
 node --test tests/*.test.mjs             # 全量 Node 测试
 ```
 
@@ -96,7 +122,7 @@ curl -s -X POST http://127.0.0.1:4417/api/mcp \
 
 1. `IMSTAGE_APP_ORIGIN` 必须是真实 HTTPS origin（例如 `https://imstage.org`）。发现文档、`mcpUrl`、consent 跳转与 `webUrl` 全部以它为准，不使用请求 Host。
 2. Vercel 需要把 `/api/:path*`（已存在）和根级 `/.well-known/:path*` 转发到后端；否则 ChatGPT 的按路径发现会 404。对应 rewrite 见 `vercel.json`。
-3. ChatGPT 侧使用 DCR 公共客户端（`token_endpoint_auth_method=none`），回调地址由 ChatGPT 注册；后端只接受精确匹配的 `redirect_uri`。不支持 CIMD，也不抓取客户端 URL。
+3. ChatGPT 侧使用 DCR 公共客户端（`token_endpoint_auth_method=none`），回调地址由 ChatGPT 注册；后端只接受精确匹配的 `redirect_uri`。原生客户端可使用 RFC 8252 回环回调（随机本地端口）。不支持 CIMD，也不抓取客户端 URL。
 4. 无需付费身份供应商或新增密钥；账号身份复用既有 Web 会话与密码体系。
 5. ChatGPT 插件目录提交不在本代码任务范围内；`directoryUrl` 保持 `null`，在真实提交并被接受前不得宣称已上架。
 
@@ -109,3 +135,4 @@ curl -s -X POST http://127.0.0.1:4417/api/mcp \
 - 过滤后的 `tools/list` 同时是执行白名单；账号端点调用未声明工具返回 `invalid_request`，不会触达实例项目管理处理器。
 - `/api/mcp` 读完请求体后与渲染落库前各再校验一次令牌，中途撤销/改密不会写入延迟请求。
 - 不同账号的作品、幂等键与 PNG 缓存互相不可见。
+- `tools/list` 成功后才写入 `tools_discovered_at`（小型附加迁移）；“已连接”必须同时有真实认证与工具发现证据，`lastUsedAt` 单独不作为连接成功依据。

@@ -68,6 +68,7 @@ function stubRenderService() {
 
 async function makeApp(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(RUNTIME_ROOT, 'case-'));
+  const { rateLimit, ...rest } = overrides;
   const app = await start({
     dbPath: path.join(dir, 'imstage.db'),
     appOrigin: APP_ORIGIN,
@@ -75,7 +76,14 @@ async function makeApp(overrides = {}) {
     distDir: path.join(dir, 'dist-missing'),
     logger: QUIET,
     renderService: stubRenderService(),
-    ...overrides,
+    // Many subtests register throwaway OAuth clients; keep the production
+    // 30/hour default from making the suite order-dependent unless a test
+    // overrides the limiter explicitly (the rate-limit tests do).
+    rateLimit: {
+      oauthRegister: { windowMs: 60 * 60 * 1000, max: 200, maxKeys: 10_000 },
+      ...(rateLimit ?? {}),
+    },
+    ...rest,
   });
   activeApps.add(app);
   return { app, base: `http://127.0.0.1:${app.port}`, dir };
@@ -359,6 +367,7 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
       authorizationSupported: true,
       directoryUrl: null,
       manualSetupRequired: true,
+      loopbackRedirectsSupported: true,
     });
 
     // A spoofed Host header must not change the advertised public URL.
@@ -456,6 +465,127 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal(confidential.status, 400);
   });
 
+  await t.test('registration rejects every non-loopback or malformed HTTP redirect target', async () => {
+    const rejected = [
+      'http://example.com/cb',
+      'http://127.0.0.1.evil.com/cb',
+      'http://localhost.evil.com/cb',
+      'http://user:pass@127.0.0.1/cb',
+      'http://127.0.0.1/cb#frag',
+      'ftp://127.0.0.1/cb',
+      'http://[::ffff:127.0.0.1]/cb',
+    ];
+    for (const redirect_uri of rejected) {
+      const res = await fetch(`${base}/api/oauth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: [redirect_uri], token_endpoint_auth_method: 'none' }),
+      });
+      assert.equal(res.status, 400, redirect_uri);
+      assert.equal((await res.json()).error, 'invalid_client_metadata', redirect_uri);
+    }
+    // HTTPS stays valid for public and loopback hosts alike.
+    assert.ok((await registerClient(base, { redirectUris: ['https://client.example/cb'] })).client_id);
+    assert.ok((await registerClient(base, { redirectUris: ['https://localhost/cb'] })).client_id);
+    assert.ok((await registerClient(base, { redirectUris: ['http://[::1]:4555/cb'] })).client_id);
+  });
+
+  await t.test('native loopback clients may use a random local port (RFC 8252 §7.3)', async () => {
+    const client = await registerClient(base, { redirectUris: ['http://127.0.0.1:4555/callback'] });
+    const { verifier, challenge } = pkce();
+    const requested = 'http://127.0.0.1:51234/callback';
+    const authorizeRes = await fetch(
+      authorizeUrl(base, {
+        clientId: client.client_id,
+        redirectUri: requested,
+        challenge,
+        resource: RESOURCE,
+        state: 'random-port',
+      }),
+      { redirect: 'manual' },
+    );
+    assert.equal(authorizeRes.status, 302, await authorizeRes.text());
+    const requestId = requestIdFrom(authorizeRes.headers.get('location'));
+    const consent = await getConsent(base, alice.cookie, requestId);
+    assert.equal(consent.res.status, 200);
+    assert.equal(consent.body.redirectHost, '127.0.0.1:51234');
+
+    const approved = await postConsent(base, alice.cookie, { requestId, approved: true });
+    assert.equal(approved.res.status, 200);
+    const redirectUrl = new URL(approved.body.redirectUrl);
+    assert.equal(redirectUrl.origin, 'http://127.0.0.1:51234');
+    assert.equal(redirectUrl.pathname, '/callback');
+    assert.equal(redirectUrl.searchParams.get('state'), 'random-port');
+    const exchanged = await exchangeCode(base, {
+      code: redirectUrl.searchParams.get('code'),
+      verifier,
+      clientId: client.client_id,
+      redirectUri: requested,
+    });
+    assert.equal(exchanged.res.status, 200, JSON.stringify(exchanged.body));
+  });
+
+  await t.test('loopback matching keeps scheme, host, path and query exact', async () => {
+    const client = await registerClient(base, { redirectUris: ['http://127.0.0.1:4555/callback?x=1'] });
+    const { challenge } = pkce();
+    const mismatches = [
+      'http://127.0.0.1:5000/other',
+      'http://127.0.0.1:5000/callback?x=2',
+      'http://localhost:5000/callback?x=1',
+      'https://127.0.0.1:5000/callback?x=1',
+    ];
+    for (const redirectUri of mismatches) {
+      const res = await fetch(
+        authorizeUrl(base, { clientId: client.client_id, redirectUri, challenge, resource: RESOURCE }),
+        { redirect: 'manual' },
+      );
+      assert.equal(res.status, 400, redirectUri);
+      assert.equal(res.headers.get('location'), null, redirectUri);
+    }
+  });
+
+  await t.test('connection status reflects real authentication and tool discovery', async () => {
+    const client = await registerClient(base, { name: `Discovery client ${Date.now()}` });
+    const { tokens } = await obtainTokens(base, alice.cookie, { client });
+    const findItem = async () =>
+      (await (await fetch(`${base}/api/connections`, { headers: { cookie: alice.cookie } })).json()).items.find(
+        (item) => item.clientName === client.client_name,
+      );
+
+    let item = await findItem();
+    assert.equal(item.status, 'awaiting_auth', 'a fresh grant is not connected yet');
+    assert.equal(item.lastUsedAt, null);
+    assert.equal(item.toolsDiscoveredAt, null);
+
+    const init = await mcp(base, tokens.access_token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'raw', version: '0' } },
+    });
+    assert.equal(init.res.status, 200, JSON.stringify(init.body));
+    item = await findItem();
+    assert.equal(item.status, 'authenticated', 'token validation alone is not “connected”');
+    assert.ok(item.lastUsedAt);
+    assert.equal(item.toolsDiscoveredAt, null);
+
+    const listed = await mcp(base, tokens.access_token, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+    assert.equal(listed.res.status, 200, JSON.stringify(listed.body));
+    assert.ok(Array.isArray(listed.body.result.tools) && listed.body.result.tools.length > 0);
+
+    let connected = null;
+    for (let i = 0; i < 100; i += 1) {
+      item = await findItem();
+      if (item.status === 'connected') {
+        connected = item;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(connected, 'a real tools/list success is recorded as discovery evidence');
+    assert.ok(connected.toolsDiscoveredAt);
+  });
+
   await t.test('authorize rejects an unregistered redirect locally (never redirects)', async () => {
     const client = await registerClient(base, { redirectUris: ['https://client.example/cb'] });
     const { challenge } = pkce();
@@ -536,12 +666,17 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal((await getConsent(base, alice.cookie, requestId)).res.status, 404);
 
     // The code belongs to the bound/approving account (alice), not bob.
+    const countConnections = async (cookie) =>
+      Number((await (await fetch(`${base}/api/connections`, { headers: { cookie } })).json()).items.length);
+    const aliceBefore = await countConnections(alice.cookie);
+    const bobBefore = await countConnections(bob.cookie);
     const exchanged = await exchangeCode(base, { code, verifier, clientId: client.client_id });
     assert.equal(exchanged.res.status, 200, JSON.stringify(exchanged.body));
     const aliceConnections = await (await fetch(`${base}/api/connections`, { headers: { cookie: alice.cookie } })).json();
-    assert.equal(aliceConnections.items.length, 1);
-    assert.equal(aliceConnections.items[0].kind, 'oauth');
+    assert.equal(aliceConnections.items.length, aliceBefore + 1, 'the approved grant is created for alice');
+    assert.ok(aliceConnections.items.some((item) => item.kind === 'oauth' && item.clientName === 'Test Client'));
     const bobConnections = await (await fetch(`${base}/api/connections`, { headers: { cookie: bob.cookie } })).json();
+    assert.equal(bobConnections.items.length, bobBefore);
     assert.equal(bobConnections.items.length, 0);
   });
 
@@ -663,6 +798,7 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal(connection.clientName, 'CLI 客户端');
     assert.deepEqual(connection.scopes, ['imstage.scenes']);
     assert.equal(connection.lastUsedAt, null);
+    assert.equal(connection.status, 'awaiting_auth');
 
     // The name is bounded at 60 characters.
     const tooLong = await fetch(`${base}/api/connections/tokens`, {
@@ -682,6 +818,17 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     const item = list.items.find((entry) => entry.id === connection.id);
     assert.ok(item, 'token connection appears in the list');
     assert.ok(item.lastUsedAt, 'use updates lastUsedAt');
+    let discovered = false;
+    for (let i = 0; i < 100; i += 1) {
+      const probe = await (await fetch(`${base}/api/connections`, { headers: { cookie: alice.cookie } })).json();
+      const current = probe.items.find((entry) => entry.id === connection.id);
+      if (current?.status === 'connected') {
+        discovered = Boolean(current.toolsDiscoveredAt);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(discovered, 'tools discovery is recorded after tools/list');
     const serialized = JSON.stringify(list);
     assert.ok(!serialized.includes(token), 'list never exposes the plaintext token');
     assert.equal(Object.hasOwn(item, 'token'), false);
@@ -1035,6 +1182,32 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     );
   });
 
+  await t.test('a revoked connection can be reconnected from scratch', async () => {
+    const client = await registerClient(base, { name: `Reconnect client ${Date.now()}` });
+    const first = await obtainTokens(base, alice.cookie, { client });
+    const list = await (await fetch(`${base}/api/connections`, { headers: { cookie: alice.cookie } })).json();
+    const item = list.items.find((entry) => entry.clientName === client.client_name);
+    assert.ok(item, 'the first grant is listed');
+
+    const removed = await fetch(`${base}/api/connections/${item.id}`, {
+      method: 'DELETE',
+      headers: mutationHeaders(alice.cookie),
+      body: '{}',
+    });
+    assert.equal(removed.status, 200);
+    const dead = await mcp(base, first.tokens.access_token, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+    assert.equal(dead.res.status, 401, 'the revoked access token is dead');
+
+    // The same client can authorize again and gets a brand-new grant.
+    const second = await obtainTokens(base, alice.cookie, { client });
+    const relist = await (await fetch(`${base}/api/connections`, { headers: { cookie: alice.cookie } })).json();
+    const reconnected = relist.items.filter((entry) => entry.clientName === client.client_name);
+    assert.equal(reconnected.length, 1, 'exactly one fresh grant after reconnect');
+    assert.notEqual(reconnected[0].id, item.id);
+    const alive = await mcp(base, second.tokens.access_token, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+    assert.equal(alive.res.status, 200, JSON.stringify(alive.body));
+  });
+
   await t.test('refresh rotation, replay revocation, revoke and password revoke', async () => {
     // A refresh token only works for the client it was issued to.
     const wrongClient = await registerClient(base, { name: 'wrong-refresh-client' });
@@ -1130,6 +1303,90 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal(burned.res.status, 400);
     assert.equal(burned.body.error, 'invalid_grant');
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* Production loopback policy                                          */
+/* ------------------------------------------------------------------ */
+
+test('production allows controlled loopback redirects but never arbitrary HTTP', async (t) => {
+  const { base } = await makeApp({ nodeEnv: 'production' });
+  const user = await register(base, 'prod-loopback');
+
+  await t.test('config advertises loopback support in production', async () => {
+    const res = await fetch(`${base}/api/connections/config`);
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).loopbackRedirectsSupported, true);
+  });
+
+  await t.test('a random loopback port still completes authorization in production', async () => {
+    const client = await registerClient(base, { redirectUris: ['http://127.0.0.1:4567/callback'] });
+    const { verifier, challenge } = pkce();
+    const requested = 'http://127.0.0.1:39876/callback';
+    const authorizeRes = await fetch(
+      authorizeUrl(base, {
+        clientId: client.client_id,
+        redirectUri: requested,
+        challenge,
+        resource: RESOURCE,
+        state: 'prod-port',
+      }),
+      { redirect: 'manual' },
+    );
+    assert.equal(authorizeRes.status, 302, await authorizeRes.text());
+    const requestId = requestIdFrom(authorizeRes.headers.get('location'));
+    const approved = await postConsent(base, user.cookie, { requestId, approved: true });
+    assert.equal(approved.res.status, 200, JSON.stringify(approved.body));
+    const redirectUrl = new URL(approved.body.redirectUrl);
+    assert.equal(redirectUrl.origin, 'http://127.0.0.1:39876');
+    assert.equal(redirectUrl.searchParams.get('state'), 'prod-port');
+    const exchanged = await exchangeCode(base, {
+      code: redirectUrl.searchParams.get('code'),
+      verifier,
+      clientId: client.client_id,
+      redirectUri: requested,
+    });
+    assert.equal(exchanged.res.status, 200, JSON.stringify(exchanged.body));
+  });
+
+  await t.test('arbitrary public HTTP and non-loopback hosts stay rejected', async () => {
+    for (const redirect_uri of ['http://example.com/cb', 'http://127.0.0.1.evil.com/cb', 'http://imstage.org/cb']) {
+      const res = await fetch(`${base}/api/oauth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: [redirect_uri], token_endpoint_auth_method: 'none' }),
+      });
+      assert.equal(res.status, 400, redirect_uri);
+      assert.equal((await res.json()).error, 'invalid_client_metadata', redirect_uri);
+    }
+    const httpsPublic = await fetch(`${base}/api/oauth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: ['https://client.example/cb'], token_endpoint_auth_method: 'none' }),
+    });
+    assert.equal(httpsPublic.status, 201);
+  });
+});
+
+test('loopback redirects can be explicitly disabled without touching HTTPS', async () => {
+  const { base } = await makeApp({ allowLoopbackRedirects: false });
+  const config = await (await fetch(`${base}/api/connections/config`)).json();
+  assert.equal(config.loopbackRedirectsSupported, false);
+
+  const loopback = await fetch(`${base}/api/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ redirect_uris: ['http://127.0.0.1:4555/cb'], token_endpoint_auth_method: 'none' }),
+  });
+  assert.equal(loopback.status, 400);
+  assert.equal((await loopback.json()).error, 'invalid_client_metadata');
+
+  const https = await fetch(`${base}/api/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ redirect_uris: ['https://client.example/cb'], token_endpoint_auth_method: 'none' }),
+  });
+  assert.equal(https.status, 201);
 });
 
 /* ------------------------------------------------------------------ */
