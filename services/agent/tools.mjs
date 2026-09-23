@@ -40,13 +40,13 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
-  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout,watermark（仅用户明确要求更改标记时）；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
       name: 'create_scene',
       description:
-        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
+        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；此工具始终保留当前图片内标记，用户明确要求更改时另调用 update_element(@scene, {watermark: ...})；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
       parameters: {
         type: 'object',
         properties: {
@@ -175,16 +175,28 @@ function applyCreateScene(args, context) {
   const stripped = stripSceneAssets(args.scene);
   // A model-generated scene must not silently discard the selected output device.
   if(context.scene.deviceProfileId) { stripped.deviceProfileId=context.scene.deviceProfileId;stripped.surface=context.scene.surface; }
+  // Rebuilding content cannot implicitly reset a user's image-label choice.
+  // Explicit label edits use update_element(@scene, { watermark }).
+  stripped.watermark = context.scene.watermark;
   const validation = validateScene(stripped);
   if (!validation.ok || !validation.scene) {
     const errors = validation.errors.slice(0, 3).join('；');
     return fail(context, `场景数据无效：${errors || '数据无效'}`);
   }
   const preserved = preserveAssetsById(validation.scene, context.scene);
+  // An empty two-person seed carries the chosen own/default-other avatars.
+  // Preserve those roles when the first story assigns new actor IDs and names.
+  // Once a conversation exists, only identity/name matches may transfer assets.
+  const seedRoles = !context.scene.reference && context.scene.messages.length === 0 && context.scene.participants.length === 2;
+  const seedSelf = seedRoles ? context.scene.participants.find(p => p.id === context.scene.selfId) : null;
+  const seedOther = seedRoles ? context.scene.participants.find(p => p.id !== context.scene.selfId) : null;
   preserved.participants=preserved.participants.map(p=>{
     if(p.avatar)return p;
     const matches=context.scene.participants.filter(old=>old.name===p.name && (old.id===context.scene.selfId)===(p.id===preserved.selfId));
-    return matches.length===1&&matches[0].avatar?{...p,avatar:matches[0].avatar}:p;
+    const matched = matches.length === 1 ? matches[0].avatar : undefined;
+    const initial = p.id === preserved.selfId ? seedSelf?.avatar : seedOther?.avatar;
+    const avatar = matched || initial;
+    return avatar ? { ...p, avatar } : p;
   });
   return buildCandidate(context, preserved, '场景已重建');
 }

@@ -17,7 +17,7 @@ export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } 
     '你的任务是通过工具真实地创建或修改场景，而不是只在回复里描述修改。禁止只输出说明文字而不调用工具。',
     '',
     '可用工具：',
-    '- create_scene(scene)：用完整 Scene JSON 重建整个场景。适合从零创建或大范围重写。',
+    '- create_scene(scene)：用完整 Scene JSON 重建整个场景。适合从零创建或大范围重写；始终保留当前图片内标记。用户明确要求开启、关闭或修改标记时，单独使用 update_element，targetId=@scene，patch.watermark=所需文字或空字符串。不要因改台词或头像重置标记，也不要把标记文字追加到作品标题。',
     '- upsert_message(message)：新增或原地修改一条消息。',
     '- delete_message(id)：删除一条消息。',
     '- update_element(targetId, patch)：修改 @scene 的背景、外观、标题等设置，或 @participant:ID 的名称等字段。',
