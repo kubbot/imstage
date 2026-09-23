@@ -97,3 +97,9 @@ IMSTAGE_TEST_PORT=4596 CI=1 npx playwright test tests/ui/connections-live.spec.t
 
 - 审查发现 SDK 的 loopback 比较不会拒绝实际授权地址里的 credentials / fragment，也不会应用运行时关闭配置。已在 GET/POST authorize 进入 SDK 前校验（包含省略 redirect_uri 时的注册值），并在读取与批准 consent 时再次校验。非法地址本地返回 400，无 Location。
 - 新增异常实际回调与服务重启后已有注册/待批准请求回归；完整后端测试 43/43 通过，独立 reviewer 复跑新增 2/2 通过，P2 已关闭，无 P0/P1。
+
+## 原生 Codex 本地宿主验证
+
+使用安装的 Codex CLI 0.149.1，以临时命令行 MCP 配置连接本工作树的 production 模式服务（127.0.0.1:4443）。真实 `codex mcp login` 发起动态注册和随机回调端口 62828；新账号经浏览器注册后返回授权页，批准后 CLI 输出 Successfully logged in。无个人令牌创建或复制。随后 Codex 启动实际完成 MCP 认证与 tools/list，数据库记录 tools_discovered_at（2026-09-23T07:01:46.966Z）；临时 OAuth 凭据已 logout 删除。
+
+边界：CLI 后续模型回合因安装版本不支持当前配置的 gpt-6-astra 而失败；本项只证明实际宿主授权与工具发现，不把它写成模型调用成功。正式域名及 ChatGPT 宿主验收仍待发布后执行。
