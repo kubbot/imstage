@@ -34,6 +34,8 @@ create/get/update/render/list 的结果都带
 
 连接页先选择客户端（ChatGPT / Codex / 其他客户端），再展示各自的接入步骤；默认 ChatGPT。选中的客户端会写入 `#/connect?client=codex|other`，登录链接通过 `next` 保留该目标，登录后回到同一选择。页面不提供任何自造的“一键连接”深链或私有协议，只展示官方文档与客户端自身的命令/入口。
 
+ChatGPT 的主步骤只有两步：先在 ChatGPT 里添加应用（名称 IMStage、Server URL、Authentication 选 OAuth），再登录并明确确认授权。入口名称随版本变化（Add plugin / Create plugin，旧版本为 Create app / Create MCP App），步骤文案列出这些变体并链接官方说明，不写死单一入口。添加应用之前不要求先登录网站；OAuth 由 ChatGPT 发起，同意页会带上登录步骤，网站登录只用于确认这次授权。账号登录也用于管理已有连接（查看、刷新、断开），在页面上作为次级入口放在步骤之后；同意页的“登录并继续”仍是明确的授权前置。ChatGPT 的主操作是“复制地址并打开 ChatGPT”：同一个点击里先启动剪贴板写入、再同步打开 Plugins 页面，两者都不丢用户手势；剪贴板失败与弹窗被拦截分别提示，并保留下方可选中的只读地址与独立的“打开 ChatGPT”链接。首页只保留一句话标题、CTA、创作示例与简短的“首次手动添加并授权”说明，不再构造或展示连接地址（预览/自定义域名与服务端 `appOrigin` 可能不同，连接页以服务端配置为准）。
+
 1. `GET /api/connections/config`（公开）
    ```json
    { "mcpUrl": "https://imstage.org/api/mcp", "authorizationSupported": true, "directoryUrl": null, "manualSetupRequired": true, "loopbackRedirectsSupported": true }
@@ -50,7 +52,7 @@ create/get/update/render/list 的结果都带
 
 ### 各客户端入口
 
-- **ChatGPT**：手动在 Plugins → Create app / Create MCP App 添加 `mcpUrl`，Authentication 选 OAuth。官方说明见 <https://developers.openai.com/plugins/deploy/connect-chatgpt>。
+- **ChatGPT**：手动在 Plugins 点击加号，选择 Add plugin / Create plugin（不同版本也可能显示 Create app / Create MCP App），添加 `mcpUrl`，Authentication 选 OAuth；之后在同意页登录并点击“允许连接”。官方说明见 <https://developers.openai.com/plugins/deploy/connect-chatgpt>。
 - **Codex**：使用 Codex CLI 官方命令（本机 `codex mcp add --help` / `codex mcp login --help` 已验证，codex-cli 0.149+）：
   ```bash
   codex mcp add imstage --url <mcpUrl>
@@ -136,3 +138,11 @@ curl -s -X POST http://127.0.0.1:4417/api/mcp \
 - `/api/mcp` 读完请求体后与渲染落库前各再校验一次令牌，中途撤销/改密不会写入延迟请求。
 - 不同账号的作品、幂等键与 PNG 缓存互相不可见。
 - `tools/list` 成功后才写入 `tools_discovered_at`（小型附加迁移）；“已连接”必须同时有真实认证与工具发现证据，`lastUsedAt` 单独不作为连接成功依据。
+
+## 2026-09-23 OAuth 线上修复核验
+
+线上原先运行 `39dda20`，仍在 production 模式拒绝本机 HTTP 回调；个人令牌成功不代表 OAuth 注册成功。修复已包含在合并提交 `b4739061e6545c8b99d7f0f82b303babf68ea01b`，此前尚未部署到账号 API。
+
+本次先完成数据库备份，再将账号 API 更新到该提交。公网浏览器使用独立合成账号验证：loopback 注册 201、随机回调端口、显式同意、S256 PKCE 换令牌 200、6 个工具发现与 connected 状态、撤销后 401 均通过；公网非 loopback HTTP 回调仍返回 400。额外复跑相关后端测试 68 项通过。未变更用户现有个人令牌，独立实例 MCP 未升级。
+
+这是生产协议与浏览器授权验证，不是用户账号在 ChatGPT / Codex 宿主中的重新登录验收。公开目录仍未提交。后端合并提交的 GitHub 托管检查因账户账单锁定未启动；本地与生产验证单独记录，不标记为 GitHub CI 通过。

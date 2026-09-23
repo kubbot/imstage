@@ -3,6 +3,9 @@
 .connection-intro h1,.connection-consent h1{font-family:var(--display);font-size:clamp(30px,4vw,46px);line-height:1.2;letter-spacing:-.04em;margin:0 0 18px}
 .connection-intro>p,.connection-signin>p{color:var(--muted);line-height:1.8}
 .connection-signin{padding:20px 0 32px}.connection-signin .btn{margin-top:16px}
+.connection-signin-secondary{border-top:1px solid var(--line);margin-top:32px;padding:24px 0 0;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.connection-signin-secondary p{margin:0;flex:1 1 280px;font-size:14px}
+.connection-signin-secondary .btn{margin-top:0}
 .connection-steps{list-style:none;counter-reset:connect;display:grid;gap:40px;padding:30px 0 48px;margin:0}
 .connection-steps>li{counter-increment:connect;display:grid;grid-template-columns:40px minmax(0,1fr);gap:20px}
 .connection-steps>li::before{content:counter(connect);font-family:var(--mono);font-size:15px;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--accent)}
