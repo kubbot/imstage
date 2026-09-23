@@ -27,14 +27,15 @@ import { createHandoffHref } from './marketing/locale';
 
 const AgentStudio = lazy(() => import('./agent/AgentWorkspace'));
 const Studio = lazy(() => import('./studio/Studio'));
+const Onboarding = lazy(() => import('./preferences/Onboarding'));
 
 type Theme = 'system' | 'light' | 'dark';
-type Route = { page: string; template?: TemplateId; sceneId?: string; project?: string; caseId?: string; request?: string; fresh: boolean; next: string };
+type Route = { page: string; template?: TemplateId; sceneId?: string; project?: string; caseId?: string; request?: string; from?: string; fresh: boolean; next: string };
 function parseRoute(): Route {
   const [pathname, query = ''] = location.hash.slice(1).split('?');
   const params = new URLSearchParams(query);
   const template = params.get('template');
-  return { page: pathname || '/', request: params.get('request') || undefined, caseId: params.get('case') || undefined, sceneId: params.get('scene') || undefined, project: params.get('project') || undefined, fresh: params.get('new') === '1', next: safeNext(params.get('next')), template: templates.some(t => t.id === template) ? template as TemplateId : undefined };
+  return { page: pathname || '/', request: params.get('request') || undefined, caseId: params.get('case') || undefined, sceneId: params.get('scene') || undefined, project: params.get('project') || undefined, from: params.get('from') || undefined, fresh: params.get('new') === '1', next: safeNext(params.get('next')), template: templates.some(t => t.id === template) ? template as TemplateId : undefined };
 }
 function getInitialTheme(): Theme {
   try { const stored = localStorage.getItem('imstage-theme'); return stored === 'light' || stored === 'dark' ? stored : 'system'; }
@@ -71,6 +72,7 @@ function AppShell() {
   const { user, loading: authLoading } = useAuth();
   const { locale } = useLocale();
   const site = SITE_COPY[locale];
+  const copy = useCopy();
   const [route, setRoute] = useState<Route>(parseRoute);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [themeError, setThemeError] = useState(false);
@@ -79,17 +81,18 @@ function AppShell() {
   // https://react.dev/reference/react/useEffect#connecting-to-an-external-system
   useEffect(() => { const media = window.matchMedia('(prefers-color-scheme: dark)'); const apply = () => { document.documentElement.dataset.theme = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme; document.documentElement.dataset.themePreference = theme; }; apply(); media.addEventListener('change', apply); return () => media.removeEventListener('change', apply); }, [theme]);
   useEffect(() => {
-    const title = route.page.startsWith('/connect') ? (locale === 'zh' ? '连接 ChatGPT' : 'Connect ChatGPT') : route.page === '/login' ? site.titles.login : route.page === '/register' ? site.titles.register : route.page === '/workspace' ? site.titles.workspace : route.page === '/account' ? site.titles.account : route.page === '/projects' ? site.titles.projects : route.page === '/create' ? site.titles.create : route.page === '/studio' ? site.titles.studio : route.page === '/templates' ? site.titles.templates : route.page === '/docs' ? site.titles.docs : site.titles.home;
+    const title = route.page.startsWith('/connect') ? (locale === 'zh' ? '连接 ChatGPT' : 'Connect ChatGPT') : route.page === '/login' ? site.titles.login : route.page === '/register' ? site.titles.register : route.page === '/welcome' ? (locale === 'zh' ? '让对话更像你的作品' : 'Creator preferences') : route.page === '/workspace' ? site.titles.workspace : route.page === '/account' ? site.titles.account : route.page === '/projects' ? site.titles.projects : route.page === '/create' ? site.titles.create : route.page === '/studio' ? site.titles.studio : route.page === '/templates' ? site.titles.templates : route.page === '/docs' ? site.titles.docs : site.titles.home;
     document.title = `IMStage · ${title}`;
     document.querySelector('meta[name="description"]')?.setAttribute('content', site.description);
   }, [route.page, site]);
   const updateTheme = (t: Theme) => { setTheme(t); try { localStorage.setItem('imstage-theme', t); setThemeError(false); } catch { setThemeError(true); } };
-  const valid = ['/', '/create', '/studio', '/templates', '/docs', '/login', '/register', '/workspace', '/account', '/projects', '/connect', '/connect/authorize'].includes(route.page);
+  const valid = ['/', '/create', '/studio', '/templates', '/docs', '/login', '/register', '/workspace', '/account', '/projects', '/welcome', '/connect', '/connect/authorize'].includes(route.page);
   return <><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); mainRef.current?.focus(); }}>{site.skip}</a><Header route={route} theme={theme} setTheme={updateTheme} />{themeError && <div className="theme-notice" role="status">{site.storageNotice}</div>}<main id="main-content" tabIndex={-1} ref={mainRef} className={route.page === '/studio' || route.page === '/workspace' ? 'studio-main' : ''}>
     {['/login', '/register'].includes(route.page) && <AuthPage key={route.page} mode={route.page === '/register' ? 'register' : 'login'} next={route.next} />}
     {['/workspace', '/account', '/projects'].includes(route.page) && <AccountRoute route={route} />}
+    {route.page === '/welcome' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : user ? <Suspense fallback={<p className="page-loading" role="status">{site.loading}</p>}><Onboarding key={user.id} next={route.next} settings={route.from === 'settings'} /></Suspense> : <section className="account-gate"><h1>{copy.account.gateTitle}</h1><p>{copy.account.gateBody}</p><a className="text-link" href={loginLink('/welcome')}>{copy.account.toLogin}</a></section>)}
     {route.page.startsWith('/connect') && <ConnectionsPage key={`${user?.id || 'guest'}:${route.page}:${route.request || ''}`} requestId={route.page === '/connect/authorize' ? route.request : undefined} consent={route.page === '/connect/authorize'} />}{route.page === '/' && <Home />}{route.page === '/create' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : <Suspense fallback={<p className="page-loading">{site.loading}</p>}><AgentStudio key={`${user?.id || 'guest'}:${route.caseId || 'draft'}:${route.project || ''}:${route.fresh ? 'new' : 'resume'}`} accountAction={(scene, locked, projectId, sessionId) => <AccountSave autosave localSessionId={sessionId} projectId={projectId} key={user?.id || 'guest'} scene={scene} disabled={locked} />} /></Suspense>)}{route.page === '/templates' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : user ? <AccountRoute route={route} /> : <Templates />)}{route.page === '/docs' && <Docs />}{route.page === '/studio' && <Suspense fallback={<div className="page-loading" role="status"><Mark />{site.loading}</div>}><Studio key={route.template || 'default'} initialTemplate={route.template} accountAction={scene => <AccountSave autosave key={user?.id || 'guest'} scene={scene} />} /></Suspense>}{!valid && <div className="not-found section-shell"><h1>{site.notFound.title}</h1><p>{site.notFound.body}</p><LinkButton href="#/">{site.notFound.back}</LinkButton></div>}
-  </main>{!['/studio', '/create', '/workspace', '/account', '/projects', '/login', '/register'].includes(route.page) && <Footer theme={theme} setTheme={updateTheme} />}</>;
+  </main>{!['/studio', '/create', '/workspace', '/account', '/projects', '/login', '/register', '/welcome'].includes(route.page) && <Footer theme={theme} setTheme={updateTheme} />}</>;
 }
 export default function App() {
   return <LocaleProvider><AppShell /></LocaleProvider>;

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { completeOnboarding } from './prefs';
 
 test.use({ locale: 'zh-CN' });
 const phone = (page: Page) => page.locator('.journey-device');
@@ -50,6 +51,7 @@ test('guest Send survives registration and starts only after account ownership r
   await page.getByLabel('邮箱', { exact: true }).fill(`guest-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-intent-password-2026');
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].prompt).toBe('给新用户写一段友好的欢迎对话');
   expect(requests[0].scene.messages).toEqual([]);

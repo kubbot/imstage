@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {createScene} from '../../apps/web/src/studio/model';
+import {completeOnboarding} from './prefs';
 test.use({ locale: 'zh-CN' });
 
 test('project membership recovers, detaches and keeps element editing usable on mobile',async({page})=>{
@@ -8,6 +9,7 @@ test('project membership recovers, detaches and keeps element editing usable on 
  await page.getByLabel('邮箱',{exact:true}).fill(`project-${crypto.randomUUID()}@example.test`);
  await page.getByLabel('密码',{exact:true}).fill('synthetic-project-password-2026');
  await page.getByRole('button',{name:'创建账号',exact:true}).click();
+ await completeOnboarding(page);
  await expect(page.getByRole('heading',{name:'项目验收的创作空间'})).toBeVisible();
  await page.goto('/#/projects');await page.getByLabel('项目名称',{exact:true}).fill('周末旅行');
  await page.getByLabel('项目规则',{exact:true}).fill('使用轻松的中文。');
@@ -74,6 +76,7 @@ test('structured variants reuse a frozen template and validate per-item values',
   await page.getByLabel('邮箱', { exact: true }).fill(`variants-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-variants-password-2026');
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '变体验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
   const headers = { Origin: origin, 'X-IMStage-Request': '1' };
@@ -121,6 +124,7 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await page.getByLabel('邮箱', { exact: true }).fill(`layout-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-layout-password-2026');
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '布局验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
   const scene = { ...createScene(), id: crypto.randomUUID(), headerText: '', platform: 'whatsapp' as const };
@@ -175,6 +179,7 @@ test('screenshot templates pin the source platform and reject a switch with clea
   await page.getByLabel('邮箱', { exact: true }).fill(`refplatform-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-reference-password-2026');
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '截图平台验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
   const headers = { Origin: origin, 'X-IMStage-Request': '1' };

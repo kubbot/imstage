@@ -51,6 +51,8 @@ import {
   type TemplateId,
 } from './model';
 import { SceneView, initials } from './SceneView';
+import { useAuth } from '../account/Auth';
+import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import {
   DRAFT_KEY,
   clearDraft,
@@ -110,13 +112,39 @@ function messagePreview(scene: Scene, type: MessageType): string {
 }
 
 export default function Studio({ initialTemplate, initialScene, persistLocal = true, onSceneChange, accountAction }: StudioProps) {
+  const { user } = useAuth();
+  const accountId = user?.id;
   const [initialLoad] = useState(() => persistLocal ? loadDraft() : { status: 'empty' as const, scene: initialScene, raw: undefined, message: undefined });
+  // Manual new scenes inherit the saved account defaults; a stored draft and an
+  // explicitly provided scene are never rewritten.
+  const defaultSceneFor = (template: TemplateId) => applyNewSceneDefaults(createScene(template), accountId);
   const [history, setHistory] = useState<History>(() => createHistory(initialLoad.scene ?? createScene(initialTemplate)));
+  const untouchedHistory = useRef(history);
+  const [defaultsApplied, setDefaultsApplied] = useState(false);
   const [savePause, setSavePause] = useState<string | null>(initialLoad.status === 'corrupt' ? 'corrupt' : null);
   const uploadGeneration = useRef(0);
   useEffect(() => () => { uploadGeneration.current++; }, []);
   const scene = history.present;
   useEffect(() => { onSceneChange?.(scene); }, [scene, onSceneChange]);
+
+  // Load account defaults once, then apply them only to a genuinely blank
+  // generated scene. A stored local draft keeps its own avatars/watermark.
+  useEffect(() => {
+    if (!accountId || defaultsApplied) return;
+    let cancelled = false;
+    void ensurePreferences(accountId).then(() => {
+      if (cancelled) return;
+      setDefaultsApplied(true);
+      if (persistLocal && initialLoad.status === 'empty' && !initialScene) {
+        // Even an edit followed by undo is an explicit user interaction. Only
+        // enrich the untouched initial history when the optional read arrives.
+        setHistory((current) => current === untouchedHistory.current
+          ? commit(current, applyNewSceneDefaults(current.present, accountId))
+          : current);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [accountId, defaultsApplied, persistLocal, initialLoad.status, initialScene]);
 
   const [activeTemplate, setActiveTemplate] = useState<TemplateId>(initialTemplate ?? 'weekend');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -171,7 +199,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
       setSavePause('choice');
       setConfirm({ title: '使用这个场景模板？', body: '当前浏览器有一份草稿。取消会保留原草稿；使用模板后也可以撤销恢复。', confirmLabel: '使用模板', action: () => {
         uploadGeneration.current++;
-        setHistory(h => commit(h, createScene(initialTemplate)));
+        setHistory(h => commit(h, defaultSceneFor(initialTemplate)));
         setSavePause(null);
       }});
     }
@@ -219,8 +247,8 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
   }, [scene, exportScene]);
 
   const pristine = useMemo(
-    () => JSON.stringify(scene) === JSON.stringify(createScene(activeTemplate)),
-    [scene, activeTemplate],
+    () => JSON.stringify(scene) === JSON.stringify(applyNewSceneDefaults(createScene(activeTemplate), accountId)),
+    [scene, activeTemplate, accountId],
   );
 
   const selected = scene.messages.find((message) => message.id === selectedId) ?? null;
@@ -258,7 +286,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
 
   const requestTemplate = (template: TemplateId) => {
     const run = () => {
-      const next = createScene(template);
+      const next = defaultSceneFor(template);
       applyScene(next);
       setActiveTemplate(template);
       setSelectedId(next.messages[0]?.id ?? '');
@@ -279,7 +307,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
 
   const requestNewScene = () => {
     const run = () => {
-      const next = { ...createScene(activeTemplate), id: `scene-${crypto.randomUUID()}`, title: '未命名场景', messages: [] };
+      const next = { ...defaultSceneFor(activeTemplate), id: `scene-${crypto.randomUUID()}`, title: '未命名场景', messages: [] };
       applyScene(next);
       setSelectedId('');
     };
@@ -304,7 +332,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
       action: () => {
         uploadGeneration.current++;
         setComposerSender(''); setComposerText(''); setComposerAsset('');
-        const next = createScene(activeTemplate);
+        const next = defaultSceneFor(activeTemplate);
         setHistory(resetHistory(next));
         setSelectedId(next.messages[0]?.id ?? '');
         setExportStatus('idle');

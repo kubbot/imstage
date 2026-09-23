@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createScene } from '../../apps/web/src/studio/model';
+import { completeOnboarding } from './prefs';
 test.use({ locale: 'zh-CN' });
 
 async function register(page: import('@playwright/test').Page, name: string) {
@@ -8,6 +9,7 @@ async function register(page: import('@playwright/test').Page, name: string) {
   await page.getByLabel('邮箱', { exact: true }).fill(`template-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-template-password-2026');
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: `${name}的创作空间` })).toBeVisible();
 }
 

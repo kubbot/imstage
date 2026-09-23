@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { completeOnboarding } from './prefs';
 // The account surfaces are now bilingual. This suite asserts the Chinese copy.
 test.use({ locale: 'zh-CN' });
 const password = 'a-long-synthetic-password-2026';
@@ -11,6 +12,7 @@ async function register(page: Page) {
   await page.getByLabel('邮箱', { exact: true }).fill(email);
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
   return email;
 }
@@ -62,6 +64,7 @@ test('autosave imports the signed-in studio scene and never writes the guest dra
   await page.getByLabel('邮箱', { exact: true }).fill(uniqueEmail());
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page).toHaveURL(/#\/studio$/);
   await expect(page.locator('.studio-canvas .scene-view')).toContainText('原来的本机草稿');
   // Signed-in ordinary scene edits now save automatically.
@@ -153,6 +156,7 @@ test('English account surfaces are usable across login, workspace and the editor
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: "Creator's workspace" })).toBeVisible();
   await expect(page.locator('.workspace-sidebar').getByRole('link', { name: 'My scenes' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'New conversation' })).toBeVisible();

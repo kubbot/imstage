@@ -1,5 +1,6 @@
 import { test, expect, request, type Page, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { createScene } from '../../apps/web/src/studio/model';
+import { completeOnboarding } from './prefs';
 
 test.use({ locale: 'zh-CN' });
 
@@ -366,6 +367,7 @@ test('a response from a previous account never writes into the new owner', async
   await page.getByLabel('邮箱', { exact: true }).fill(bEmail);
   await page.getByLabel('密码', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: '登录', exact: true }).click();
+  await completeOnboarding(page);
   await expect(page).toHaveURL(/#\/workspace/);
 
   await page.goto(`/?lang=zh#/projects?project=${bProject.id}`);
