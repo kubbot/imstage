@@ -29,6 +29,7 @@ import { validateScene } from '../../apps/web/src/studio/model.ts';
 import { instantiateTemplate } from '../../packages/schema/templates.ts';
 import * as projects from '../projects/index.mjs';
 import * as contacts from '../contacts/index.mjs';
+import * as preferences from '../preferences/index.mjs';
 import {withContactLibrary} from '../contacts/runtime.mjs';
 import {
   installTemplateSchema,
@@ -57,6 +58,7 @@ import {
   createPersonalToken,
   deleteConnection,
   listConnections,
+  markConnectionDiscovery,
   revokeAllForUser,
   validateTokenName,
 } from '../integrations/connections.mjs';
@@ -79,6 +81,8 @@ export const PROJECT_BODY_LIMIT = 64 * 1024; // 64 KiB (name + rules)
 export const BATCH_BODY_LIMIT = 16 * 1024 * 1024; // variants may carry bounded embedded images
 /** Contact library: 100 contacts plus local avatars; still strictly bounded. */
 export const CONTACT_BODY_LIMIT = 12 * 1024 * 1024; // 12 MiB
+/** Creator preferences: two 2 MiB avatars plus metadata. */
+export const PREFERENCES_BODY_LIMIT = 6 * 1024 * 1024; // 6 MiB
 /** Single source of truth lives in `services/projects/model.mjs`. */
 export const MAX_SCENES_PER_USER = projects.MAX_SCENES_PER_USER;
 export const REQUEST_MARKER_HEADER = 'x-imstage-request';
@@ -110,6 +114,7 @@ const AUTH_DEADLINE_MS = 15_000;
 const SCENE_DEADLINE_MS = 30_000;
 const AGENT_READ_DEADLINE_MS = 30_000;
 const CONTACT_READ_DEADLINE_MS = 30_000;
+const PREFERENCES_READ_DEADLINE_MS = 30_000;
 
 const API_SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
@@ -451,6 +456,11 @@ function openDatabase(dbPath) {
   // simply read the empty default until they PUT a library.
   db.exec(contacts.CONTACT_SCHEMA_SQL);
 
+  // Account-scoped creator preferences. Additive migration only; a missing row
+  // means a legacy account (never auto-prompted), new registrations insert a
+  // pending row at registration time.
+  preferences.installPreferencesSchema(db);
+
   // Reusable templates are account-scoped and stored separately from scenes.
   // Additive table only: no scene/project migration or rewrite is performed.
   installTemplateSchema(db);
@@ -694,7 +704,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError || err instanceof IntegrationError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof TemplateError) {
+  if (err instanceof HttpError || err instanceof IntegrationError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof preferences.PreferencesError || err instanceof TemplateError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -898,6 +908,9 @@ async function handleRegister(ctx, req, res) {
           'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
         )
         .run(userId, email, name, passwordHash, dateISO(nowMs));
+      // New registrations get an explicit pending onboarding row. Existing
+      // accounts have no row and are treated as legacy (never auto-prompted).
+      preferences.createDefaultPreferences(ctx.db, userId, nowMs);
       const session = createSessionRow(ctx.db, userId, nowMs);
       return { user: { id: userId, email, name }, session };
     });
@@ -1206,6 +1219,102 @@ async function handleContactLibraryPut(ctx, req, res) {
     nowMs: ctx.nowMs(),
   });
   sendJson(req, res, 200, contactLibraryPayload(state));
+}
+
+/* ------------------------------------------------------------------ */
+/* Creator preferences routes                                          */
+/* ------------------------------------------------------------------ */
+
+function handlePreferencesGet(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  // A deterministic built-in other avatar is derived when none is stored, so a
+  // skipped/unconfigured account still has a usable fictional default without
+  // persisting anything on a read.
+  return ctx.preferences.get(session.user.id).then((item) => {
+    recheckSession(ctx, req, session);
+    sendJson(req, res, 200, { item });
+  });
+}
+
+async function handlePreferencesPut(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PREFERENCES_BODY_LIMIT, PREFERENCES_READ_DEADLINE_MS);
+  const { revision, patch } = preferences.normalizePreferencesUpdate(body);
+  const crop = preferences.normalizeCrop(body.crop);
+
+  // Decode/crop every supplied avatar with sharp before writing anything. This
+  // is the only slow step, so the session is rechecked afterwards to make a
+  // concurrent account switch or logout unable to persist the wrong row.
+  const processed = { ...patch };
+  for (const key of ['myAvatar', 'otherAvatar']) {
+    if (patch[key] === undefined) continue;
+    if (patch[key] === null) {
+      processed[key] = null;
+      continue;
+    }
+    const result = await preferences.processAvatar(patch[key], { crop: key === 'myAvatar' ? crop : null });
+    processed[key] = result.dataUri;
+  }
+  recheckSession(ctx, req, session);
+
+  preferences.putPreferences(ctx.db, {
+    userId: session.user.id,
+    revision,
+    patch: processed,
+    nowMs: ctx.nowMs(),
+  });
+  const item = await ctx.preferences.get(session.user.id);
+  recheckSession(ctx, req, session);
+  sendJson(req, res, 200, { item });
+}
+
+async function handlePreferenceEvent(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new HttpError(400, 'invalid_event', '事件体必须是 JSON 对象');
+  }
+  for (const key of Object.keys(body)) {
+    if (key !== 'name') throw new HttpError(400, 'unknown_field', `事件包含未知字段：${key}`);
+  }
+  if (typeof body.name !== 'string' || !preferences.isAllowedEvent(body.name)) {
+    throw new HttpError(400, 'invalid_event', '事件名称不在允许列表中');
+  }
+  recheckSession(ctx, req, session);
+  // `dedupeKey` is intentionally not accepted: account-once events are deduped
+  // with a server-owned key, and no freeform client text is ever stored.
+  const event = preferences.recordEvent(ctx.db, {
+    userId: session.user.id,
+    name: body.name,
+    nowMs: ctx.nowMs(),
+  });
+  if (body.name === 'onboarding_shown') {
+    preferences.markOnboardingShown(ctx.db, session.user.id, ctx.nowMs());
+  }
+  sendJson(req, res, 200, { event });
+}
+
+function handlePreferenceEventSummary(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { items: preferences.listEventSummary(ctx.db, session.user.id) });
+}
+
+async function handlePortraitGenerate(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  const seed = body.seed === undefined || body.seed === null ? crypto.randomUUID() : body.seed;
+  if (typeof seed !== 'string' || seed.length < 1 || seed.length > 128) {
+    throw new HttpError(400, 'invalid_seed', 'seed 必须是 1-128 个字符');
+  }
+  const avatar = await preferences.generateFictionalPortrait(seed);
+  recheckSession(ctx, req, session);
+  sendJson(req, res, 200, { avatar, seed });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1665,6 +1774,10 @@ function handleConnectionsConfig(ctx, req, res) {
     authorizationSupported: true,
     directoryUrl: null,
     manualSetupRequired: true,
+    // RFC 8252 native-app loopback redirects are supported in every
+    // environment by default; the UI uses this to offer the Codex CLI flow
+    // truthfully and to fall back to a personal token when disabled.
+    loopbackRedirectsSupported: ctx.config.allowLoopbackRedirects === true,
   });
 }
 
@@ -1785,6 +1898,42 @@ function mcpBearerChallenge(ctx, errorCode, description) {
 }
 
 /**
+ * Capture a bounded JSON body from a ServerResponse without changing the bytes
+ * sent. Used to record MCP tool discovery only after a real successful
+ * `tools/list` response, so "connected" is evidence, not an assumption.
+ */
+function observeJsonResponse(res, onBody) {
+  const chunks = [];
+  let total = 0;
+  const capture = (chunk, encoding) => {
+    if (chunk === undefined || chunk === null || total >= 64 * 1024) return;
+    const buffer = Buffer.isBuffer(chunk)
+      ? chunk
+      : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8');
+    chunks.push(buffer);
+    total += buffer.length;
+  };
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+  res.write = function write(chunk, encoding, callback) {
+    capture(chunk, encoding);
+    return originalWrite.call(this, chunk, encoding, callback);
+  };
+  res.end = function end(chunk, encoding, callback) {
+    capture(chunk, encoding);
+    return originalEnd.call(this, chunk, encoding, callback);
+  };
+  res.once('finish', () => {
+    if (Number(res.statusCode) >= 400 || total === 0) return;
+    try {
+      onBody(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    } catch {
+      /* non-JSON or partial body: no discovery evidence */
+    }
+  });
+}
+
+/**
  * Authenticated, owner-scoped MCP endpoint.
  *
  * Every call verifies the bearer access token (issuer/resource/scopes/expiry/
@@ -1884,6 +2033,22 @@ async function handleAccountMcp(ctx, req, res) {
       return;
     }
     throw error;
+  }
+
+  // Record tool-discovery evidence only after a real successful `tools/list`.
+  // `last_used_at` is set by token validation alone, so the list status would
+  // otherwise claim a working client before the MCP handshake ever ran.
+  if (parsedBody?.method === 'tools/list') {
+    const grantId = auth.extra?.grantId;
+    observeJsonResponse(res, (payload) => {
+      const tools = payload?.result?.tools;
+      if (!Array.isArray(tools) || tools.length === 0) return;
+      try {
+        markConnectionDiscovery(ctx.db, userId, grantId, ctx.nowMs());
+      } catch (error) {
+        ctx.logger.warn?.('[imstage-api] failed to record MCP tool discovery:', error?.message ?? error);
+      }
+    });
   }
 
   const mcpServer = ctx.mcp.createServer(userId, {
@@ -2197,6 +2362,34 @@ async function route(ctx, req, res) {
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
   }
 
+  if (pathname === '/api/preferences') {
+    if (method === 'GET') {
+      await handlePreferencesGet(ctx, req, res);
+      return;
+    }
+    if (method === 'PUT') {
+      await handlePreferencesPut(ctx, req, res);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  if (pathname === '/api/preferences/events') {
+    if (method === 'GET') {
+      handlePreferenceEventSummary(ctx, req, res);
+      return;
+    }
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handlePreferenceEvent(ctx, req, res);
+    return;
+  }
+
+  if (pathname === '/api/preferences/portrait') {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handlePortraitGenerate(ctx, req, res);
+    return;
+  }
+
   if (pathname === '/api/agent/capabilities') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     // Public, non-secret status so the UI can explain whether AI is configured.
@@ -2359,7 +2552,7 @@ function resolveConfig(options) {
     rateLimit,
     allowLoopbackRedirects:
       options.allowLoopbackRedirects === undefined
-        ? nodeEnv !== 'production'
+        ? true
         : options.allowLoopbackRedirects === true,
     recentSessionMs:
       Number.isInteger(options.recentSessionMs) && options.recentSessionMs > 0
@@ -2435,6 +2628,7 @@ export function createApp(options = {}) {
   }
   const renderService =
     options.renderService ?? createRenderService({ executablePath, maxConcurrent: 1 });
+  const preferencesReader = preferences.createPreferencesReader(db);
   const oauth = createOAuthIntegration({
     db,
     appOrigin: config.appOrigin,
@@ -2452,6 +2646,7 @@ export function createApp(options = {}) {
     logger: config.logger,
     agent: { config: agentConfig, runtime: agentRuntime, limiter: agentLimiter },
     projects: { queue: batchQueue },
+    preferences: preferencesReader,
     oauth,
     mcp: {
       renderService,
@@ -2463,6 +2658,12 @@ export function createApp(options = {}) {
           logger: config.logger,
           appOrigin: config.appOrigin,
           authorizeCheck,
+          // Default fill resolves account avatars/mark on the server, so the
+          // model never has to send them and only sees a small summary. Note:
+          // scene-bearing tool results still return the stored scene verbatim
+          // (including any avatar data URI) for Web wire fidelity; see
+          // docs/creator-preferences.md for the documented exposure boundary.
+          readPreferences: () => preferencesReader.get(userId),
         }),
     },
   };

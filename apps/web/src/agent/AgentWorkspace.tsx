@@ -9,6 +9,7 @@ import type { SendIntent } from '../sendIntent';
 import loanCase from '../../../../tools/eval/fixtures/loan-anniversary.json';
 import { emptyDraft, recoverDraft, newSession, readSession, writeSession, listSessions, removeSession, type SessionDraft, type SessionMeta, type SessionRecord } from './sessions';
 import { isTemplateScreenshotMode, readTemplateScreenshot, clearTemplateScreenshot } from '../templates/screenshotSeed';
+import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import type { Scene } from '../studio/model';
 import './sessions.css';
 
@@ -28,6 +29,9 @@ async function referenceFromSource(source: string, platform: Scene["platform"]):
 
 export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>) {
   const {user}=useAuth();const owner=user?.id||'guest';
+  // Brand-new sessions inherit the saved account defaults. Existing sessions
+  // (and duplicated ones) are never rewritten.
+  const withDefaults=<T extends {scene:Scene}>(draft:T):T=>({...draft,scene:applyNewSceneDefaults(draft.scene,user?.id)});
   const copy=useCopy();
   const formatLocale=useFormatLocale();
   const params=new URLSearchParams(location.hash.split('?')[1]);const sample=params.get('case')==='loan-anniversary';
@@ -88,6 +92,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   useEffect(()=>{
     mounted.current=true;
     async function initialize(){
+      // Guarantee the account defaults are cached before the first new scene is
+      // built, so a freshly registered account gets its avatars/mark.
+      if(user)await ensurePreferences(user.id).catch(()=>null);
       if(user){
         let handoff:Partial<SessionDraft>|null=null;
         try{handoff=JSON.parse(sessionStorage.getItem('imstage.agent.login-handoff')||'null');}catch{}
@@ -114,7 +121,7 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
             }
             draft.scene.id=crypto.randomUUID();
             // Only clear the exact payload after the session is durably written.
-            const created=await writeSession(newSession(owner,origin,draft));
+            const created=await writeSession(newSession(owner,origin,withDefaults(draft)));
             clearTemplateScreenshot(seed);
             try{const [path,query='']=location.hash.slice(1).split('?');const p=new URLSearchParams(query);p.delete('new');p.delete('templateFlow');history.replaceState(null,'',`${location.pathname}${location.search}#${path}${p.toString()?`?${p.toString()}`:''}`);}catch{/* The session exists; the URL hint is only a convenience. */}
             return created;
@@ -127,7 +134,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
         const handoff=readHandoffPayload(handoffToken);
         const draft=handoff?recoverDraft({scene:handoff.scene,prompt:handoff.prompt,intent:handoff.intent} as Partial<SessionDraft>,fallback):fallback;
         draft.scene.id=crypto.randomUUID();
-        const created=await writeSession(newSession(owner,origin,draft));
+        // An authored handoff scene keeps its explicit values; only the blank
+        // fallback seed receives account defaults.
+        const created=await writeSession(newSession(owner,origin,handoff?draft:withDefaults(draft)));
         clearHandoffScene(handoffToken);
         try{const [path,query='']=location.hash.slice(1).split('?');const p=new URLSearchParams(query);p.delete('new');p.delete('handoff');p.delete('scenario');history.replaceState(null,'',`${location.pathname}${location.search}#${path}${p.toString()?`?${p.toString()}`:''}`);}catch{/* The session exists; the URL hint is only a convenience. */}
         return created;
@@ -139,7 +148,13 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
       try{legacy=JSON.parse(sessionStorage.getItem(key)||'null');if(legacy)legacy.turns=JSON.parse(sessionStorage.getItem(`${key}.chat`)||'[]');}catch{}
       const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale});if(sample){fallback.scene=loanCase.scene as SessionDraft['scene'];fallback.full=true;}
       if(!legacy){const recent=(await listSessions(owner)).find(s=>s.origin===origin);if(recent)return readSession(owner,recent.id);}
-      const created=await writeSession(newSession(owner,origin,recoverDraft(legacy,fallback),sample?'去年借款，今天归还':undefined));
+      // A migrated legacy local draft is an existing scene: it must keep its own
+      // avatars/watermark (including empty/off). Defaults apply only when this is
+      // a genuinely new fallback scene.
+      const migrated=recoverDraft(legacy,fallback);
+      // Only a genuinely blank new scene receives defaults; migrated drafts and
+      // authored sample scenes keep their own avatars/watermark.
+      const created=await writeSession(newSession(owner,origin,(legacy||sample)?migrated:withDefaults(migrated),sample?'去年借款，今天归还':undefined));
       // Remove only after durable migration, never before a successful transaction.
       try{sessionStorage.removeItem(key);sessionStorage.removeItem(`${key}.chat`);if(user)sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}
       return created;
@@ -176,13 +191,13 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
     if(!dup)await persist();else{clearTimeout(timer.current);await queue.current.catch(()=>{});}
     const draft=dup&&latest.current?structuredClone(latest.current):emptyDraft(latest.current?.projectId,{locale:seedLocale});
     draft.scene.id=crypto.randomUUID();
-    const next=await writeSession(newSession(owner,origin,draft,dup?`${current.current?.title||''} · ${copy.sessions.duplicateSuffix}`:undefined));adopt(next);
+    const next=await writeSession(newSession(owner,origin,dup?draft:withDefaults(draft),dup?`${current.current?.title||''} · ${copy.sessions.duplicateSuffix}`:undefined));adopt(next);
   });
   async function switchTo(id:string){await action(async()=>{await persist();if(current.current?.id!==id)adopt(await readSession(owner,id));else setOpen(false);});}
   async function rename(id:string){await action(async()=>{if(!name.trim())return;await persist();const existing=await readSession(owner,id);const next=await writeSession({...existing,title:name.trim().slice(0,60),named:true});if(current.current?.id===id){current.current=next;setRecord(next);}setRenaming('');});}
   async function remove(id:string){await action(async()=>{
     await persist();const existing=await readSession(owner,id);await removeSession(existing);
-    if(current.current?.id===id){const rest=await listSessions(owner);const next=rest[0]?await readSession(owner,rest[0].id):await writeSession(newSession(owner,origin,emptyDraft('',{locale:seedLocale})));adopt(next);}
+    if(current.current?.id===id){const rest=await listSessions(owner);const next=rest[0]?await readSession(owner,rest[0].id):await writeSession(newSession(owner,origin,withDefaults(emptyDraft('',{locale:seedLocale}))));adopt(next);}
     setDeleting('');
   });}
   if(!record)return <div className="page-loading" role="status">{error||copy.sessions.restoring}{error&&<button onClick={()=>{boot.current=null;setError('');setRetry(n=>n+1);}}>{copy.sessions.retryRead}</button>}</div>;

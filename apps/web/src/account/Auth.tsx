@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, bindIdentity, clearAccountDrafts, type User } from './api';
+import { clearPreferencesCache, ensurePreferences } from '../preferences/api';
 type AuthState = { user: User | null; loading: boolean; unavailable: boolean; refresh: () => Promise<void>; accept: (user: User) => void; logout: () => Promise<void> };
 const Context = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -10,7 +11,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const channel = useRef<BroadcastChannel | null>(null);
   const refresh = useCallback(async () => {
     const version = ++generation.current;
-    try { const result = await api<{ user: User | null }>('/auth/session'); if (version === generation.current) { bindIdentity(result.user); setUser(result.user); setUnavailable(false); } }
+    try { const result = await api<{ user: User | null }>('/auth/session'); if (version === generation.current) { bindIdentity(result.user); setUser(result.user); setUnavailable(false); if (result.user) void ensurePreferences(result.user.id); } }
     catch { if (version === generation.current) setUnavailable(true); }
     finally { if (version === generation.current) setLoading(false); }
   }, []);
@@ -23,12 +24,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if ('BroadcastChannel' in window) { channel.current = new BroadcastChannel('imstage-auth'); channel.current.onmessage = focus; }
     return () => { generation.current++; window.removeEventListener('imstage-session-expired', expired); window.removeEventListener('focus', focus); channel.current?.close(); };
   }, [refresh]);
-  const accept = (value: User) => { generation.current++; bindIdentity(value); setUser(value); setLoading(false); setUnavailable(false); channel.current?.postMessage('changed'); };
+  const accept = (value: User) => { generation.current++; bindIdentity(value); void ensurePreferences(value.id); setUser(value); setLoading(false); setUnavailable(false); channel.current?.postMessage('changed'); };
   const logout = async () => {
     const version = generation.current;
     await api('/auth/logout', { method: 'POST', body: {} });
     if (generation.current !== version) { await refresh(); return; }
-    generation.current++; if (user) clearAccountDrafts(user.id); bindIdentity(null); setUser(null); channel.current?.postMessage('changed');
+    generation.current++; if (user) { clearAccountDrafts(user.id); clearPreferencesCache(user.id); } bindIdentity(null); setUser(null); channel.current?.postMessage('changed');
     location.hash = '/login';
   };
   return <Context.Provider value={{ user, loading, unavailable, refresh, accept, logout }}>{children}</Context.Provider>;

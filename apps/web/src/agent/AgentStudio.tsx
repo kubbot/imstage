@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type ReactNode, type FormEvent, type CSSPr
 import { flushSync } from 'react-dom';
 import { IconArrowsHorizontal, IconCopy, IconUpload, IconArrowUp, IconCheck, IconDownload, IconMessageCircle, IconPaperclip, IconPlayerStop, IconSparkles, IconWand, IconX, IconArrowBackUp, IconArrowForwardUp, IconLayoutSidebarLeftCollapse, IconListDetails, IconPlus, IconMinus, IconLoader2 } from '@tabler/icons-react';
 import { useAuth } from '../account/Auth';
+import { trackPreferenceEvent } from '../preferences/api';
 import { api, loginLink } from '../account/api';
 import { setNavigationGuard } from '../account/navigation';
 import { SceneView } from '../studio/SceneView';
@@ -283,7 +284,7 @@ export default function AgentStudio({ creationSessionId, initialDraft, onDraftCh
   async function exportPng() {
     if (locked || (!scene.messages.length && !scene.reference)) return;
     setExporting(true); setNotice(copy.agent.exportPreparing);
-    try { downloadBlob(await renderPng(), pngName()); setNotice(copy.agent.exportDone); }
+    try { downloadBlob(await renderPng(), pngName()); setNotice(copy.agent.exportDone); if (user) trackPreferenceEvent('first_artwork_completed'); }
     catch { setFailure(copy.agent.exportFailed); }
     finally { setExporting(false); setExportScene(null); }
   }

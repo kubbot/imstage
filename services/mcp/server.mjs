@@ -68,7 +68,7 @@ import {
 export const MCP_INSTANCE_SCOPE = 'mcp-instance';
 import { computeRenderId, createRenderService, resolveChromiumExecutable, resolveRenderConfig } from './render.mjs';
 import { newEphemeralSceneId, newSceneId, sha256Hex, stableStringify, timingSafeEqualString } from './util.mjs';
-import { WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
+import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
 
 /* ------------------------------------------------------------------ */
 /* Tool schemas (plain JSON Schema; validated again in code)           */
@@ -581,7 +581,7 @@ async function toolGetCapabilities() {
   );
 }
 
-function toolCreateScene(args, { store, sceneIdFactory }) {
+async function toolCreateScene(args, { store, sceneIdFactory, defaultSceneFill, authorizeCheck }) {
   const rawScene = objectField(args, 'scene', { required: true });
   const idempotencyKey = optionalIdempotencyKey(args);
   const requestHash = sha256Hex(stableStringify({ operation: 'create_scene', scene: rawScene }));
@@ -601,7 +601,12 @@ function toolCreateScene(args, { store, sceneIdFactory }) {
     }
   }
 
-  const scene = prepareCreateScene(rawScene, sceneIdFactory ? { sceneId: sceneIdFactory() } : undefined);
+  // Trusted post-tool default fill: account avatars/mark are applied here from
+  // server state, never from the model, so large avatar bytes stay out of the
+  // model context. Explicitly supplied keys are preserved untouched.
+  const filledRaw = typeof defaultSceneFill === 'function' ? await defaultSceneFill(rawScene) : rawScene;
+  if (typeof authorizeCheck === 'function') await authorizeCheck();
+  const scene = prepareCreateScene(filledRaw, sceneIdFactory ? { sceneId: sceneIdFactory() } : undefined);
   const created = store.createScene({ scene, requestHash, idempotencyKey });
   const stored = requireSceneOrThrow(store, created.sceneId, created.revision);
   return textOk(
@@ -730,6 +735,9 @@ async function toolRenderScene(args, context) {
     outputKind: options.outputKind,
     surface: options.surface,
   });
+  // Only a real render that also passed the post-render authorization recheck
+  // reaches this point; failed or revoked renders never record the event.
+  if (typeof context.onRenderSuccess === 'function') context.onRenderSuccess();
 
   const downloadUri = `imstage://renders/${renderId}.png`;
   const dataUri = `data:image/png;base64,${rendered.pngBase64}`;
@@ -1108,7 +1116,7 @@ async function handleToolCall(request, context) {
       case 'imstage_get_capabilities':
         return await toolGetCapabilities();
       case 'imstage_create_scene':
-        return toolCreateScene(args, context);
+        return await toolCreateScene(args, context);
       case 'imstage_get_scene':
         return toolGetScene(args, context);
       case 'imstage_update_scene':
@@ -1169,7 +1177,7 @@ function parseResourceUri(uri) {
 async function handleReadResource(request, { store }) {
   const uri = request?.params?.uri;
   if (typeof uri !== 'string') throw new McpError(ErrorCode.InvalidParams, 'uri 必须是字符串');
-  if (uri === WIDGET_RESOURCE_URI) return {contents:[buildWidgetResourceContent(uri)]};
+  if (uri === WIDGET_RESOURCE_URI || uri === LEGACY_WIDGET_RESOURCE_URI) return {contents:[buildWidgetResourceContent(uri)]};
   const parsed = parseResourceUri(uri);
   if (!parsed) throw new McpError(ErrorCode.InvalidParams, `未知资源：${uri}`);
 
@@ -1225,7 +1233,7 @@ function decorateResult(result, webUrlFor) {
   const webUrl = webUrlFor(sceneId);
   return {
     ...result,
-    content: [...(result.content ?? []), { type: 'text', text: `网页打开：${webUrl}` }],
+    content: result.structuredContent?.widgetUri ? result.content : [...(result.content ?? []), { type: 'text', text: `网页打开：${webUrl}` }],
     structuredContent: { ...result.structuredContent, webUrl },
   };
 }
@@ -1238,6 +1246,8 @@ export function createImstageMcpServer({
   extraHandlers = null,
   webUrlFor = null,
   sceneIdFactory = null,
+  defaultSceneFill = null,
+  onRenderSuccess = null,
   authorizeCheck = null,
   serverInfo = { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
   instructions = SERVER_INSTRUCTIONS,
@@ -1249,6 +1259,8 @@ export function createImstageMcpServer({
     logger,
     extraHandlers,
     sceneIdFactory,
+    defaultSceneFill,
+    onRenderSuccess,
     webUrlFor,
     authorizeCheck,
     allowedToolNames,

@@ -40,12 +40,37 @@ export function validateTokenName(raw) {
   return name;
 }
 
+/**
+ * Connection lifecycle status shown to the account owner.
+ *
+ * `awaiting_auth`  the grant exists but no token has ever been validated
+ * `authenticated`  a token was validated (touchGrant), tools not discovered yet
+ * `connected`      `tools/list` succeeded against this grant
+ *
+ * `last_used_at` alone is only token validation, so it must never be presented
+ * as a working client connection.
+ */
+export const CONNECTION_STATUS = Object.freeze({
+  AWAITING_AUTH: 'awaiting_auth',
+  AUTHENTICATED: 'authenticated',
+  CONNECTED: 'connected',
+});
+
 export function connectionItemFromRow(row) {
+  const lastUsedAt = row.last_used_at ?? null;
+  const toolsDiscoveredAt = row.tools_discovered_at ?? null;
+  const status = toolsDiscoveredAt
+    ? CONNECTION_STATUS.CONNECTED
+    : lastUsedAt
+      ? CONNECTION_STATUS.AUTHENTICATED
+      : CONNECTION_STATUS.AWAITING_AUTH;
   return {
     id: row.id,
     clientName: row.client_name,
     createdAt: row.created_at,
-    lastUsedAt: row.last_used_at ?? null,
+    lastUsedAt,
+    toolsDiscoveredAt,
+    status,
     scopes: JSON.parse(row.scopes_json || '[]'),
     kind: row.source === 'token' ? 'token' : 'oauth',
   };
@@ -54,7 +79,7 @@ export function connectionItemFromRow(row) {
 export function listConnections(db, userId) {
   const rows = db
     .prepare(
-      `SELECT id, source, client_name, scopes_json, created_at, last_used_at
+      `SELECT id, source, client_name, scopes_json, created_at, last_used_at, tools_discovered_at
        FROM oauth_grants
        WHERE user_id = ? AND revoked_at IS NULL
        ORDER BY created_at DESC, id ASC`,
@@ -204,4 +229,25 @@ export function revokeGrant(db, grantId) {
 
 export function touchGrant(db, grantId, nowMs) {
   db.prepare('UPDATE oauth_grants SET last_used_at = ? WHERE id = ?').run(dateISO(nowMs), grantId);
+}
+
+/**
+ * Record evidence of a successful MCP `tools/list` for a grant. Called only
+ * after the MCP server actually returned a tool list, never on mere token
+ * validation. Owner-scoped and idempotent (keeps the first discovery time).
+ *
+ * @returns {boolean} whether an active, owned grant was updated
+ */
+export function markConnectionDiscovery(db, userId, grantId, nowMs) {
+  if (typeof userId !== 'string' || userId === '' || typeof grantId !== 'string' || grantId === '') {
+    return false;
+  }
+  const result = db
+    .prepare(
+      `UPDATE oauth_grants
+       SET tools_discovered_at = COALESCE(tools_discovered_at, ?)
+       WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+    )
+    .run(dateISO(nowMs), grantId, userId);
+  return Number(result.changes) === 1;
 }

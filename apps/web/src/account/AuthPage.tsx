@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { IconArrowRight, IconEye, IconEyeOff, IconLock, IconMessageCircle } from '@tabler/icons-react';
 import { useAuth } from './Auth';
 import { api, ApiError, errorText, safeNext, type User } from './api';
+import { cachedPreferences, ensurePreferences } from '../preferences/api';
 import { useCopy } from '../i18n';
 const remembered = { email: '', name: '' };
 export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; next: string }) {
@@ -18,14 +19,35 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const register = mode === 'register';
   useEffect(() => { setError(''); setPassword(''); setVisible(false); }, [mode]);
-  useEffect(() => { if (user) location.hash = safeNext(next); }, [user, next]);
+  // After a successful Web login/registration the first visit enters the
+  // one-time onboarding, preserving the safe original `next`. OAuth connect
+  // pages are intentionally excluded so the authorization callback finishes
+  // first; an interrupted visit is re-entered from account settings instead of
+  // being auto-prompted again.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const target = safeNext(next);
+      if (!target.startsWith('/connect')) {
+        const prefs = cachedPreferences(user.id) ?? (await ensurePreferences(user.id));
+        if (cancelled) return;
+        if (prefs && prefs.onboardingStatus === 'pending' && !prefs.onboardingShown) {
+          location.hash = `/welcome?next=${encodeURIComponent(target)}`;
+          return;
+        }
+      }
+      if (!cancelled) location.hash = target;
+    })();
+    return () => { cancelled = true; };
+  }, [user, next]);
   async function submit(event: FormEvent) {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError('');
     try {
       const result = await api<{ user: User }>(`/auth/${mode}`, { method: 'POST', body: { email: email.trim(), password, ...(register ? { name: name.trim() } : {}) } });
       if (!active.current) { void refresh(); return; }
-      accept(result.user); setPassword(''); location.hash = safeNext(next);
+      accept(result.user); setPassword('');
     } catch (error) { if (!active.current) return; setError(register && error instanceof ApiError && error.status === 0 ? a.registrationUncertain : errorText(error)); }
     finally { if (active.current) setBusy(false); }
   }

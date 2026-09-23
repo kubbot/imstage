@@ -4,6 +4,7 @@ import { useAuth } from './Auth';
 import { api, errorText, loginLink, type SavedScene } from './api';
 import { setNavigationGuard } from './navigation';
 import { createScene, validateScene, type Scene } from '../studio/model';
+import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import { useCloudAutosave, scenePayload, readWorkRevision, type CloudAutosave, type CloudSaveStatus } from '../cloudAutosave';
 import { useCopy, type AppCopy } from '../i18n';
 const Studio = lazy(() => import('../agent/AgentStudio'));
@@ -99,14 +100,29 @@ export default function AccountEditor({ sceneId }: { sceneId: string }) {
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setError(''); setItem(null);
-    if (sceneId === 'new') {
-      const id = crypto.randomUUID();
-      setItem({ id, revision: 0, updatedAt: '', scene: { ...createScene(), id, title: copy.account.newSceneTitle, selfId: 'me', participants: [{ id: 'me', name: copy.account.selfName }, { id: 'other', name: copy.account.otherName }], messages: [] } });
-      return;
-    }
-    api<{ item: SavedScene }>(`/scenes/${encodeURIComponent(sceneId)}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setItem(data.item); }).catch(error => { if (!controller.signal.aborted) setError(errorText(error)); });
-    return () => controller.abort();
-  }, [sceneId, retry]);
+    let cancelled = false;
+    (async () => {
+      if (sceneId === 'new') {
+        // Make sure the account defaults are loaded before a genuinely new scene
+        // is built, so avatars/mark are correct even on a cold cache.
+        if (user?.id) await ensurePreferences(user.id, controller.signal);
+        if (cancelled) return;
+        const id = crypto.randomUUID();
+        const fresh: Scene = { ...createScene(), id, title: copy.account.newSceneTitle, selfId: 'me', participants: [{ id: 'me', name: copy.account.selfName }, { id: 'other', name: copy.account.otherName }], messages: [] };
+        // Account defaults apply only to a brand-new scene; saved scenes keep
+        // their own avatars and mark forever.
+        setItem({ id, revision: 0, updatedAt: '', scene: applyNewSceneDefaults(fresh, user?.id) });
+        return;
+      }
+      try {
+        const data = await api<{ item: SavedScene }>(`/scenes/${encodeURIComponent(sceneId)}`, { signal: controller.signal });
+        if (!cancelled) setItem(data.item);
+      } catch (error) {
+        if (!cancelled) setError(errorText(error));
+      }
+    })();
+    return () => { cancelled = true; controller.abort(); };
+  }, [sceneId, retry, user?.id]);
   if (error) return <section className="account-gate"><h1>{copy.account.openWorkFailed}</h1><p role="alert">{error}</p><button className="btn btn-secondary" onClick={() => setRetry(retry + 1)}>{copy.common.retry}</button> <a className="text-link" href="#/workspace">{copy.account.backToWorks}</a></section>;
   if (!item || !user) return <p className="page-loading" role="status">{copy.account.openingWork}</p>;
   return <EditorSession key={`${user.id}:${sceneId}:${retry}`} item={item} userId={user.id} draftId={sceneId} />;

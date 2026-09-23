@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import sharp from 'sharp';
+import { completeOnboarding, markOnboarded } from './prefs';
 // Header navigation is localised; this suite asserts the Chinese labels.
 test.use({ locale: 'zh-CN' });
 async function ready(page: Page) {
@@ -8,6 +9,7 @@ async function ready(page: Page) {
   const origin = new URL(page.url()).origin;
   const response = await page.request.post('/api/auth/register', { headers:{ Origin:origin,'X-IMStage-Request':'1' }, data:{email:`agent-${crypto.randomUUID()}@example.test`,name:'创作者',password:'synthetic-agent-password-2026'} });
   expect(response.ok()).toBeTruthy();
+  await markOnboarded(page);
   await page.route('**/api/agent/capabilities', route => route.fulfill({json:{configured:true,model:'deepseek-flash',imageConfigured:false}}));
   await page.reload(); await expect(page.getByRole('button',{name:'开始生成',exact:true})).toBeVisible();
 }
@@ -105,6 +107,7 @@ test('guest login preserves the request and returns to Agent creation',async({pa
   await page.getByRole('link',{name:'创建账号',exact:true}).click();
   await page.getByLabel('怎么称呼你').fill('创作者');await page.getByLabel('邮箱',{exact:true}).fill(`guest-${crypto.randomUUID()}@example.test`);await page.getByLabel('密码',{exact:true}).fill('synthetic-agent-password-2026');
   await page.getByRole('button',{name:'创建账号',exact:true}).click();
+  await completeOnboarding(page);
   await expect(page).toHaveURL(/#\/create$/);await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('和朋友约周六看展');
 });
 test('unsaved Agent request in an account scene is protected when recovery storage fails',async({page})=>{

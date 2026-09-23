@@ -281,7 +281,7 @@ test('widget markup is self-contained, uses the MCP Apps bridge and never trusts
   assert.match(html, /ui\/notifications\/initialized/);
   assert.match(html, /ui\/message/);
   assert.match(html, /ui\/download-file/);
-  assert.match(html, /blob:latest.dataUri/);
+  assert.match(html, /blob:snapshot.dataUri/);
   assert.match(html, /window\.openai/);
   assert.match(html, /sendFollowUpMessage/);
   assert.equal(/https?:\/\//.test(html), false);

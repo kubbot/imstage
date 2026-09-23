@@ -164,7 +164,7 @@ function clientFromRow(row) {
  * @param {import('node:sqlite').DatabaseSync} options.db
  * @param {string} options.appOrigin configured application origin (never a Host header)
  * @param {() => number} options.nowMs injectable clock
- * @param {boolean} [options.allowLoopbackRedirects] allow `http://127.0.0.1` redirect URIs
+ * @param {boolean} [options.allowLoopbackRedirects] allow controlled `http://` loopback redirect URIs. RFC 8252 §7.3 requires native clients on the same machine to use these, so this defaults to enabled in every environment (including production); only the explicit loopback host allowlist is accepted.
  * @param {number} [options.recentSessionMs] max age of a session allowed to approve consent
  * @param {Console} [options.logger]
  */
@@ -196,16 +196,23 @@ export function createOAuthIntegration({
     } catch {
       throw new InvalidClientMetadataError('redirect_uri 不是合法 URL');
     }
+    // Fragments and URL credentials are never valid redirect targets, and
+    // rejecting them first keeps scheme/host parsing unambiguous.
     if (url.hash !== '') throw new InvalidClientMetadataError('redirect_uri 不能包含 fragment');
     if (url.username !== '' || url.password !== '') {
       throw new InvalidClientMetadataError('redirect_uri 不能包含用户信息');
     }
+    if (url.hostname === '') throw new InvalidClientMetadataError('redirect_uri 缺少主机名');
     if (url.protocol === 'https:') return url.href;
+    // RFC 8252 §7.3 native-app loopback redirects: only the exact loopback
+    // hosts below, any local port, no arbitrary HTTP host or DNS suffix.
     const hostname = url.hostname.toLowerCase();
     if (url.protocol === 'http:' && LOOPBACK_HOSTS.has(hostname) && allowLoopbackRedirects) {
       return url.href;
     }
-    throw new InvalidClientMetadataError('redirect_uri 必须是 https（仅本地开发允许 loopback http）');
+    throw new InvalidClientMetadataError(
+      'redirect_uri 必须是 https（仅允许 localhost / 127.0.0.1 / [::1] 的 HTTP 回环回调）',
+    );
   }
 
   const clientsStore = {
@@ -571,6 +578,12 @@ export function createOAuthIntegration({
     return db.prepare('SELECT * FROM oauth_requests WHERE id = ?').get(requestId);
   }
 
+  function assertCurrentRedirect(uri) {
+    try { validateRedirectUri(uri); } catch {
+      throw integrationError(400, 'invalid_request', '回调地址不再有效，请回到客户端重新连接');
+    }
+  }
+
   function pendingIsUsable(row) {
     return Boolean(row) && !row.consumed_at && Number(row.expires_at_ms) > nowMs();
   }
@@ -594,6 +607,7 @@ export function createOAuthIntegration({
           throw integrationError(409, 'invalid_request', '授权请求已被处理');
         }
       }
+      assertCurrentRedirect(row.redirect_uri);
       const client = clientsStore.getClient(row.client_id);
       if (!client) throw integrationError(404, 'invalid_request', '授权请求的客户端不存在');
       return {
@@ -621,6 +635,7 @@ export function createOAuthIntegration({
       if (row.user_id && row.user_id !== session.user.id) {
         throw integrationError(404, 'invalid_request', '授权请求不存在或已过期');
       }
+      assertCurrentRedirect(row.redirect_uri);
       const client = clientsStore.getClient(row.client_id);
       if (!client) throw integrationError(400, 'invalid_request', '授权请求的客户端不存在');
       if (!client.redirect_uris.some((registered) => redirectUriMatches(row.redirect_uri, registered))) {
@@ -712,12 +727,13 @@ export function createOAuthIntegration({
   const jsonSmall = express.json({ limit: '64kb' });
 
   const authorizeQueryGuard = (req, res, next) => {
-    if (req.method !== 'GET') {
+    if (req.method !== 'GET' && req.method !== 'POST') {
       next();
       return;
     }
+    const params = req.method === 'POST' ? req.body : req.query;
     if (
-      !fieldsWithinLimit(req.query, {
+      !fieldsWithinLimit(params, {
         client_id: FIELD_LIMITS.client_id,
         redirect_uri: FIELD_LIMITS.redirect_uri,
         code_challenge: FIELD_LIMITS.code_challenge,
@@ -730,6 +746,16 @@ export function createOAuthIntegration({
     ) {
       res.status(400).json({ error: 'invalid_request', error_description: '授权请求参数超出长度限制' });
       return;
+    }
+    // Validate before the SDK can redirect errors. Its loopback matcher only
+    // compares scheme/host/path/query and does not enforce our current policy.
+    const client = typeof params?.client_id === 'string' ? clientsStore.getClient(params.client_id) : null;
+    const redirect = params?.redirect_uri ?? (client?.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);
+    if (redirect !== undefined) {
+      try { validateRedirectUri(redirect); } catch {
+        res.status(400).json({ error: 'invalid_request', error_description: '回调地址无效，请回到客户端重新连接' });
+        return;
+      }
     }
     next();
   };
@@ -767,7 +793,7 @@ export function createOAuthIntegration({
     next();
   };
 
-  app.use('/api/oauth/authorize', authorizeQueryGuard, authorizationHandler({ provider, rateLimit: false }));
+  app.use('/api/oauth/authorize', urlencodedSmall, authorizeQueryGuard, authorizationHandler({ provider, rateLimit: false }));
   app.use('/api/oauth/token', urlencodedSmall, tokenBodyGuard, tokenHandler({ provider, rateLimit: false }));
   app.use(
     '/api/oauth/register',

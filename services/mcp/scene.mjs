@@ -38,6 +38,7 @@ import {
   WIDGET_MIME_TYPE,
 } from './limits.mjs';
 import { isPlainObject, newSceneId } from './util.mjs';
+import { WIDGET_RESOURCE_URI } from './widget.mjs';
 
 const SCENE_KEYS = new Set([
   'id',
@@ -612,7 +613,7 @@ export function buildCapabilities() {
       { code: 'internal_error', when: '未预期的服务端错误。' },
     ],
     widget: {
-      resourceUri: 'ui://imstage/render-scene.html',
+      resourceUri: WIDGET_RESOURCE_URI,
       mimeType: WIDGET_MIME_TYPE,
       attachedTo: 'imstage_render_scene only',
       behavior: '内联显示标题/revision 与 PNG 预览，提供编辑指令输入（ui/message）和 PNG 下载（ui/download-file + resource_link）。',

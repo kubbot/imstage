@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import { MAX_SCENES_PER_USER } from '../projects/model.mjs';
 import { createImstageMcpServer, TOOL_DEFINITIONS } from '../mcp/server.mjs';
 import { buildCapabilities } from '../mcp/scene.mjs';
+import { applySceneDefaults, sceneDefaultsSummary, recordEvent } from '../preferences/index.mjs';
 import { fail } from '../mcp/errors.mjs';
 import { integerField, rejectUnknownKeys } from '../mcp/args.mjs';
 import { MAX_STORED_RENDERS } from '../mcp/limits.mjs';
@@ -320,7 +321,7 @@ function textOk(text, structuredContent) {
   return { content: [{ type: 'text', text }], structuredContent };
 }
 
-function accountCapabilities() {
+function accountCapabilities(defaults = null) {
   const base = buildCapabilities();
   const tools = base.tools.filter((tool) => ACCOUNT_BASE_TOOLS.has(tool.name));
   tools.push({ name: 'imstage_list_scenes', readOnly: true, purpose: '列出当前账号最近保存的作品摘要。' });
@@ -329,6 +330,7 @@ function accountCapabilities() {
     server: ACCOUNT_MCP_SERVER_NAME,
     tools,
     limits: { scene: base.limits.scene, render: base.limits.render },
+    accountDefaults: defaults ? sceneDefaultsSummary(defaults) : null,
     identifierRules: {
       ...base.identifierRules,
       sceneId: '服务端生成的标准 UUID（与网页作品 id 相同，例如 #/workspace?scene=<uuid>）。',
@@ -364,10 +366,47 @@ function accountCapabilities() {
   appOrigin,
   maxStoredRenders = MAX_STORED_RENDERS,
   authorizeCheck = null,
+  readPreferences = null,
 }) {
   const store = createAccountStore(db, userId, { maxStoredRenders });
   const webUrlBase = `${new URL(appOrigin).origin}/#/workspace?scene=`;
   const webUrlFor = (sceneId) => `${webUrlBase}${encodeURIComponent(sceneId)}`;
+  // Read the account defaults lazily so a long-lived server always reflects the
+  // latest saved avatars/mark. Avatar bytes stay server-side; the agent only
+  // receives `sceneDefaultsSummary` (booleans + label).
+  const readDefaults = async () => {
+    if (typeof readPreferences !== 'function') return null;
+    try {
+      return (await readPreferences()) ?? null;
+    } catch (error) {
+      logger.warn?.('[imstage-mcp] failed to read account preferences:', error?.message ?? error);
+      return null;
+    }
+  };
+  // Default fill reads avatar bytes on the server, so the model never has to
+  // send or receive them to get account defaults. Wire note: scene-bearing tool
+  // results still return the stored scene verbatim (including any avatar data
+  // URI) for fidelity with the shared Web scene contract; the documented
+  // exposure boundary is in docs/creator-preferences.md.
+  const defaultSceneFill = async (rawScene) => {
+    const defaults = await readDefaults();
+    if (!defaults) return rawScene;
+    return applySceneDefaults(rawScene, {
+      myAvatar: defaults.myAvatar,
+      otherAvatar: defaults.otherAvatar,
+      showFictionalMark: defaults.showFictionalMark,
+      markLabel: defaults.markLabel,
+    });
+  };
+  // `first_artwork_completed` is recorded only after a render really succeeded
+  // and the post-render authorization recheck passed; it is account-once.
+  const onRenderSuccess = () => {
+    try {
+      recordEvent(db, { userId, name: 'first_artwork_completed', nowMs: Date.now() });
+    } catch (error) {
+      logger.warn?.('[imstage-mcp] failed to record first artwork event:', error?.message ?? error);
+    }
+  };
   // Convert a revoked/expired credential into a stable tool error instead of an
   // opaque internal error, so a mid-render revoke is still legible.
   const guardedAuthorizeCheck = authorizeCheck
@@ -386,8 +425,9 @@ function accountCapabilities() {
       }
     : null;
   const extraHandlers = {
-    imstage_get_capabilities: () => {
-      const capabilities = accountCapabilities();
+    imstage_get_capabilities: async () => {
+      const capabilities = accountCapabilities(await readDefaults());
+      if (guardedAuthorizeCheck) await guardedAuthorizeCheck();
       return textOk('账号 MCP 能力与边界见 structuredContent。', capabilities);
     },
     imstage_list_scenes: (args) => {
@@ -405,6 +445,8 @@ function accountCapabilities() {
     extraHandlers,
     webUrlFor,
     sceneIdFactory: () => crypto.randomUUID(),
+    defaultSceneFill: defaultSceneFill,
+    onRenderSuccess,
     authorizeCheck: guardedAuthorizeCheck,
     serverInfo: { name: ACCOUNT_MCP_SERVER_NAME, version: ACCOUNT_MCP_SERVER_VERSION },
     instructions: ACCOUNT_INSTRUCTIONS,

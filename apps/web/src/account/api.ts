@@ -91,7 +91,7 @@ export function apiErrorMessage(code: string | undefined, serverMessage: string 
 let requestIdentity: string | null = null;
 let identityVersion = 0;
 export function bindIdentity(user: User | null) { requestIdentity = user?.id || null; identityVersion++; }
-export async function api<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+export async function api<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal; optional?: boolean } = {}): Promise<T> {
   const startedIdentityVersion = identityVersion;
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -107,7 +107,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       const code = data?.error?.code;
-      if (startedIdentityVersion === identityVersion && response.status === 401 && code !== 'invalid_credentials' && !['/auth/login', '/auth/register'].includes(path)) window.dispatchEvent(new Event('imstage-session-expired'));
+      if (startedIdentityVersion === identityVersion && response.status === 401 && !options.optional && code !== 'invalid_credentials' && !['/auth/login', '/auth/register'].includes(path)) window.dispatchEvent(new Event('imstage-session-expired'));
       throw new ApiError(apiErrorMessage(code, data?.error?.message, apiLocale()), response.status, code);
     }
     if (!data || typeof data !== 'object') throw new ApiError(UNAVAILABLE[apiLocale()]);
@@ -120,9 +120,9 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 }
 export function errorText(error: unknown) { return error instanceof Error ? error.message : GENERIC[apiLocale()]; }
 export function safeNext(value: string | null) {
-  return value && /^\/(workspace|account|studio|create|projects|templates|connect(?:\/authorize)?)(\?[^#]*)?$/.test(value) ? value : '/workspace';
+  return value && /^\/(workspace|account|studio|create|projects|templates|welcome|connect(?:\/authorize)?)(\?[^#]*)?$/.test(value) ? value : '/workspace';
 }
 export function loginLink(next = '/workspace') { return `#/login?next=${encodeURIComponent(safeNext(next))}`; }
 export function clearAccountDrafts(userId: string) {
-  try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(`imstage.account.${userId}.`) || key.startsWith(`imstage.agent.${userId}.`)) sessionStorage.removeItem(key); } catch { /* memory state is cleared by route unmount */ }
+  try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(`imstage.account.${userId}.`) || key.startsWith(`imstage.agent.${userId}.`) || key === `imstage.prefs.draft.${userId}`) sessionStorage.removeItem(key); } catch { /* memory state is cleared by route unmount */ }
 }

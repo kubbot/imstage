@@ -11,6 +11,8 @@
 //   oauth_requests       short-lived pending authorization/consent requests
 //   oauth_codes          hashed, single-use authorization codes
 //   oauth_grants         the connection ("grant family") a token belongs to
+//                        (`tools_discovered_at` records a real `tools/list`
+//                        success so "connected" is never inferred from login)
 //   oauth_tokens         hashed access/refresh tokens, revocable per row
 //   mcp_idempotency      per-user idempotency records for account MCP writes
 //   mcp_renders          per-user deterministic PNG render cache
@@ -72,6 +74,7 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   scopes_json   TEXT NOT NULL,
   created_at    TEXT NOT NULL,
   last_used_at  TEXT,
+  tools_discovered_at TEXT,
   revoked_at    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_grants_user ON oauth_grants(user_id, created_at DESC);
@@ -128,4 +131,11 @@ CREATE INDEX IF NOT EXISTS idx_mcp_renders_user_created ON mcp_renders(user_id, 
  */
 export function installIntegrationSchema(db) {
   db.exec(INTEGRATION_SCHEMA_SQL);
+  // Additive migration for databases created before tool-discovery evidence was
+  // recorded. `last_used_at` only proves the token was validated; the MCP
+  // `tools/list` success is what the UI reports as a fully connected client.
+  const grantColumns = db.prepare('PRAGMA table_info(oauth_grants)').all();
+  if (!grantColumns.some((column) => column.name === 'tools_discovered_at')) {
+    db.exec('ALTER TABLE oauth_grants ADD COLUMN tools_discovered_at TEXT');
+  }
 }
