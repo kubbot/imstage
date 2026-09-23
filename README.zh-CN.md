@@ -1,51 +1,59 @@
 # IMStage
 
-面向 Web、MCP 和 API 的开源聊天场景创作工具。
+创作对话，打磨每一个细节。
 
-**已提供 React 官网、场景编辑器、邮箱密码登录和自托管作品库。任意场景的真实 AI 生成、截图识别、托管云服务与 MCP 尚未接入。**
+[打开 IMStage →](https://imstage.org/?lang=zh) · [English](README.md) · [参与贡献](CONTRIBUTING.md)
 
-[English](README.md) · [产品说明](docs/product-brief.md) · [设计简报](design/BRIEF.md)
+![IMStage：可编辑的微信场景与创作入口](docs/images/landing-zh.png)
 
-## 产品方向
+为产品演示、教学示例和虚构故事制作聊天场景。从想法开始，直接修改画面，再导出需要的成品。
 
-通过对话描述场景，生成可编辑的聊天内容与模拟截图。Web 编辑器和 MCP/API 复用相同的结构化数据与渲染能力，服务于设计、教学、叙事创作及合成评测数据。
+- **直接编辑。** 修改消息、人物、头像、时间和设备状态；支持撤销和独立的本机会话。
+- **用文字创作。** 登录后，让 Agent 生成或修改场景；参考截图可用于重建和局部编辑。
+- **复用创作。** 把可编辑画面存为模板，将姓名和照片设为变量，按项目规则批量生成差异版本；也能定制平台皮肤之外的布局。
+- **导出成品。** 下载普通截图、完整长图或可编辑的 JSON。预览和 PNG 使用同一个渲染器。
+- **接入自己的工具。** 自托管账号 API 与 Agent，或通过认证后的 MCP 服务创建和渲染场景。
 
-计划支持多平台模板、单聊与群聊、人物头像、消息时间与手机状态、图片及定位等消息、普通截图与长截图，以及上传截图后提取结构化内容并继续编辑。
+中文示例使用微信，英文示例使用 WhatsApp。向下滚动，修改一句对白，探索不同人物与照片。**发送并创建**会打开新工作台，登录后执行这次请求。作品、人物、头像和项目设置自动保存；云端同步失败时，本机草稿保留修改。
 
-Web 端计划提供免费使用；托管 MCP/API 计划使用账号绑定的 key 和预付额度。额度、AI 成本、收费能力边界和价格尚未确定。开源自部署属于产品方向。
+## 本地运行
 
-## 运行与验证
-
-在仓库根目录运行，要求 Node.js 22.18+（22.x，已验证 22.23.2）。
+需要 Node.js **22.18–22.x**。
 
 ```sh
 npm ci
-npm run dev       # 同时启动 Web :4417 和账号 API :4419
-npm run build
-npm start         # 构建后以同源服务运行在 :4417，请先停止 dev
-npm test
-npm run test:ui   # 默认使用本机 Google Chrome
+npm run dev
 ```
 
-没有 Chrome 时：`npx playwright install chromium`，再运行 `IMSTAGE_BROWSER=chromium npm run test:ui`。本机测试先用 `dev-storage-guard new-artifact imstage-ui` 创建产物目录，再通过 `IMSTAGE_ARTIFACT_DIR` 指定输出；验收后按存储守卫流程清理。
+打开 [localhost:4417](http://127.0.0.1:4417)。生产构建与启动：
 
-- 登录／注册 `/#/login`、`/#/register`：邮箱密码账号、7 天持久会话。
-- 我的作品 `/#/workspace`：按账号保存、搜索、重开和删除；冲突时保留当前修改。
-- 账号设置 `/#/account`：修改密码并使全部会话失效、退出登录。
-- 官网 `/`：浅色 / 深色 / 跟随系统，默认跟随系统；可试改消息与切换预览平台。
-- 一句话创作 `/#/create`：火星示例分步呈现、停止、精准修改、来源查看和导出；真实生成接口尚待连接。
-- 场景库 `/#/templates`：筛选、搜索与进入模板。
-- 工作台 `/#/studio`：消息编辑、人物、图片、撤销、草稿恢复、PNG 与 JSON 下载。
-- 接入说明 `/#/docs`：真实能力与规划边界。
+```sh
+npm run build
+npm start
+```
 
-普通 PNG 为 360×640 逻辑像素，以 2 倍分辨率导出；长图保留完整内容。免登录草稿只在当前浏览器保存；登录后点击保存的作品写入当前实例 SQLite，按账号隔离。当前未提供 JSON 通用导入。
+使用 Agent 需要在服务端配置模型密钥。手动编辑和 PNG 导出不需要模型密钥。
 
-## 本轮边界
+## 部署与接入
 
-保留 OpenDesign 原稿，在本仓库新增 React + TypeScript + Vite 实现。微信、小红书优先，原稿中的 iMessage / WhatsApp / Slack 选项保留为风格预览。所有平台模板尚未进行具体 App 版本的像素校准；不能把这次前端交付视为真实平台一致性验收。
+官网前端部署在 Vercel，账号、作品保存与 Agent 请求由持久化服务器处理。模型密钥仅保存在服务端。
 
-参见 [输入驱动设计与真实生成边界](design/PROMPT-FIRST.md)、[产品与设计评审](design/REVIEW.md)、[验证记录](design/VERIFICATION.md) 和 [前端发布说明](docs/deployment.md)。账号服务为本机／自托管 Node 进程，不会随静态 Vercel 前端自动部署。未配置 OAuth、邮件验证或邮件找回密码。真实 AI 生成、渲染 API/MCP 和计费仍待实现。详见 [账号与作品库](docs/core-web-auth.md)。
+本机会话保存在当前浏览器。登录后，作品、人物和项目设置修改会自动同步至服务器；发起 AI 请求时，相关场景、附件和指令会发送至配置的模型服务。
 
-## 开源协作
+MCP 使用**管理员配置的实例令牌和独立场景库**，不共用 Web 登录会话或“我的作品”。MCP 批次保存调用方 AI 提供的内容；Web 项目批量任务则调用站内 Agent。按客户分发的商业 API key、计费和邮件密码找回尚未实现。
 
-采用 [MIT License](LICENSE)。提交改动前阅读 [贡献说明](CONTRIBUTING.md)；安全问题通过 [安全报告流程](SECURITY.md) 私下报告。示例素材使用合成或已获授权的内容，生成结果应明确表达模拟属性。
+[模板与批量创作](docs/templates-and-projects.md) · [部署与运维](deploy/README.md) · [账号 API](services/api/README.md) · [Agent 配置](services/agent/README.md) · [MCP 工具](services/mcp/README.md)
+
+## 开发验证
+
+```sh
+npm test
+npm run test:ui  # Playwright，默认使用已安装的 Google Chrome
+```
+
+使用自带 Chromium：先运行 `npx playwright install chromium`，再执行
+`IMSTAGE_BROWSER=chromium npm run test:ui`。开发约定见[贡献指南](CONTRIBUTING.md)。
+
+模板是平台界面的视觉近似，截图重建可能需要手动校正。内置对话与头像均为虚构素材；请使用有权使用的内容，不将生成画面作为真实聊天的证据。
+
+采用 [MIT](LICENSE) 许可证，与所展示的聊天平台无隶属关系。

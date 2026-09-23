@@ -1,69 +1,116 @@
 import { useEffect,useRef,useState } from 'react';
+import { IconPlus, IconSparkles, IconTrash, IconUpload, IconUser, IconX } from '@tabler/icons-react';
 import { errorText } from '../account/api';
 import { runAgent } from '../agent/client';
 import { createScene,type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
-import { retainContacts,useContact,type Contact } from './model';
+import { useCopy } from '../i18n';
+import { retainContacts,useContact,type Contact,type ContactLibrary } from './model';
 import type { useContactLibrary } from './useContactLibrary';
 
 type Props={userId:string;scene:Scene;store:ReturnType<typeof useContactLibrary>;locked:boolean;onChange:(s:Scene)=>void;onBusy:(b:boolean)=>void};
+
+/** Downscale any accepted image to a bounded avatar data URL. */
+async function prepareAvatar(file:File):Promise<string> {
+  const result=await readImageFile(file);
+  if(!result.ok)throw new Error(result.error);
+  const image=new Image();image.src=result.dataUrl;await image.decode();
+  const canvas=document.createElement('canvas');
+  const ratio=Math.min(1,512/Math.max(image.width,image.height));
+  canvas.width=Math.round(image.width*ratio);canvas.height=Math.round(image.height*ratio);
+  canvas.getContext('2d')!.drawImage(image,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/png');
+}
+
 export default function ContactPanel({userId,scene,store,locked,onChange,onBusy}:Props) {
-  const [draft,setDraft]=useState<Contact>({id:crypto.randomUUID(),name:'我',avatar:null});
-  const [portrait,setPortrait]=useState('自然光下的真实摄影头像，简洁背景，轻松的微笑');
+  const copy=useCopy();
+  const [portrait,setPortrait]=useState('');
   const [target,setTarget]=useState(scene.selfId);
+  const [portraitFor,setPortraitFor]=useState('');
   const [error,setError]=useState('');const [notice,setNotice]=useState('');
-  const [generating,setGenerating]=useState(false);const [makeDefault,setMakeDefault]=useState(true);
-  const upload=useRef<HTMLInputElement>(null);const abort=useRef<AbortController|null>(null);
+  const [generating,setGenerating]=useState(false);
+  const [focusId,setFocusId]=useState('');
+  const upload=useRef<HTMLInputElement>(null);const uploadFor=useRef('');
+  const abort=useRef<AbortController|null>(null);
   useEffect(()=>()=>abort.current?.abort(),[]);
   useEffect(()=>{if(!scene.participants.some(p=>p.id===target))setTarget(scene.selfId);},[scene.participants,scene.selfId,target]);
-  const blocked=locked||store.loading||store.saving||generating;
+  const blocked=locked||store.loading||generating;
   const library=store.library;
-  async function action(fn:()=>Promise<unknown>,message:string) {setError('');setNotice('');try{await fn();setNotice(message);}catch(e){setError(errorText(e));}}
-  async function imageFile(file:File) {
-    onBusy(true);setError('');try{const result=await readImageFile(file);if(!result.ok)throw new Error(result.error);const image=new Image();image.src=result.dataUrl;await image.decode();const canvas=document.createElement('canvas');const ratio=Math.min(1,512/Math.max(image.width,image.height));canvas.width=Math.round(image.width*ratio);canvas.height=Math.round(image.height*ratio);canvas.getContext('2d')!.drawImage(image,0,0,canvas.width,canvas.height);setDraft(d=>({...d,avatar:canvas.toDataURL('image/png')}));}catch(e){setError(errorText(e));}finally{onBusy(false);}
+
+  function edit(transform:(library:ContactLibrary)=>ContactLibrary) {
+    setError('');setNotice('');
+    try{store.edit(transform);}catch(e){setError(errorText(e));}
   }
-  async function generatePortrait() {
+  async function pickAvatar(id:string,file:File) {
+    onBusy(true);setError('');
+    try {
+      const avatar=await prepareAvatar(file);
+      edit(l=>({...l,contacts:l.contacts.map(c=>c.id===id?{...c,avatar}:c)}));
+      setNotice(copy.people.localPending);
+    } catch(e){setError(errorText(e));}
+    finally{onBusy(false);}
+  }
+  async function generatePortrait(id:string) {
+    const description=portrait.trim();
+    if(!description){setError(copy.people.describePortrait);return;}
     const ac=new AbortController();abort.current=ac;setGenerating(true);onBusy(true);setError('');setNotice('');
     const timeout=setTimeout(()=>ac.abort(),125000);
     try {
-      const source={...createScene(),id:crypto.randomUUID(),selfId:'portrait',participants:[{id:'portrait',name:draft.name.trim()||'我'}],messages:[]};
+      const contact=library?.contacts.find(c=>c.id===id);
+      const source={...createScene(),id:crypto.randomUUID(),selfId:'portrait',participants:[{id:'portrait',name:contact?.name?.trim()||copy.people.avatar}],messages:[]};
       let avatar:string|undefined;let complete=false;
-      for await(const event of runAgent({scene:source,targetId:'@participant:portrait',prompt:`请调用 generate_image 生成此人物的头像：${portrait}。只更新头像，不更改姓名。`,attachments:[],history:[]},userId,ac.signal)) {
+      for await(const event of runAgent({scene:source,targetId:'@participant:portrait',prompt:`请调用 generate_image 生成此人物的头像：${description}。只更新头像，不更改姓名。`,attachments:[],history:[]},userId,ac.signal)) {
         if(event.type==='scene')avatar=event.scene.participants.find(p=>p.id==='portrait')?.avatar;
         if(event.type==='done')complete=true;
       }
-      if(!complete||!avatar)throw new Error('未收到生成的头像，请重试。');
-      const response=await fetch(avatar);await imageFile(new File([await response.blob()],'avatar.png',{type:'image/png'}));
-      setNotice('头像已生成。保存后可在之后的对话中复用。');
-    }catch(e){setError(ac.signal.aborted?'头像生成已停止。':errorText(e));}
+      if(!complete||!avatar)throw new Error(copy.people.portraitFailed);
+      const response=await fetch(avatar);
+      const dataUrl=await prepareAvatar(new File([await response.blob()],'avatar.png',{type:'image/png'}));
+      edit(l=>({...l,contacts:l.contacts.map(c=>c.id===id?{...c,avatar:dataUrl,subtitle:c.subtitle}:c)}));
+      setNotice(copy.people.portraitGenerated);
+    }catch(e){setError(ac.signal.aborted?copy.people.stopGenerating:errorText(e));}
     finally{clearTimeout(timeout);abort.current=null;setGenerating(false);onBusy(false);}
   }
+  function addPerson() {
+    const contact:Contact={id:crypto.randomUUID(),name:copy.people.newMemberHint,avatar:null};
+    edit(l=>({...l,contacts:[...l.contacts,contact]}));
+    setFocusId(contact.id);setNotice('');
+  }
+  const statusText = store.cacheError ? copy.people.cacheFailed : store.source==='memory' ? copy.people.caching : store.saving ? copy.people.syncing : store.source==='cache' ? copy.people.localPending : library ? copy.people.cloudSynced : '';
   return <div className="contact-panel">
-    <p className="contact-help">保存人物与头像，在每次创作时复用。应用到画面的是独立副本。</p>
-    {store.loading&&<p role="status">正在读取人物库…</p>}
-    {store.error&&<div role="alert">{store.error}<button className="agent-button" disabled={store.saving} onClick={store.reload}>重新读取</button></div>}
+    <p className="contact-help">{copy.people.help}</p>
+    {store.cacheError&&<p role="alert" className="contact-error">{copy.people.cacheFailed}</p>}
+    {store.loading&&<p role="status">{copy.people.reading}</p>}
+    {store.loadError&&<div role="alert" className="contact-error">{copy.people.loadFailed}：{store.loadError}<button className="agent-button" disabled={store.saving} onClick={store.reload}>{copy.people.reload}</button></div>}
+    {store.error&&!store.conflict&&<div role="alert" className="contact-error">{store.error}<button className="agent-button" disabled={store.saving} onClick={store.retry}>{copy.people.retrySave}</button></div>}
+    {store.conflict&&<div role="alert" className="contact-error">{copy.people.conflict} · {copy.people.conflictNotice}<button className="agent-button" disabled={store.saving} onClick={store.retry}>{copy.people.retrySave}</button><button className="agent-button" onClick={()=>void store.resolveWithCloud()}>{copy.people.useCloudVersion}</button></div>}
+    {store.validation&&<p className="contact-validation" role="status">{copy.people.nameInvalid}</p>}
     {library&&<>
-      <label className="contact-check"><input type="checkbox" checked={library.autoSave} disabled={blocked} onChange={e=>void action(()=>store.save(l=>({...l,autoSave:e.target.checked})),'自动保存设置已更新。')}/>生成成功后保存人物与头像</label>
-      <label>应用到画面中的谁<select value={target} disabled={blocked||!!scene.reference} onChange={e=>setTarget(e.target.value)}>{scene.participants.map(p=><option key={p.id} value={p.id}>{p.name}{p.id===scene.selfId?'（我）':''}</option>)}</select></label>
-      <div className="contact-list">{library.contacts.map(c=><article key={c.id} className="contact-row">{c.avatar?<img src={c.avatar} alt={`${c.name}的头像`}/>:<span className="contact-monogram">{c.name.slice(0,1)}</span>}<div><strong>{c.name}</strong><small>{library.selfContactId===c.id?'我的默认人物':c.subtitle||'已保存人物'}</small><div className="contact-actions"><button disabled={blocked||!!scene.reference} onClick={()=>{onChange(useContact(scene,target,c));setNotice(`已应用 ${c.name}，姓名和头像一起更新。`);}}>使用</button><button disabled={blocked} onClick={()=>{setDraft({...c});setMakeDefault(library.selfContactId===c.id);}}>编辑</button><button disabled={blocked} onClick={()=>void action(()=>store.save(l=>({...l,contacts:l.contacts.filter(p=>p.id!==c.id),selfContactId:l.selfContactId===c.id?null:l.selfContactId})),'已从人物库移除，现有画面保持不变。')}>移除</button></div></div></article>)}</div>
-      {!library.contacts.length&&<p className="contact-help">还没有保存的人物。先设置自己的头像，或生成一段聊天。</p>}
-      <button className="agent-button" disabled={blocked||!!scene.reference} onClick={()=>void action(()=>store.save(l=>retainContacts(l,scene.participants)),'当前人物已保存。')}>保存当前对话中的人物</button>
-      {library.selfContactId&&<button className="agent-button" disabled={blocked} onClick={()=>void action(()=>store.save(l=>({...l,selfContactId:null})),'已取消默认人物。')}>取消我的默认人物</button>}
+      <div className="contact-status-row"><label className="contact-check"><input type="checkbox" checked={library.autoSave} disabled={blocked} onChange={e=>edit(l=>({...l,autoSave:e.target.checked}))}/>{copy.people.autoSave}</label><span className="contact-sync" role="status" data-source={store.source}>{statusText}</span></div>
+      <label>{copy.people.applyTo}<select value={target} disabled={blocked||!!scene.reference} onChange={e=>setTarget(e.target.value)}>{scene.participants.map(p=><option key={p.id} value={p.id}>{p.name}{p.id===scene.selfId?copy.people.selfSuffix:''}</option>)}</select></label>
+      <div className="contact-list">{library.contacts.map(c=><article key={c.id} className="contact-row">
+        <button type="button" className="contact-avatar-button" disabled={blocked} aria-label={`${copy.people.upload}：${c.name}`} onClick={()=>{uploadFor.current=c.id;upload.current?.click();}}>{c.avatar?<img src={c.avatar} alt={copy.people.avatarAlt(c.name)}/>:<span className="contact-monogram">{c.name.slice(0,1)||copy.people.noAvatar}</span>}<span className="contact-avatar-edit"><IconUpload size={13}/></span></button>
+        <div className="contact-inline">
+          <input className="contact-name-input" maxLength={100} value={c.name} disabled={blocked} aria-label={`${copy.people.name}：${c.name}`} placeholder={copy.people.name} onChange={e=>{const name=e.target.value;edit(l=>({...l,contacts:l.contacts.map(x=>x.id===c.id?{...x,name}:x)}));}} autoFocus={focusId===c.id}/>
+          <small>{library.selfContactId===c.id?copy.people.defaultPerson:copy.people.savedPerson} · {statusText}</small>
+          <div className="contact-actions">
+            <button disabled={blocked||!!scene.reference} onClick={()=>{onChange(useContact(scene,target,c));setNotice(copy.people.applied(c.name));}}>{copy.people.use}</button>
+            <button disabled={blocked} onClick={()=>edit(l=>({...l,selfContactId:library.selfContactId!==c.id?c.id:null}))}>{library.selfContactId===c.id?copy.people.clearDefault:copy.people.defaultPerson}</button>
+            <button disabled={blocked} aria-label={`${copy.people.generateAvatar}：${c.name}`} onClick={()=>setPortraitFor(portraitFor===c.id?'':c.id)}><IconSparkles size={14}/></button>
+            <button disabled={blocked} aria-label={`${copy.people.remove}：${c.name}`} onClick={()=>edit(l=>({...l,contacts:l.contacts.filter(p=>p.id!==c.id),selfContactId:l.selfContactId===c.id?null:l.selfContactId}))}><IconTrash size={14}/></button>
+          </div>
+        </div>
+      </article>)}</div>
+      {!library.contacts.length&&<p className="contact-help">{copy.people.empty}</p>}
+      <div className="contact-row-actions"><button className="agent-button" disabled={blocked||library.contacts.length>=100} onClick={addPerson}><IconPlus size={15}/>{copy.people.addPerson}</button><button className="agent-button" disabled={blocked||!!scene.reference} onClick={()=>void store.capture(scene.participants)}><IconUser size={15}/>{copy.people.saveCurrent}</button></div>
+      {portraitFor&&library.contacts.some(c=>c.id===portraitFor)&&<div className="contact-portrait">
+        <div className="contact-portrait-head"><strong>{copy.people.generateAvatar}</strong><button className="icon-btn" aria-label={copy.common.close} onClick={()=>setPortraitFor('')}><IconX size={16}/></button></div>
+        <label>{copy.people.describePortrait}<textarea aria-label={copy.people.describePortrait} rows={2} maxLength={1200} value={portrait} onChange={e=>setPortrait(e.target.value)} disabled={generating}/></label>
+        {library.contacts.find(c=>c.id===portraitFor)?.avatar&&<img className="contact-portrait-preview" src={library.contacts.find(c=>c.id===portraitFor)!.avatar!} alt={copy.people.pendingAlt}/>}
+        {generating?<button className="agent-button" onClick={()=>abort.current?.abort()}>{copy.people.stopGenerating}</button>:<button className="agent-button agent-primary" disabled={!portrait.trim()} onClick={()=>void generatePortrait(portraitFor)}>{copy.people.generateAvatar}</button>}
+      </div>}
     </>}
-    <div className="contact-form"><h3>{library?.contacts.some(c=>c.id===draft.id)?'编辑人物':'创建人物'}</h3>
-      <fieldset disabled={blocked}>
-        <label>人物姓名<input maxLength={100} value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))}/></label>
-        <label>备注<input maxLength={200} value={draft.subtitle||''} onChange={e=>setDraft(d=>({...d,subtitle:e.target.value}))}/></label>
-        <div className="contact-avatar-preview">{draft.avatar?<img src={draft.avatar} alt="待保存的头像"/>:<span className="contact-monogram">{draft.name.slice(0,1)||'我'}</span>}<button className="agent-button" onClick={()=>upload.current?.click()}>上传头像</button><button className="agent-button" disabled={!draft.avatar} onClick={()=>setDraft(d=>({...d,avatar:null}))}>清除</button></div>
-        <label>描述想生成的头像<textarea aria-label="描述想生成的头像" rows={3} maxLength={1200} value={portrait} onChange={e=>setPortrait(e.target.value)}/></label>
-        <button className="agent-button" disabled={!portrait.trim()} onClick={()=>void generatePortrait()}>AI 生成头像</button>
-        <label className="contact-check"><input type="checkbox" checked={makeDefault} onChange={e=>setMakeDefault(e.target.checked)}/>作为我的默认人物（新对话自动使用）</label>
-        <button className="agent-button agent-primary" disabled={!library||!draft.name.trim()} onClick={()=>void action(()=>store.save(l=>({...l,contacts:[...l.contacts.filter(c=>c.id!==draft.id),{...draft,name:draft.name.trim()}],selfContactId:makeDefault?draft.id:l.selfContactId===draft.id?null:l.selfContactId})),'人物已保存。新对话会使用默认人物；当前画面可点击“使用”。')}>保存人物</button>
-        <button className="agent-button" onClick={()=>{setDraft({id:crypto.randomUUID(),name:'新人物',avatar:null});setMakeDefault(false);setNotice('');}}>新建另一个人物</button>
-      </fieldset>
-      {generating&&<button className="agent-button" onClick={()=>abort.current?.abort()}>停止生成头像</button>}
-      <input ref={upload} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{if(e.target.files?.[0])void imageFile(e.target.files[0]);e.target.value='';}}/>
-    </div>
+    <input hidden ref={upload} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];if(file&&uploadFor.current)void pickAvatar(uploadFor.current,file);e.target.value='';}}/>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
   </div>;
 }

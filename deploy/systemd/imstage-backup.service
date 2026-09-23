@@ -1,0 +1,6 @@
+[Unit]
+Description=Consistent IMStage SQLite backups
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/imstage/current/deploy/backup.py
+UMask=0077

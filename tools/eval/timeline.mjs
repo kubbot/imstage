@@ -1,0 +1,10 @@
+import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { evaluateAnniversary } from './src/timeline.mjs';
+const fixture = JSON.parse(await fs.readFile(new URL('./fixtures/loan-anniversary.json',import.meta.url),'utf8'));
+const args=process.argv.slice(2);
+const scenePath=args[0];
+const scene=scenePath ? JSON.parse(await fs.readFile(scenePath,'utf8')) : fixture.scene;
+const result=evaluateAnniversary(scene,fixture);
+console.log(JSON.stringify({...result,fixture:fileURLToPath(new URL('./fixtures/loan-anniversary.json',import.meta.url)),source:scenePath||'synthetic fixture'},null,2));
+if(!result.passed)process.exitCode=1;

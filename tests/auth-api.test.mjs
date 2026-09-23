@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createApp, start } from '../services/api/server.mjs';
+import { createApp, start, remoteIp } from '../services/api/server.mjs';
 
 /* ------------------------------------------------------------------ */
 /* Scoped runtime directory                                            */
@@ -843,4 +843,25 @@ test('static symlinks cannot disclose files outside the build directory', async 
   const dir=caseDir('symlink'); const dist=path.join(dir,'dist'); fs.mkdirSync(dist); fs.writeFileSync(path.join(dist,'index.html'),'public');
   const secret=path.join(dir,'private.txt'); fs.writeFileSync(secret,'private'); fs.symlinkSync(secret,path.join(dist,'outside.txt'));
   const {base}=await makeApp({distDir:dist}); const res=await fetch(`${base}/outside.txt`); assert.equal(res.status,404); assert.ok(!(await res.text()).includes('private'));
+});
+
+
+test('forwarded client address requires opt-in, a loopback peer and one valid IP', () => {
+  const req = (peer, value) => ({socket: {remoteAddress: peer}, headers: {'x-real-ip': value}});
+  assert.equal(remoteIp(req('127.0.0.1', '198.51.100.1')), '127.0.0.1');
+  assert.equal(remoteIp(req('192.0.2.1', '198.51.100.1'), true), '192.0.2.1');
+  for (const value of ['198.51.100.1, 198.51.100.2', 'spoof', ['198.51.100.1']]) {
+    assert.equal(remoteIp(req('127.0.0.1', value), true), '127.0.0.1');
+  }
+  assert.equal(remoteIp(req('::ffff:127.0.0.1', '2001:db8::1'), true), '2001:db8::1');
+});
+
+test('one proxied client cannot exhaust a second client auth IP bucket', async () => {
+  const {base} = await makeApp({trustLoopbackProxy: true, rateLimit: {ip: {max: 1}}});
+  const request = (ip) => post(base, '/api/auth/login', {
+    email: uniqueEmail('proxy'), password: 'password-123456',
+  }, {headers: {'x-real-ip': ip}});
+  assert.equal((await request('198.51.100.1')).status, 401);
+  assert.equal((await request('198.51.100.1')).status, 429);
+  assert.equal((await request('198.51.100.2')).status, 401);
 });

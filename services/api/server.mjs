@@ -17,6 +17,7 @@
  */
 
 import http from 'node:http';
+import { isIP } from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,9 +26,19 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
+import { instantiateTemplate } from '../../packages/schema/templates.ts';
 import * as projects from '../projects/index.mjs';
 import * as contacts from '../contacts/index.mjs';
 import {withContactLibrary} from '../contacts/runtime.mjs';
+import {
+  installTemplateSchema,
+  listTemplates,
+  getTemplate,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  TemplateError,
+} from '../templates/store.mjs';
 import {
   AGENT_BODY_LIMIT,
   createAgentLimiter,
@@ -50,7 +61,7 @@ export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, fixed
 export const AUTH_BODY_LIMIT = 16 * 1024; // 16 KiB
 export const SCENE_BODY_LIMIT = 16 * 1024 * 1024; // 16 MiB
 export const PROJECT_BODY_LIMIT = 64 * 1024; // 64 KiB (name + rules)
-export const BATCH_BODY_LIMIT = 256 * 1024; // 256 KiB (10 prompts × 4000 chars)
+export const BATCH_BODY_LIMIT = 16 * 1024 * 1024; // variants may carry bounded embedded images
 /** Contact library: 100 contacts plus local avatars; still strictly bounded. */
 export const CONTACT_BODY_LIMIT = 12 * 1024 * 1024; // 12 MiB
 /** Single source of truth lives in `services/projects/model.mjs`. */
@@ -150,10 +161,16 @@ function normalizeEmail(value) {
   return String(value).trim().toLowerCase();
 }
 
-function remoteIp(req) {
-  // Deliberately ignore X-Forwarded-For / Forwarded: this server is meant to be
-  // bound to loopback, so the socket peer is the trustworthy source.
-  return req.socket?.remoteAddress ?? 'unknown';
+export function remoteIp(req, trustLoopbackProxy = false) {
+  const peer = req.socket?.remoteAddress ?? 'unknown';
+  // Opt-in only: the local reverse proxy MUST overwrite X-Real-IP. Never
+  // interpret arbitrary forwarding chains or accept this from non-loopback.
+  const loopback = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1';
+  const forwarded = req.headers?.['x-real-ip'];
+  if (trustLoopbackProxy && loopback && typeof forwarded === 'string' && isIP(forwarded)) {
+    return forwarded;
+  }
+  return peer;
 }
 
 function isUniqueConstraintError(err) {
@@ -397,11 +414,15 @@ function openDatabase(dbPath) {
 
   // Projects add tables only (no data reset, no scene migration required for
   // existing accounts): scenes associate through `scene_projects`.
-  db.exec(projects.PROJECT_SCHEMA_SQL);
+  projects.installProjectSchema(db);
 
   // Account-scoped contact library. Additive migration only; existing accounts
   // simply read the empty default until they PUT a library.
   db.exec(contacts.CONTACT_SCHEMA_SQL);
+
+  // Reusable templates are account-scoped and stored separately from scenes.
+  // Additive table only: no scene/project migration or rewrite is performed.
+  installTemplateSchema(db);
 
   if (dbPath !== ':memory:') {
     for (const suffix of ['', '-wal', '-shm']) {
@@ -641,7 +662,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError) {
+  if (err instanceof HttpError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof TemplateError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -767,7 +788,7 @@ function rateLimitedError(retryAfterMs) {
 }
 
 function throttleAuth(ctx, req, email) {
-  const ip = remoteIp(req);
+  const ip = remoteIp(req, ctx.config.trustLoopbackProxy);
   const ipResult = ctx.limiters.ip.consume(`ip:${ip}`, ctx.nowMs());
   if (!ipResult.allowed) throw rateLimitedError(ipResult.retryAfterMs);
   const emailKey = normalizeEmail(email).slice(0, 254);
@@ -1294,21 +1315,57 @@ async function handleBatchCreate(ctx, req, res, projectId) {
   const body = await readJsonBody(req, BATCH_BODY_LIMIT, AUTH_DEADLINE_MS);
   const project = projects.getProjectContext(ctx.db, session.user.id, projectId);
   if (!project) throw new HttpError(404, 'not_found', '项目不存在');
-  const tasks = projects.buildBatchTasks(body, project.platform);
   const clientBatchId = projects.validateClientBatchId(body.clientBatchId);
 
-  if (!ctx.agent.runtime.capabilities.configured) {
-    throw new HttpError(503, 'ai_not_configured', 'AI 服务尚未配置，无法运行批量生成');
-  }
-
-  // Idempotent submit: a retried request with the same key returns the job
-  // created by the first (possibly timed-out) request instead of duplicating it.
+  // Idempotent submit is resolved *before* current-template/new-job validation:
+  // a retried request with the same bounded key returns the job created by the
+  // first attempt even if the template was later updated or deleted, so queued
+  // frozen work is never lost to a new validation pass.
   if (clientBatchId) {
     const existing = projects.findJobByClientId(ctx.db, session.user.id, projectId, clientBatchId);
     if (existing) {
       sendJson(req, res, 200, { item: projects.jobDetail(ctx.db, existing), deduplicated: true });
       return;
     }
+  }
+
+  const tasks = projects.buildBatchTasks(body, project.platform);
+
+  // Freeze an optional reusable template and validate every item's variables
+  // against it *before* any job/task row is written.
+  let template = null;
+  const rawTemplateId = body.templateId;
+  if (rawTemplateId !== undefined && rawTemplateId !== null && rawTemplateId !== '') {
+    const detail = getTemplate(ctx.db, session.user.id, rawTemplateId);
+    if (body.templateRevision !== undefined && body.templateRevision !== null) {
+      if (!Number.isSafeInteger(body.templateRevision) || body.templateRevision < 1) {
+        throw new HttpError(400, 'invalid_revision', 'templateRevision 必须是正整数');
+      }
+      if (body.templateRevision !== detail.revision) {
+        throw new HttpError(409, 'revision_conflict', '模板已更新，请刷新后重新提交');
+      }
+    }
+    for (const task of tasks) {
+      const values = task.values ?? {};
+      if (Object.keys(values).length === 0) continue;
+      const checked = instantiateTemplate(detail.definition, values, crypto.randomUUID());
+      if (!checked.ok) {
+        throw new HttpError(400, 'invalid_values', `变体「${task.name || task.prompt.slice(0, 20)}」的变量不合法：${checked.errors.slice(0, 3).join('；')}`);
+      }
+    }
+    // A screenshot-reference template renders the source image and its edit
+    // layer; it cannot be converted to another platform by switching labels.
+    const sourcePlatform = detail.definition.scene.reference?.plan?.im;
+    if (sourcePlatform && tasks.some((task) => task.platform !== sourcePlatform)) {
+      throw new HttpError(400, 'reference_platform_mismatch', `保留原截图的模板只能使用源平台（${sourcePlatform}）生成，不能切换到其他平台。`);
+    }
+    template = { id: detail.id, revision: detail.revision, definition: detail.definition };
+  } else if (tasks.some((task) => Object.keys(task.values ?? {}).length > 0)) {
+    throw new HttpError(400, 'invalid_variants', '提供变量值时必须同时指定 templateId');
+  }
+
+  if (!ctx.agent.runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务尚未配置，无法运行批量生成');
   }
 
   if (projects.countActiveJobs(ctx.db, session.user.id) >= projects.MAX_ACTIVE_BATCH_JOBS) {
@@ -1325,6 +1382,7 @@ async function handleBatchCreate(ctx, req, res, projectId) {
       rules: project.rules,
       tasks,
       clientBatchId,
+      template,
       nowMs: ctx.nowMs(),
     });
   } catch (err) {
@@ -1385,6 +1443,75 @@ async function handleBatchRetry(ctx, req, res, projectId, jobId) {
   ctx.projects.queue.start();
   ctx.projects.queue.wake();
   sendJson(req, res, 200, { item });
+}
+
+/* ------------------------------------------------------------------ */
+/* Template routes                                                     */
+/* ------------------------------------------------------------------ */
+
+function templateDefinitionFrom(body) {
+  if (body.template !== undefined) return body.template;
+  const rest = { ...body };
+  delete rest.revision;
+  return rest;
+}
+
+function handleTemplateList(ctx, req, res) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { items: listTemplates(ctx.db, session.user.id) });
+}
+
+function handleTemplateGet(ctx, req, res, templateId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { item: getTemplate(ctx.db, session.user.id, templateId) });
+}
+
+async function handleTemplateCreate(ctx, req, res) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, SCENE_BODY_LIMIT, SCENE_DEADLINE_MS);
+  const definition = templateDefinitionFrom(body);
+  recheckSession(ctx, req, session);
+  const item = createTemplate(ctx.db, session.user.id, definition);
+  sendJson(req, res, 200, { item });
+}
+
+async function handleTemplateUpdate(ctx, req, res, templateId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, SCENE_BODY_LIMIT, SCENE_DEADLINE_MS);
+  const definition = templateDefinitionFrom(body);
+  recheckSession(ctx, req, session);
+  const item = updateTemplate(ctx.db, session.user.id, templateId, body.revision, definition);
+  sendJson(req, res, 200, { item });
+}
+
+async function handleTemplateDelete(ctx, req, res, templateId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const result = deleteTemplate(ctx.db, session.user.id, templateId, body.revision);
+  sendJson(req, res, 200, { ok: true, id: result.id });
+}
+
+async function handleTemplateInstantiate(ctx, req, res, templateId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, SCENE_BODY_LIMIT, SCENE_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  // Ownership is checked by the owner-scoped store read; a foreign id never
+  // leaks and instantiating never writes the template or a cloud scene.
+  const detail = getTemplate(ctx.db, session.user.id, templateId);
+  const result = instantiateTemplate(detail.definition, body.values ?? {}, crypto.randomUUID());
+  if (!result.ok) {
+    throw new HttpError(400, 'invalid_values', `变量不合法：${result.errors.slice(0, 3).join('；')}`);
+  }
+  sendJson(req, res, 200, { scene: result.value, templateId: detail.id, templateRevision: detail.revision, mode: detail.mode });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1699,6 +1826,43 @@ async function route(ctx, req, res) {
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
   }
 
+  if (pathname === '/api/templates') {
+    if (method === 'GET') {
+      handleTemplateList(ctx, req, res);
+      return;
+    }
+    if (method === 'POST') {
+      await handleTemplateCreate(ctx, req, res);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const templateInstantiateMatch = /^\/api\/templates\/([^/]+)\/instantiate$/.exec(pathname);
+  if (templateInstantiateMatch) {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleTemplateInstantiate(ctx, req, res, templateInstantiateMatch[1]);
+    return;
+  }
+
+  const templateMatch = /^\/api\/templates\/([^/]+)$/.exec(pathname);
+  if (templateMatch) {
+    const templateId = templateMatch[1];
+    if (method === 'GET') {
+      handleTemplateGet(ctx, req, res, templateId);
+      return;
+    }
+    if (method === 'PUT') {
+      await handleTemplateUpdate(ctx, req, res, templateId);
+      return;
+    }
+    if (method === 'DELETE') {
+      await handleTemplateDelete(ctx, req, res, templateId);
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
   if (pathname === '/api/scenes') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     handleSceneList(ctx, req, res);
@@ -1830,6 +1994,7 @@ function resolveConfig(options) {
     distDir,
     distRoot,
     nodeEnv,
+    trustLoopbackProxy: options.trustLoopbackProxy === true || env.IMSTAGE_TRUST_LOOPBACK_PROXY === '1',
     secureCookie: originUrl.protocol === 'https:',
     now,
     nowMs,

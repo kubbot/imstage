@@ -1,0 +1,67 @@
+{
+  "verifiedAt": "2026-09-21T15:11:07.739Z",
+  "host": "local official MCP SDK client",
+  "chatgpt": false,
+  "sceneId": "scn_eee08da5798b7bcca55d3fdc109cc35c",
+  "revisions": [
+    1,
+    2,
+    3
+  ],
+  "unchangedElementsPreserved": true,
+  "historyPreserved": true,
+  "downloadResourceVerified": true,
+  "renders": [
+    {
+      "sceneId": "scn_eee08da5798b7bcca55d3fdc109cc35c",
+      "revision": 1,
+      "renderId": "rnd_09ab5e967bdedc59332d7320662a2ffa",
+      "title": "周六咖啡约定",
+      "platform": "wechat",
+      "surface": "ios",
+      "outputKind": "long-screenshot",
+      "width": 390,
+      "height": 640,
+      "bytes": 25758,
+      "sha256": "a238ebd5b2c29354f9d4d9c303f5577c30274214d36b92974c8ac72af332f442",
+      "rendererVersion": "studio-32523b0-v1",
+      "widgetUri": "ui://imstage/render-scene.html",
+      "downloadUri": "imstage://renders/rnd_09ab5e967bdedc59332d7320662a2ffa.png",
+      "ephemeral": false
+    },
+    {
+      "sceneId": "scn_eee08da5798b7bcca55d3fdc109cc35c",
+      "revision": 2,
+      "renderId": "rnd_b95e8d7272d4521a744ca5ae6d9dff03",
+      "title": "周六咖啡约定",
+      "platform": "wechat",
+      "surface": "ios",
+      "outputKind": "long-screenshot",
+      "width": 390,
+      "height": 640,
+      "bytes": 26131,
+      "sha256": "feaef7c0e57c68a75370002cd86d3d9f6d74ec781bbddabab4fd61509164c6b1",
+      "rendererVersion": "studio-32523b0-v1",
+      "widgetUri": "ui://imstage/render-scene.html",
+      "downloadUri": "imstage://renders/rnd_b95e8d7272d4521a744ca5ae6d9dff03.png",
+      "ephemeral": false
+    },
+    {
+      "sceneId": "scn_eee08da5798b7bcca55d3fdc109cc35c",
+      "revision": 3,
+      "renderId": "rnd_347e10f92ea0c468a693e7c70c78b7a0",
+      "title": "周六咖啡约定",
+      "platform": "whatsapp",
+      "surface": "ios",
+      "outputKind": "long-screenshot",
+      "width": 390,
+      "height": 640,
+      "bytes": 44824,
+      "sha256": "a39034bd9e1118e23a73bf75303a303d8978a3a999a75f9f3b3f4098c9a4b177",
+      "rendererVersion": "studio-32523b0-v1",
+      "widgetUri": "ui://imstage/render-scene.html",
+      "downloadUri": "imstage://renders/rnd_347e10f92ea0c468a693e7c70c78b7a0.png",
+      "ephemeral": false
+    }
+  ]
+}

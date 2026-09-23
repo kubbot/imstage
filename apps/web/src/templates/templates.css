@@ -1,0 +1,48 @@
+/* Reusable template library + save dialog. Compact, reuses workspace shell. */
+
+.templates-shell .workspace-content { gap: 14px; }
+.templates-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: start; }
+.template-panel { border: 1px solid var(--line, #e4e2dd); border-radius: 12px; padding: 14px; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 9px; }
+.template-panel h2 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; }
+.template-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.template-panel input, .template-panel select, .template-panel textarea { font: inherit; font-size: 13px; padding: 7px 9px; border: 1px solid var(--line, #e4e2dd); border-radius: 8px; background: var(--surface, #fff); color: inherit; }
+.template-muted { margin: 0; font-size: 12px; color: var(--ink-soft, #6b7280); line-height: 1.5; }
+.template-list-actions { display: flex; gap: 12px; }
+.template-variable-list { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; }
+.template-variable-list legend { font-size: 12px; font-weight: 600; display: flex; gap: 8px; }
+.template-variable-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.template-variable-row small { font-size: 11px; color: var(--ink-soft, #6b7280); }
+.template-check { flex-direction: row !important; align-items: center; gap: 6px !important; }
+.template-modes { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; }
+.template-modes legend { font-size: 12px; font-weight: 600; }
+.template-shot { width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; background: #f3f3f1; }
+.template-examples { display: flex; flex-wrap: wrap; gap: 7px; }
+.templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.template-card { border: 1px solid var(--line, #e4e2dd); border-radius: 12px; padding: 13px; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 10px; }
+.template-card-body { display: flex; flex-direction: column; gap: 3px; }
+.template-card-body small { font-size: 11px; color: var(--ink-soft, #6b7280); }
+.template-card-body p { margin: 4px 0 0; font-size: 12px; color: var(--ink-soft, #6b7280); }
+.template-card-actions { display: flex; align-items: center; gap: 6px; }
+.template-card-actions .btn-primary { flex: 1; justify-content: center; display: inline-flex; align-items: center; gap: 6px; }
+.templates-hint { margin-top: 4px; }
+.template-notice { margin: 0; font-size: 12px; color: #1c7c43; }
+.template-saved { margin: 0; font-size: 12px; color: #1c7c43; }
+.template-dialog { max-width: min(560px, 94vw); }
+.template-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.template-dialog header h2 { margin: 0; font-size: 16px; }
+.template-dialog-note { margin: 0; font-size: 12px; color: var(--ink-soft, #6b7280); }
+.template-dialog label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; margin: 8px 0; }
+.template-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.template-dialog .template-variable { display: flex; grid-auto-flow: column; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; }
+.template-dialog .template-variable small { color: var(--ink-soft, #6b7280); }
+
+.templates-columns { margin-top: 28px; }
+.templates-shell .workspace-library-heading { margin-top: 18px; }
+.template-panel, .template-card { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .templates-shell .workspace-sidebar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 10px 12px; }
+  .templates-shell .workspace-nav { width: auto; min-width: 0; padding: 8px 3px; white-space: normal; text-align: center; font-size: 11px; line-height: 1.4; }
+}
+@media (max-width: 360px) {
+  .templates-columns, .templates-grid { grid-template-columns: minmax(0, 1fr); }
+}

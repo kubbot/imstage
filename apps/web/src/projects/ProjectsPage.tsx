@@ -5,7 +5,6 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
-  IconDeviceFloppy,
   IconFolder,
   IconLayoutGrid,
   IconLoader2,
@@ -24,33 +23,21 @@ import {
   type BatchTask,
   type Project,
   type SceneSummary,
+  type TemplateDetail,
+  type TemplateSummary,
 } from '../account/api';
-import { PLATFORMS, PLATFORM_LABELS, type Platform } from '../studio/model';
+import { PLATFORMS, type Platform } from '../studio/model';
+import { readImageFile } from '../studio/storage';
+import { useAuth } from '../account/Auth';
+import { useCopy } from '../i18n';
+import { useProjectAutosave } from './useProjectAutosave';
 import './projects.css';
 
 const MAX_PROMPTS = 10;
+const MAX_VARIANTS = 10;
 const MAX_ITEMS = 20;
 const POLL_MS = 2_000;
 const TERMINAL_JOB_STATUSES: BatchJob['status'][] = ['done', 'partial', 'failed', 'cancelled', 'interrupted'];
-
-const JOB_STATUS_LABELS: Record<BatchJob['status'], string> = {
-  queued: '排队中',
-  running: '生成中',
-  done: '已完成',
-  partial: '部分完成',
-  failed: '失败',
-  cancelled: '已取消',
-  interrupted: '已中断',
-};
-
-const TASK_STATUS_LABELS: Record<BatchTask['status'], string> = {
-  queued: '等待中',
-  running: '生成中',
-  done: '已保存',
-  failed: '失败',
-  cancelled: '已取消',
-  interrupted: '已中断',
-};
 
 function isTerminal(status: BatchJob['status']) {
   return TERMINAL_JOB_STATUSES.includes(status);
@@ -71,6 +58,7 @@ export default function ProjectsPage({ projectId }: { projectId?: string }) {
 }
 
 function ProjectList() {
+  const PLATFORM_LABELS = useCopy().platforms;
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -81,6 +69,8 @@ function ProjectList() {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const p = useCopy().projects;
+  const a = useCopy().account;
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -145,25 +135,25 @@ function ProjectList() {
     <div className="projects-shell">
       <header className="projects-heading">
         <div>
-          <span className="account-kicker">PROJECTS</span>
-          <h1>项目与批量生成</h1>
-          <p>为一个主题保存规则和默认平台，一次生成最多 {MAX_ITEMS} 个新作品。</p>
+          <span className="account-kicker">{p.listKicker}</span>
+          <h1>{p.listTitle}</h1>
+          <p>{p.listLede}</p>
         </div>
       </header>
 
       <form className="project-create" onSubmit={create}>
-        <h2>新建项目</h2>
+        <h2>{p.newProject}</h2>
         <label>
-          项目名称
+          {p.nameLabel}
           <input
             value={name}
             maxLength={80}
-            placeholder="例如：秋季新品发布"
+            placeholder={p.namePlaceholder}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
         <label>
-          默认平台
+          {p.platformLabel}
           <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
             {PLATFORMS.map((value) => (
               <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
@@ -171,50 +161,50 @@ function ProjectList() {
           </select>
         </label>
         <label>
-          项目规则（可选，最多 4000 字）
+          {p.rulesLabel}
           <textarea
             value={rules}
             maxLength={4000}
             rows={3}
-            placeholder="例如：保持轻松语气，只写中文，不要出现真实品牌。"
+            placeholder={p.rulesPlaceholder}
             onChange={(event) => setRules(event.target.value)}
           />
         </label>
         <button className="btn btn-primary" disabled={busy || name.trim() === ''}>
           {busy ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
-          {busy ? '正在创建…' : '创建项目'}
+          {busy ? p.creating : p.create}
         </button>
       </form>
 
       {error && (
         <div role="alert" className="account-error projects-error">
-          {error} <button onClick={() => setReload(reload + 1)}>重新加载</button>
+          {error} <button onClick={() => setReload(reload + 1)}>{p.reload}</button>
         </div>
       )}
 
       {loading ? (
-        <p role="status" className="page-loading">正在读取项目…</p>
+        <p role="status" className="page-loading">{p.loading}</p>
       ) : !items.length ? (
         <div className="workspace-empty">
           <IconFolder size={30} />
-          <h3>还没有项目</h3>
-          <p>先创建一个项目，把场景灵感和项目规则放在一起。</p>
+          <h3>{p.emptyTitle}</h3>
+          <p>{p.emptyBody}</p>
         </div>
       ) : (
         <div className="projects-grid">
           {items.map((item) => (
             <article key={item.id} className="project-card">
-              <a href={`#/projects?project=${encodeURIComponent(item.id)}`} aria-label={`打开项目 ${item.name}`}>
+              <a href={`#/projects?project=${encodeURIComponent(item.id)}`} aria-label={`${p.open} ${item.name}`}>
                 <div className="project-card-body">
                   <IconFolder size={26} stroke={1.4} />
                   <strong>{item.name}</strong>
-                  <small>{PLATFORM_LABELS[item.platform]} · {item.sceneCount} 个作品</small>
-                  <p>{item.rules.trim() ? item.rules.trim().slice(0, 80) : '未设置项目规则'}</p>
+                  <small>{PLATFORM_LABELS[item.platform]} · {p.sceneCount(item.sceneCount)}</small>
+                  <p>{item.rules.trim() ? item.rules.trim().slice(0, 80) : p.noRules}</p>
                 </div>
               </a>
               <button
                 className="icon-btn project-delete"
-                aria-label={`删除项目 ${item.name}`}
+                aria-label={`${p.delete} ${item.name}`}
                 onClick={() => setSelected(item)}
               >
                 <IconTrash size={17} />
@@ -224,7 +214,7 @@ function ProjectList() {
         </div>
       )}
 
-      <p className="projects-back"><a className="text-link" href="#/workspace"><IconArrowLeft size={15} /> 返回我的作品</a></p>
+      <p className="projects-back"><a className="text-link" href="#/workspace"><IconArrowLeft size={15} /> {a.backWorks}</a></p>
 
       <dialog
         ref={dialog}
@@ -234,15 +224,14 @@ function ProjectList() {
           else setSelected(null);
         }}
       >
-        <h2>删除项目「{selected?.name}」？</h2>
+        <h2>{p.deleteTitle}</h2>
         <p>
-          项目会被永久删除，其中关联的 {selected?.sceneCount ?? 0} 个作品会保留在「我的作品」中，只解除关联。
-          进行中的批量生成会同时取消。
+          {p.deleteConfirm} {p.cancelWarning}
         </p>
         <div>
-          <button className="btn btn-secondary" disabled={deleting} onClick={() => setSelected(null)}>保留项目</button>
+          <button className="btn btn-secondary" disabled={deleting} onClick={() => setSelected(null)}>{p.keep}</button>
           <button className="btn btn-primary" disabled={deleting} onClick={remove}>
-            {deleting ? '正在删除…' : '确认删除项目'}
+            {deleting ? p.deleting : p.confirmDelete}
           </button>
         </div>
       </dialog>
@@ -255,18 +244,15 @@ function ProjectList() {
 /* ------------------------------------------------------------------ */
 
 function ProjectDetail({ projectId }: { projectId: string }) {
+  const PLATFORM_LABELS = useCopy().platforms;
+  const platformLabel = (im: string | undefined) => (im && PLATFORM_LABELS[im as Platform]) || im || "";
+  const { user } = useAuth();
   const [item, setItem] = useState<Project | null>(null);
   const [scenes, setScenes] = useState<SceneSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-  const [name, setName] = useState('');
-  const [rules, setRules] = useState('');
-  const [platform, setPlatform] = useState<Platform>('wechat');
-  const [saved, setSaved] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const [conflict, setConflict] = useState(false);
+  const [remote, setRemote] = useState<Project | null>(null);
 
   const [available, setAvailable] = useState<SceneSummary[]>([]);
   const [attachId, setAttachId] = useState('');
@@ -276,15 +262,28 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [job, setJob] = useState<BatchJob | null>(null);
   const [promptsText, setPromptsText] = useState('');
+  const [batchMode, setBatchMode] = useState<'prompts' | 'variants'>('prompts');
+  const [variants, setVariants] = useState<{ id: string; name: string; prompt: string; values: Record<string, string> }[]>(() => [{ id: crypto.randomUUID(), name: '', prompt: '', values: {} }]);
+  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [templateDetail, setTemplateDetail] = useState<TemplateDetail | null>(null);
+  const selectedTemplate = useRef(templateId); selectedTemplate.current = templateId;
   const [platforms, setPlatforms] = useState<Platform[]>(['wechat']);
   const [submitting, setSubmitting] = useState(false);
   const [batchError, setBatchError] = useState('');
   const clientBatchId = useRef('');
   const lastJobStatus = useRef('');
-  const initializedProject=useRef('');
-  const dirtyRef=useRef(false);dirtyRef.current=Boolean(item)&&saved!==JSON.stringify({name,rules,platform});
   const retrying=useRef(false);
   const [retryBusy,setRetryBusy]=useState(false);
+  const p = useCopy().projects;
+  const a = useCopy().account;
+  const autosave = useProjectAutosave({
+    userId: user?.id,
+    projectId,
+    remote,
+    onReload: () => setReload((value) => value + 1),
+  });
+  const projectKey = item?.id ?? projectId;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -296,14 +295,9 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       .then((data) => {
         if (controller.signal.aborted) return;
         setScenes(data.scenes);
-        if (initializedProject.current===projectId && dirtyRef.current) return;
-        initializedProject.current=projectId;
-        setItem(data.item);
-        setName(data.item.name);
-        setRules(data.item.rules);
-        setPlatform(data.item.platform);
         setPlatforms([data.item.platform]);
-        setSaved(JSON.stringify({ name: data.item.name, rules: data.item.rules, platform: data.item.platform }));
+        setItem(data.item);
+        setRemote(data.item);
       })
       .catch((err) => {
         if (!controller.signal.aborted) setError(errorText(err));
@@ -323,6 +317,36 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       .catch(() => { /* the attach picker is optional */ });
     return () => controller.abort();
   }, [reload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api<{ items: TemplateSummary[] }>('/templates', { signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted) setTemplates(data.items);
+      })
+      .catch(() => { /* template reuse is optional; legacy batches still work */ });
+    return () => controller.abort();
+  }, [reload]);
+
+  // Load the declared variables of the selected template so each variant can
+  // carry explicit typed values. The revision is captured at submit time.
+  useEffect(() => {
+    setTemplateDetail(null);
+    setVariants(current => current.map(variant => ({...variant, values:{}})));
+    if (!templateId) return undefined;
+    const controller = new AbortController();
+    api<{ item: TemplateDetail }>(`/templates/${encodeURIComponent(templateId)}`, { signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setTemplateDetail(data.item);
+        // A reference template cannot be rendered on another platform, so pin
+        // the selection to its source platform instead of silently converting.
+        const source = data.item.definition.scene.reference?.plan?.im;
+        if (source && PLATFORMS.includes(source as Platform)) setPlatforms([source as Platform]);
+      })
+      .catch((err) => { if (!controller.signal.aborted) setBatchError(errorText(err)); });
+    return () => controller.abort();
+  }, [templateId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -370,38 +394,49 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     }
   }, [job]);
 
-  const dirty = Boolean(item) && saved !== JSON.stringify({ name, rules, platform });
-  useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
-  useEffect(()=>dirty?setNavigationGuard(()=>window.confirm('项目规则尚未保存，离开会丢失修改，确定离开？')):undefined,[dirty]);
+  // Local input is only guarded when the cache is unavailable and cloud has not
+  // caught up; otherwise a reload recovers the draft from the tab cache.
+  const guardLocalDraft = autosave.cacheFailed && autosave.dirty;
+  useEffect(() => {
+    if (!guardLocalDraft) return undefined;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [guardLocalDraft]);
+  useEffect(() => (guardLocalDraft ? setNavigationGuard(() => window.confirm(p.leaveConfirm)) : undefined), [guardLocalDraft, p.leaveConfirm]);
   const attachedIds = useMemo(() => new Set(scenes.map((scene) => scene.id)), [scenes]);
   const attachable = useMemo(() => available.filter((scene) => !attachedIds.has(scene.id)), [available, attachedIds]);
 
   const promptLines = promptsText.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
   const totalItems = promptLines.length * platforms.length;
+  const batchItems = batchMode === 'variants' ? variants.length * platforms.length : totalItems;
+  const templateReady = !templateId || templateDetail?.id === templateId;
+  const templateVariables = templateReady ? templateDetail?.definition.variables ?? [] : [];
 
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    if (busy || !item || !dirty) return;
-    setBusy(true);
-    setStatus('');
-    try {
-      const data = await api<{ item: Project }>(`/projects/${item.id}`, {
-        method: 'PUT',
-        body: { name, rules, platform, revision: item.revision },
-      });
-      setItem(data.item);
-      setName(data.item.name);
-      setRules(data.item.rules);
-      setPlatform(data.item.platform);
-      setSaved(JSON.stringify({ name: data.item.name, rules: data.item.rules, platform: data.item.platform }));
-      setConflict(false);
-      setStatus('已保存项目设置');
-    } catch (err) {
-      setStatus(errorText(err));
-      setConflict(err instanceof ApiError && err.status === 409);
-    } finally {
-      setBusy(false);
-    }
+  function updateVariant(id: string, patch: Partial<{ name: string; prompt: string; values: Record<string, string> }>) {
+    setVariants(current => current.map(variant => (variant.id === id ? { ...variant, ...patch } : variant)));
+  }
+  function setVariantValue(id: string, key: string, value: string) {
+    setVariants(current => current.map(variant => (variant.id === id ? { ...variant, values: { ...variant.values, [key]: value } } : variant)));
+  }
+  async function readVariantImage(id: string, key: string, file: File | undefined) {
+    if (!file) return;
+    const targetTemplate = templateId;
+    const result = await readImageFile(file);
+    if (selectedTemplate.current !== targetTemplate) return;
+    if (!result.ok) { setBatchError(result.error); return; }
+    setVariantValue(id, key, result.dataUrl);
+  }
+
+  const autosaveLabel = autosave.status === 'local' ? p.autosaveLocal
+    : autosave.status === 'saving' ? p.autosaveSaving
+      : autosave.status === 'conflict' ? p.autosaveConflict
+        : autosave.status === 'error' ? p.autosaveError
+          : p.autosaveSaved;
+
+  function discardLocal() {
+    if (!window.confirm(p.reloadConfirm)) return;
+    autosave.discardLocal();
   }
 
   async function attach(event: FormEvent) {
@@ -410,7 +445,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     setAttaching(true);
     setError('');
     try {
-      await api(`/projects/${item?.id}/scenes`, { method: 'POST', body: { sceneId: attachId } });
+      await api(`/projects/${encodeURIComponent(projectKey)}/scenes`, { method: 'POST', body: { sceneId: attachId } });
       setAttachId('');
       setReload((value) => value + 1);
     } catch (err) {
@@ -424,7 +459,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (detachingId) return;
     setDetachingId(sceneId);
     try {
-      await api(`/projects/${item?.id}/scenes/${sceneId}`, { method: 'DELETE', body: {} });
+      await api(`/projects/${encodeURIComponent(projectKey)}/scenes/${sceneId}`, { method: 'DELETE', body: {} });
       setScenes((current) => current.filter((scene) => scene.id !== sceneId));
     } catch (err) {
       setError(errorText(err));
@@ -439,39 +474,59 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   async function startBatch(event: FormEvent) {
     event.preventDefault();
-    if (submitting) return;
-    if (promptLines.length === 0) {
-      setBatchError('请至少输入 1 条提示词，每行一条。');
-      return;
-    }
-    if (promptLines.length > MAX_PROMPTS) {
-      setBatchError(`最多 ${MAX_PROMPTS} 条提示词。`);
+    if (submitting || !templateReady) return;
+    // The stored rules are only safe once every edit has been acknowledged.
+    if (autosave.syncBlocked) {
+      setBatchError(p.batchBlockedSync);
       return;
     }
     if (platforms.length === 0) {
-      setBatchError('请至少选择一个平台。');
+      setBatchError(p.needPlatform);
       return;
     }
-    if (totalItems > MAX_ITEMS) {
-      setBatchError(`一次最多 ${MAX_ITEMS} 个作品（提示词 × 平台）。`);
-      return;
+    let payload: Record<string, unknown>;
+    if (batchMode === 'variants') {
+      const cleaned = variants.map(variant => {
+        const values: Record<string, string> = {};
+        if (templateId) {
+          for (const [key, value] of Object.entries(variant.values)) if (value.trim() !== '') values[key] = value;
+        }
+        return { name: variant.name.trim(), prompt: variant.prompt.trim(), values };
+      });
+      if (cleaned.length === 0 || cleaned.length > MAX_VARIANTS) { setBatchError(p.maxVariants(MAX_VARIANTS)); return; }
+      if (cleaned.some(variant => variant.name === '')) { setBatchError(p.needVariantName); return; }
+      if (cleaned.some(variant => variant.prompt === '')) { setBatchError(p.needVariantPrompt); return; }
+      if (cleaned.length * platforms.length > MAX_ITEMS) { setBatchError(p.maxItems(MAX_ITEMS)); return; }
+      payload = { variants: cleaned, platforms };
+    } else {
+      if (promptLines.length === 0) { setBatchError(p.needPrompt); return; }
+      if (promptLines.length > MAX_PROMPTS) { setBatchError(p.maxPrompts(MAX_PROMPTS)); return; }
+      if (totalItems > MAX_ITEMS) { setBatchError(p.maxItems(MAX_ITEMS)); return; }
+      payload = { prompts: promptLines, platforms };
+    }
+    if (templateId) {
+      payload.templateId = templateId;
+      payload.templateRevision = templateDetail?.revision ?? undefined;
     }
     // One stable key per submit attempt: a timed-out retry returns the same job
     // instead of creating duplicates.
     if (!clientBatchId.current) clientBatchId.current = crypto.randomUUID();
+    payload.clientBatchId = clientBatchId.current;
     setSubmitting(true);
     setBatchError('');
     try {
-      const data = await api<{ item: BatchJob }>(`/projects/${item?.id}/batch-jobs`, {
+      const data = await api<{ item: BatchJob }>(`/projects/${encodeURIComponent(projectKey)}/batch-jobs`, {
         method: 'POST',
-        body: { prompts: promptLines, platforms, clientBatchId: clientBatchId.current },
+        body: payload,
       });
       clientBatchId.current = '';
       lastJobStatus.current = '';
       setJob(data.item);
       setJobs((current) => [data.item, ...current.filter((entry) => entry.id !== data.item.id)]);
     } catch (err) {
-      setBatchError(errorText(err));
+      setBatchError(err instanceof ApiError && err.code === 'reference_platform_mismatch'
+        ? p.platformMismatch(platformLabel(templateDetail?.definition.scene.reference?.plan?.im))
+        : errorText(err));
     } finally {
       setSubmitting(false);
     }
@@ -481,7 +536,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (!job) return;
     try {
       const data = await api<{ item: BatchJob }>(
-        `/projects/${item?.id}/batch-jobs/${job.id}/cancel`,
+        `/projects/${encodeURIComponent(projectKey)}/batch-jobs/${job.id}/cancel`,
         { method: 'POST', body: {} },
       );
       setJob(data.item);
@@ -494,7 +549,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     if (!job || retrying.current) return;retrying.current=true;setRetryBusy(true);
     try {
       const data = await api<{ item: BatchJob }>(
-        `/projects/${item?.id}/batch-jobs/${job.id}/retry`,
+        `/projects/${encodeURIComponent(projectKey)}/batch-jobs/${job.id}/retry`,
         { method: 'POST', body: {} },
       );
       lastJobStatus.current = '';
@@ -505,13 +560,13 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     } finally {retrying.current=false;setRetryBusy(false);}
   }
 
-  if (loading && !item) return <p role="status" className="page-loading">正在打开项目…</p>;
-  if (!item) {
+  if (loading && !item && !autosave.recovered) return <p role="status" className="page-loading">{p.loading}</p>;
+  if (!item && !autosave.recovered) {
     return (
       <section className="account-gate">
-        <h1>暂时打不开这个项目</h1>
-        <p role="alert">{error || '项目不存在或已删除。'}</p>
-        <a className="btn btn-secondary" href="#/projects">返回项目列表</a>
+        <h1>{p.openFailed}</h1>
+        <p role="alert">{error || p.missing}</p>
+        <a className="btn btn-secondary" href="#/projects">{p.back}</a>
       </section>
     );
   }
@@ -521,12 +576,12 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   return (
     <div className="projects-shell projects-detail">
-      <p className="projects-back"><a className="text-link" href="#/projects"><IconArrowLeft size={15} /> 返回项目列表</a></p>
+      <p className="projects-back"><a className="text-link" href="#/projects"><IconArrowLeft size={15} /> {p.back}</a></p>
       <header className="projects-heading">
         <div>
           <span className="account-kicker">PROJECT</span>
-          <h1>{item.name}</h1>
-          <p>{PLATFORM_LABELS[item.platform]} · {scenes.length} 个作品 · 版本 {item.revision}</p>
+          <h1>{autosave.settings.name || item?.name || ''}</h1>
+          <p>{PLATFORM_LABELS[autosave.settings.platform]} · {p.scenesVersion(scenes.length, autosave.revision)}</p>
         </div>
       </header>
 
@@ -534,60 +589,63 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
       <div className="projects-columns">
         <section className="project-panel">
-          <h2><IconSettings size={18} /> 项目规则</h2>
-          {conflict && (
+          <h2><IconSettings size={18} /> {p.detailRules}</h2>
+          {(autosave.conflict || autosave.deleted) && (
             <div className="account-error" role="alert">
-              项目已在其他标签页更新。当前修改仍保留，请重新加载后再保存。
-              <button onClick={() => { if(window.confirm("重新加载会放弃当前未保存的项目规则，继续？")){initializedProject.current="";setReload((value)=>value+1);} }}>重新加载</button>
+              {autosave.deleted ? p.autosaveDeleted : p.conflictNotice}
+              <button type="button" onClick={discardLocal}>{p.autosaveDiscard}</button>
             </div>
           )}
-          <form className="project-form" onSubmit={save}><fieldset disabled={busy} style={{border:0,padding:0,margin:0}}>
+          <fieldset className="project-form" style={{ border: 0, padding: 0, margin: 0 }}>
             <label>
-              名称
-              <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
+              {p.nameLabel}
+              <input value={autosave.settings.name} maxLength={80} onChange={(event) => autosave.setName(event.target.value)} />
             </label>
             <label>
-              默认平台
-              <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
+              {p.platformLabel}
+              <select value={autosave.settings.platform} onChange={(event) => autosave.setPlatform(event.target.value as Platform)}>
                 {PLATFORMS.map((value) => (
                   <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
                 ))}
               </select>
             </label>
             <label>
-              规则（最多 4000 字）
+              {p.rulesLabel}
               <textarea
-                value={rules}
+                value={autosave.settings.rules}
                 maxLength={4000}
                 rows={5}
-                placeholder="规则会作为独立说明提供给生成任务，不会写入你的作品。"
-                onChange={(event) => setRules(event.target.value)}
+                placeholder={p.rulesNote}
+                onChange={(event) => autosave.setRules(event.target.value)}
               />
             </label>
-            <div className="project-form-actions">
-              <button className="btn btn-primary" disabled={busy || !dirty}>
-                <IconDeviceFloppy size={16} /> {busy ? '正在保存…' : '保存项目'}
-              </button>
-              {status && <span className="project-status" role="status">{status}</span>}
+            <div className="project-autosave" role="status" data-autosave={autosave.status}>
+              <span>{autosaveLabel}</span>
+              {autosave.recovered && <span>{p.autosaveRecovered}</span>}
+              {autosave.status === 'error' && autosave.error && <span>{autosave.error}</span>}
+              {autosave.status === 'error' && (
+                <button type="button" className="text-link" onClick={autosave.retry}>{p.autosaveRetry}</button>
+              )}
+              {autosave.cacheFailed && <span role="alert">{p.autosaveCacheFailed}</span>}
             </div>
-          </fieldset></form>
+          </fieldset>
         </section>
 
         <section className="project-panel">
-          <h2><IconLayoutGrid size={18} /> 项目作品 <span>{scenes.length}</span></h2>
+          <h2><IconLayoutGrid size={18} /> {p.works} <span>{scenes.length}</span></h2>
           {scenes.length === 0 ? (
-            <p className="project-muted">还没有作品。可以在下方批量生成，或从「我的作品」中关联已有作品。</p>
+            <p className="project-muted">{p.noWorks}</p>
           ) : (
             <ul className="project-scene-list">
               {scenes.map((scene) => (
                 <li key={scene.id}>
                   <a href={`#/workspace?scene=${encodeURIComponent(scene.id)}`}>
-                    <strong>{scene.title || '未命名对话'}</strong>
-                    <small>{PLATFORM_LABELS[scene.platform]} · {scene.messageCount} 条消息</small>
+                    <strong>{scene.title || a.untitled}</strong>
+                    <small>{PLATFORM_LABELS[scene.platform]} · {a.cardMessages(scene.messageCount)}</small>
                   </a>
                   <button
                     className="icon-btn"
-                    aria-label={`解除关联 ${scene.title || '未命名对话'}`}
+                    aria-label={`${p.detach} ${scene.title || a.untitled}`}
                     disabled={detachingId === scene.id}
                     onClick={() => void detach(scene.id)}
                   >
@@ -599,38 +657,63 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           )}
           <form className="project-attach" onSubmit={attach}>
             <label>
-              关联已有作品
+              {p.attachWork}
               <select value={attachId} onChange={(event) => setAttachId(event.target.value)}>
-                <option value="">选择我的作品…</option>
+                <option value="">{p.chooseWork}</option>
                 {attachable.map((scene) => (
-                  <option key={scene.id} value={scene.id}>{scene.title || '未命名对话'}</option>
+                  <option key={scene.id} value={scene.id}>{scene.title || a.untitled}</option>
                 ))}
               </select>
             </label>
             <button className="btn btn-secondary" disabled={!attachId || attaching}>
-              {attaching ? <IconLoader2 size={15} className="projects-spin" /> : <IconPlus size={15} />} 关联
+              {attaching ? <IconLoader2 size={15} className="projects-spin" /> : <IconPlus size={15} />} {p.attach}
             </button>
           </form>
         </section>
       </div>
 
       <section className="project-panel project-batch">
-        <h2><IconRefresh size={18} /> 批量生成</h2>
+        <h2><IconRefresh size={18} /> {p.batch}</h2>
         <p className="project-muted">
-          每行一条提示词，最多 {MAX_PROMPTS} 条；提示词 × 平台最多 {MAX_ITEMS} 个作品。规则和平台会在提交时快照。
+          {p.batchHint(MAX_PROMPTS, MAX_ITEMS)}
         </p>
         <form onSubmit={startBatch}>
+          <div className="project-batch-mode" role="group" aria-label={p.batch}>
+            <button type="button" aria-pressed={batchMode === 'prompts'} onClick={() => setBatchMode('prompts')}>{p.modePrompts}</button>
+            <button type="button" aria-pressed={batchMode === 'variants'} onClick={() => setBatchMode('variants')}>{p.modeVariants}</button>
+          </div>
           <label>
-            提示词（每行一条）
+            {p.templateLabel}
+            <select aria-label={p.templateLabel} value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <option value="">{p.templateNone}</option>
+              {templates.map((template) => <option key={template.id} value={template.id}>{p.templateSummary(template.name, template.revision)}</option>)}
+            </select>
+          </label>
+          {templateId && <p className="project-muted">{p.templateHint}{templateVariables.length > 0 ? ` ${p.variantValuesHint}` : ''}{templateDetail?.definition.scene.reference ? ` ${p.referencePlatformNote(platformLabel(templateDetail.definition.scene.reference.plan.im))}` : ''}</p>}
+          {batchMode === 'prompts' ? <label>
+            {p.prompts}
             <textarea
               value={promptsText}
               rows={4}
-              placeholder={'和朋友约周末去看展，聊得轻松一点\n写一段新品发布的群聊预告'}
+              placeholder={p.promptsHint}
               onChange={(event) => setPromptsText(event.target.value)}
             />
-          </label>
+          </label> : <fieldset className="project-variants">
+            <legend>{p.variantsLegend} <span>{variants.length}/{MAX_VARIANTS}</span></legend>
+            {variants.map((variant) => <div key={variant.id} className="project-variant">
+              <label>{p.variantName}<input aria-label={p.variantName} value={variant.name} maxLength={80} onChange={(event) => updateVariant(variant.id, { name: event.target.value })} /></label>
+              <label>{p.variantPrompt}<textarea aria-label={p.variantPrompt} value={variant.prompt} rows={2} maxLength={4000} onChange={(event) => updateVariant(variant.id, { prompt: event.target.value })} /></label>
+              {templateVariables.length > 0 && <div className="project-variant-values">{templateVariables.map((variable) => <label key={variable.key}>{variable.label}
+                {variable.type === 'image'
+                  ? <span className="project-variant-image"><input aria-label={variable.label} value={variant.values[variable.key] ?? ''} onChange={(event) => setVariantValue(variant.id, variable.key, event.target.value)} /><input type="file" accept="image/png,image/jpeg,image/webp" aria-label={`${variable.label} · image`} onChange={(event) => { void readVariantImage(variant.id, variable.key, event.target.files?.[0]); event.target.value = ''; }} /></span>
+                  : <input aria-label={variable.label} value={variant.values[variable.key] ?? ''} maxLength={4000} onChange={(event) => setVariantValue(variant.id, variable.key, event.target.value)} />}
+              </label>)}</div>}
+              <button type="button" className="text-link" disabled={variants.length <= 1} onClick={() => setVariants(current => current.filter(entry => entry.id !== variant.id))}><IconX size={14} /> {p.removeVariant}</button>
+            </div>)}
+            <button type="button" className="agent-button" disabled={variants.length >= MAX_VARIANTS} onClick={() => setVariants(current => [...current, { id: crypto.randomUUID(), name: '', prompt: '', values: {} }])}><IconPlus size={15} /> {p.addVariant}</button>
+          </fieldset>}
           <fieldset className="project-platforms">
-            <legend>平台</legend>
+            <legend>{p.platformShort}</legend>
             {PLATFORMS.map((value) => (
               <label key={value} className="project-checkbox">
                 <input type="checkbox" checked={platforms.includes(value)} onChange={() => togglePlatform(value)} />
@@ -639,20 +722,21 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             ))}
           </fieldset>
           <div className="project-form-actions">
-            <button className="btn btn-primary" disabled={submitting || running}>
+            <button className="btn btn-primary" disabled={submitting || running || !templateReady || autosave.syncBlocked}>
               {submitting ? <IconLoader2 size={16} className="projects-spin" /> : <IconPlus size={16} />}
-              {submitting ? '正在提交…' : running ? '已有任务进行中' : `生成 ${promptLines.length && platforms.length ? totalItems : 0} 个作品`}
+              {submitting ? p.generating : running ? p.taskRunning : `${p.generate} ${platforms.length ? batchItems : 0}`}
             </button>
-            <span className="project-status">提示词 {promptLines.length}/{MAX_PROMPTS} · 作品 {totalItems}/{MAX_ITEMS}</span>
+            <span className="project-status">{batchMode === 'variants' ? `${p.promptCount(variants.length)}/${MAX_VARIANTS}` : `${p.promptCount(promptLines.length)}/${MAX_PROMPTS}`} · {p.sceneCount(batchItems)}/{MAX_ITEMS}</span>
           </div>
+          {autosave.syncBlocked && <p className="project-muted project-sync-note">{p.batchBlockedSync}</p>}
           {batchError && <p className="account-error" role="alert">{batchError}</p>}
         </form>
 
         {job && (
           <div className="project-job">
             <div className="project-job-head">
-              <strong>任务 {JOB_STATUS_LABELS[job.status]}</strong>
-              <span>{job.succeeded} 成功 · {job.failed} 失败 · 共 {job.total}</span>
+              <strong>{p.history} {p.jobStatus[job.status]}</strong>
+              <span>{p.success} {job.succeeded} · {p.failed} {job.failed} · {p.total(job.total)}</span>
             </div>
             <div className="project-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={jobProgress(job)}>
               <span style={{ width: `${jobProgress(job)}%` }} />
@@ -663,15 +747,15 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                 {job.tasks.map((task) => (
                   <li key={task.id} className={`task-${task.status}`}>
                     <span className="task-index">{task.ordinal + 1}</span>
-                    <span className="task-text">{task.prompt}</span>
+                    <span className="task-text">{task.name ? `${task.name} · ${task.prompt}` : task.prompt}</span>
                     <span className="task-platform">{PLATFORM_LABELS[task.platform]}</span>
                     <span className="task-status">
                       {task.status === 'done' && task.sceneId ? (
                         <a href={`#/workspace?scene=${encodeURIComponent(task.sceneId)}`}>
-                          <IconCheck size={14} /> 打开作品
+                          <IconCheck size={14} /> {p.openScene}
                         </a>
                       ) : (
-                        TASK_STATUS_LABELS[task.status]
+                        p.taskStatus[task.status]
                       )}
                     </span>
                   </li>
@@ -681,12 +765,12 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             <div className="project-form-actions">
               {running && (
                 <button className="btn btn-secondary" onClick={cancelJob} type="button">
-                  <IconPlayerStop size={16} /> 取消生成
+                  <IconPlayerStop size={16} /> {p.cancel}
                 </button>
               )}
               {canRetry && (
                 <button className="btn btn-secondary" onClick={retryJob} disabled={retryBusy} type="button">
-                  <IconRefresh size={16} /> 重试失败项
+                  <IconRefresh size={16} /> {p.retryFailed}
                 </button>
               )}
             </div>
@@ -695,17 +779,17 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
         {jobs.length > 1 && (
           <details className="project-history">
-            <summary>历史任务（{jobs.length}）</summary>
+            <summary>{p.history} ({jobs.length})</summary>
             <ul>
               {jobs.map((entry) => (
                 <li key={entry.id}>
-                  <span>{JOB_STATUS_LABELS[entry.status]}</span>
-                  <span>{entry.succeeded} 成功 · {entry.failed} 失败 · 共 {entry.total}</span>
+                  <span>{p.jobStatus[entry.status]}</span>
+                  <span>{p.success} {entry.succeeded} · {p.failed} {entry.failed} · {p.total(entry.total)}</span>
                   <button className="text-link" type="button" onClick={async () => {
-                    const data = await api<{ item: BatchJob }>(`/projects/${item.id}/batch-jobs/${entry.id}`);
+                    const data = await api<{ item: BatchJob }>(`/projects/${encodeURIComponent(projectKey)}/batch-jobs/${entry.id}`);
                     lastJobStatus.current = '';
                     setJob(data.item);
-                  }}>查看</button>
+                  }}>{p.view}</button>
                 </li>
               ))}
             </ul>
@@ -714,12 +798,11 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       </section>
 
       <section className="project-panel project-warning">
-        <h2><IconAlertTriangle size={18} /> 关于批量生成</h2>
+        <h2><IconAlertTriangle size={18} /> {p.aboutBatch}</h2>
         <p>
-          只有模型完整生成并通过校验的作品才会作为新作品保存；失败、取消或服务重启中断的任务会如实记录，不会伪装成成功。
-          项目删除只解除关联，不会删除作品。
+          {p.batchNote} {p.batchNote2}
         </p>
-        <p><a className="text-link" href="#/workspace">在我的作品中管理全部作品 <IconArrowRight size={15} /></a></p>
+        <p><a className="text-link" href="#/workspace">{p.manageAll} <IconArrowRight size={15} /></a></p>
       </section>
     </div>
   );

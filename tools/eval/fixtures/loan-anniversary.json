@@ -1,0 +1,42 @@
+{
+  "id": "loan-anniversary",
+  "schemaVersion": 1,
+  "kind": "semantic-rendering-regression",
+  "synthetic": true,
+  "name": "去年借款，今天归还",
+  "input": "编一个虚构故事：一年前的今天，阿川向我借了500万元，约定一年后归还。先展示去年借款和约定的消息，再展示今天提醒、归还和确认收到的消息。用 iPhone 微信画面，所有人物均为虚构，标注合成案例。",
+  "referenceDate": "2026-09-21",
+  "timeZone": "Asia/Shanghai",
+  "expectations": {
+    "pastDate": "2025-09-21",
+    "currentDate": "2026-09-21",
+    "orderedDays": ["2025-09-21", "2026-09-21"],
+    "dateLabels": ["2025年9月21日", "今天"],
+    "amount": "500万元",
+    "deviceProfileId": "iphone-17-pro",
+    "pixelWidth": 1206,
+    "notice": "合成案例 · 虚构对话"
+  },
+  "scene": {
+    "id": "synthetic-loan-anniversary",
+    "title": "一年之约",
+    "headerText": "阿川",
+    "platform": "wechat",
+    "surface": "ios",
+    "deviceProfileId": "iphone-17-pro",
+    "deviceTime": "14:32",
+    "referenceDate": "2026-09-21",
+    "date": "",
+    "selfId": "me",
+    "participants": [{"id":"me","name":"小林"},{"id":"achuan","name":"阿川"}],
+    "messages": [
+      {"id":"borrow","participantId":"achuan","type":"text","text":"能借我500万元周转吗？一年后还你。","date":"2025-09-21","time":"10:06"},
+      {"id":"agreement","participantId":"me","type":"text","text":"可以，约好2026年9月21日归还。","date":"2025-09-21","time":"10:07"},
+      {"id":"promise","participantId":"achuan","type":"text","text":"收到，谢谢。明年今天一定还给你。","date":"2025-09-21","time":"10:08"},
+      {"id":"reminder","participantId":"me","type":"text","text":"阿川，今天是约定的还款日。","date":"2026-09-21","time":"14:30"},
+      {"id":"repayment","participantId":"achuan","type":"text","text":"记着呢，500万元已经归还，请查收。","date":"2026-09-21","time":"14:31"},
+      {"id":"confirmed","participantId":"me","type":"text","text":"已经收到，这笔借款结清了。","date":"2026-09-21","time":"14:32"}
+    ],
+    "watermark": "合成案例 · 虚构对话"
+  }
+}

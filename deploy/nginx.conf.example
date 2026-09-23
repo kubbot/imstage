@@ -1,0 +1,36 @@
+# Install only after replacing api.example.com and obtaining its certificate.
+# The frontend uses a Vercel external rewrite for /api/* to keep cookies same-origin.
+# https://vercel.com/docs/routing/rewrites
+server {
+    listen 80;
+    server_name api.example.com;
+    location /.well-known/acme-challenge/ { root /var/www/acme; }
+    location / { return 301 https://$host$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name api.example.com;
+    ssl_certificate /etc/letsencrypt/live/api.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    server_tokens off;
+    client_max_body_size 40m;
+    add_header X-Content-Type-Options nosniff always;
+    location /api/ {
+        proxy_pass http://127.0.0.1:4419;
+        proxy_set_header Host $host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;
+        proxy_read_timeout 150s;
+        proxy_send_timeout 150s;
+    }
+    location = /mcp {
+        proxy_pass http://127.0.0.1:4421;
+        proxy_set_header Host $host;
+        proxy_set_header Authorization $http_authorization;
+        proxy_buffering off;
+        proxy_read_timeout 150s;
+    }
+    location / { return 404; }
+}

@@ -2,6 +2,9 @@ import {test,expect,type Page} from '@playwright/test';
 import sharp from 'sharp';
 import {readFile} from 'node:fs/promises';
 import {createScene} from '../../apps/web/src/studio/model';
+// New sessions follow the browser language; this suite asserts Chinese WeChat
+// defaults (message avatars, names), so it runs as a Chinese browser.
+test.use({ locale: 'zh-CN' });
 const artifact=process.env.IMSTAGE_ARTIFACT_DIR||'.local';
 async function ready(page:Page) {
  await page.goto('/#/create');const origin=new URL(page.url()).origin;
@@ -20,17 +23,20 @@ async function generation(page:Page,changeIds=false) {
 test('default avatar survives two fresh creations and contact deletion never mutates the existing scene',async({page})=>{
  await ready(page);await page.getByRole('button',{name:'人物与头像',exact:true}).click();
  const panel=page.getByRole('complementary',{name:'人物与头像',exact:true});
- await panel.getByLabel('人物姓名',{exact:true}).fill('林小满');
+ await panel.getByRole('button',{name:'新建另一个人物',exact:true}).click();
+ await panel.getByLabel(/^人物姓名：/).last().fill('林小满');
  const png=await sharp({create:{width:80,height:80,channels:3,background:'#6586aa'}}).png().toBuffer();
- await panel.locator('input[type=file]').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:png});await expect(panel.getByAltText('待保存的头像')).toBeVisible();
- await panel.getByRole('button',{name:'保存人物',exact:true}).click();await expect(panel.locator('.contact-row')).toContainText('我的默认人物');
+ const fileChooser=page.waitForEvent('filechooser');await panel.getByRole('button',{name:'上传头像：林小满',exact:true}).click();await(await fileChooser).setFiles({name:'portrait.png',mimeType:'image/png',buffer:png});await expect(panel.getByAltText('林小满的头像')).toBeVisible();
+ await panel.getByRole('button',{name:'我的默认人物',exact:true}).click();await expect(panel.locator('.contact-sync')).toContainText('已同步');
  const first=(await(await page.request.get('/api/contact-library')).json()).contacts[0];expect(first.avatar).toContain('data:image/png');
  await page.getByRole('button',{name:'关闭人物库'}).click();await generation(page,true);
  await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
- await page.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('imstage.agent.'))sessionStorage.removeItem(key);});await page.reload();await expect(page.locator('.agent-identity-summary')).toContainText('林小满');
+ await page.getByRole('button', { name:'新建会话', exact:true }).click();
+ await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
+ await expect(page.locator('.agent-identity-summary')).toContainText('林小满');
  await generation(page,true);await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
  expect((await(await page.request.get('/api/contact-library')).json()).contacts).toHaveLength(2);
- await page.getByRole('button',{name:'人物与头像',exact:true}).click();await panel.locator('.contact-row').filter({hasText:'林小满'}).getByRole('button',{name:'移除'}).click();await expect(panel.locator('.contact-row')).toHaveCount(1);
+ await page.getByRole('button',{name:'人物与头像',exact:true}).click();await panel.getByRole('button',{name:'移除：林小满',exact:true}).click();await expect(panel.locator('.contact-row')).toHaveCount(1);
  await expect(page.locator('.agent-phone .is-self .scene-avatar')).toHaveAttribute('src',first.avatar);
 });
 for(const [id,width,height] of [['iphone-17-pro',1206,2622],['pixel-8',1080,2400],['macos-window',2000,1440]] as const) test(`device fidelity ${id}: exact export, same messages, no clipped composer`,async({page})=>{
@@ -49,23 +55,19 @@ test('long screenshot grows with messages while preserving selected device width
  await page.getByLabel('导出图片范围').selectOption('full');const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const file=await(await download).path();const data=await readFile(file!);const meta=await sharp(data).metadata();expect(meta.width).toBe(1206);expect(meta.height).toBeGreaterThan(2622);
 });
 
-test('avatar generation stages the image until Save and reports provider failure without losing it',async({page})=>{
+test('generated avatars autosave and a later provider failure preserves the saved image',async({page})=>{
  await ready(page);await page.getByRole('button',{name:'人物与头像',exact:true}).click();const panel=page.getByRole('complementary',{name:'人物与头像',exact:true});
- await panel.getByLabel('描述想生成的头像',{exact:true}).fill('自然光头像');
+ await panel.getByRole('button',{name:'新建另一个人物',exact:true}).click();await panel.getByLabel(/^人物姓名：/).last().fill('小满');
+ await panel.getByRole('button',{name:'AI 生成头像：小满',exact:true}).click();await panel.getByLabel('描述想生成的头像',{exact:true}).fill('自然光头像');
  const avatar='data:image/png;base64,'+(await sharp({create:{width:64,height:64,channels:3,background:'#657f4a'}}).png().toBuffer()).toString('base64');
  await page.route('**/api/agent/run',async route=>{const {scene,targetId}=route.request().postDataJSON();expect(targetId).toBe('@participant:portrait');await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,participants:[{...scene.participants[0],avatar}]}},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'});});
- await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByText('头像已生成。保存后可在之后的对话中复用。',{exact:true})).toBeVisible();
- const staged=await panel.getByAltText('待保存的头像').getAttribute('src');expect(staged).toContain('data:image/png');
- const decoded=await sharp(Buffer.from(staged!.split(',')[1],'base64')).raw().toBuffer();expect([...decoded.slice(0,3)]).toEqual([101,127,74]);
- expect((await(await page.request.get('/api/contact-library')).json()).contacts).toHaveLength(0);
+ await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByAltText('小满的头像')).toBeVisible();
+ const generated=await panel.getByAltText('小满的头像').getAttribute('src');expect(generated).toContain('data:image/png');
+ const decoded=await sharp(Buffer.from(generated!.split(',')[1],'base64')).raw().toBuffer();expect([...decoded.slice(0,3)]).toEqual([101,127,74]);
+ await expect.poll(async()=>(await(await page.request.get('/api/contact-library')).json()).contacts[0]?.avatar).toBe(generated);
  await page.unroute('**/api/agent/run');await page.route('**/api/agent/run',r=>r.fulfill({status:503,json:{error:{message:'生图服务不可用'}}}));
- await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByRole('alert')).toContainText('生图服务不可用');await expect(panel.getByAltText('待保存的头像')).toHaveAttribute('src',staged!);
-});
-
-test('stale contact save is rejected and explicit reload preserves another tab change',async({page})=>{
- const origin=await ready(page);await page.getByRole('button',{name:'人物与头像',exact:true}).click();const panel=page.getByRole('complementary',{name:'人物与头像',exact:true});
- await page.request.put('/api/contact-library',{headers:{Origin:origin,'X-IMStage-Request':'1'},data:{revision:0,contacts:[{id:crypto.randomUUID(),name:'另一个标签页保存的人物'}],selfContactId:null,autoSave:false}});
- await panel.getByRole('button',{name:'保存人物',exact:true}).click();await expect(panel.getByRole('button',{name:'重新读取'})).toBeVisible();await panel.getByRole('button',{name:'重新读取'}).click();await expect(panel.locator('.contact-row')).toContainText('另一个标签页保存的人物');await expect(panel.getByLabel('生成成功后保存人物与头像')).not.toBeChecked();
+ await panel.getByRole('button',{name:'AI 生成头像',exact:true}).click();await expect(panel.getByRole('alert')).toContainText('生图服务不可用');await expect(panel.getByAltText('小满的头像')).toHaveAttribute('src',generated!);
+ await page.reload();await page.getByRole('button',{name:'人物与头像',exact:true}).click();await expect(panel.getByAltText('小满的头像')).toHaveAttribute('src',generated!);
 });
 
 test('contact library outage cannot block core conversation generation',async({page})=>{

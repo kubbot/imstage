@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew IMStage HTTPS certificate
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker run --rm -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt -v /var/www/acme:/var/www/acme certbot/certbot:latest renew --quiet
+ExecStartPost=/usr/sbin/nginx -s reload

@@ -1,0 +1,17 @@
+{
+  "authenticated": true,
+  "dates": [
+    "2025-09-21",
+    "2025-09-21",
+    "2025-09-21",
+    "2026-09-21",
+    "2026-09-21",
+    "2026-09-21"
+  ],
+  "done": true,
+  "hasCopyButton": true,
+  "httpStatus": 200,
+  "messageCount": 6,
+  "messageFieldDifferences": [],
+  "referenceDate": "2026-09-21"
+}

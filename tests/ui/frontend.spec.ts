@@ -1,6 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
+// The public site resolves its language from navigator.language on a first
+// visit; this suite verifies the Chinese default explicitly.
+test.use({ locale: 'zh-CN' });
 const draftKey = 'imstage.studio.draft.v1';
 const phone = (page: Page) => page.locator('.studio-phone');
 async function settings(page: Page) { await page.locator('summary').filter({ hasText: '场景设置' }).click(); }
@@ -16,16 +19,16 @@ test('system appearance follows changes; manual preference survives reload', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
 });
 
-test('homepage direct edit changes only selected reply; platform switching retains it', async ({ page }) => {
-  await page.goto('/'); const rows = page.locator('.creation-phone .scene-row');
-  const before = await rows.allTextContents();
-  await page.locator('.creation-phone .scene-selectable').nth(1).click();
-  await page.getByRole('textbox', { name: '当前消息内容' }).fill('火星见，给你留了靠窗的位置。');
-  const after = await rows.allTextContents();
-  expect(after[0]).toBe(before[0]); expect(after[2]).toBe(before[2]); expect(after[1]).toContain('火星见');
-  await page.getByRole('button', { name:'小红书', exact:true }).click();
-  await expect(page.locator('.creation-phone .scene-view')).toHaveAttribute('data-platform','xiaohongshu');
-  await expect(rows.nth(1)).toContainText('火星见');
+test('landing instruction composer follows the language and keeps a typed instruction', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
+  await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
+  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform','whatsapp');
+  await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
+  // A written instruction is never discarded by a language switch.
+  await page.getByLabel('Your instruction', { exact: true }).fill('my own instruction');
+  await page.locator('.mark-toggle').getByRole('button', { name: '中文', exact: true }).click();
+  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue('my own instruction');
 });
 
 test('template filtering, empty recovery and selected scene entry', async ({ page }) => {
@@ -131,10 +134,10 @@ test('JSON dialog is keyboard reachable and Escape restores focus', async ({ pag
 });
 
 for(const width of [320,390,768,1440]) test(`responsive routes have no horizontal overflow at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:900});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
+  await page.setViewportSize({width,height:900});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator(route==='#/create'?'.agent-workspace':'h1').waitFor();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
   if(width<901){await page.getByRole('tab',{name:'预览',exact:true}).click();await expect(phone(page)).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
 });
 
 for(const theme of ['light','dark'] as const)test(`WCAG A/AA automated checks across frontend in ${theme}`,async({page})=>{
-  await page.emulateMedia({colorScheme:theme});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator('h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
+  await page.emulateMedia({colorScheme:theme,reducedMotion:'reduce'});for(const route of ['','#/create','#/templates','#/docs','#/studio']){await page.goto('/'+route);await page.locator(route==='#/create'?'.agent-workspace':'h1').waitFor();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))).toEqual([]);}
 });

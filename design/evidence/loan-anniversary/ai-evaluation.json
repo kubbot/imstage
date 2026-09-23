@@ -1,0 +1,62 @@
+{
+  "runtimeOk": true,
+  "model": "deepseek-flash",
+  "mutations": 1,
+  "evaluation": {
+    "caseId": "loan-anniversary",
+    "passed": true,
+    "checks": [
+      {
+        "id": "valid-contract",
+        "pass": true,
+        "detail": ""
+      },
+      {
+        "id": "iphone-device",
+        "pass": true,
+        "detail": "iphone-17-pro"
+      },
+      {
+        "id": "frozen-reference-date",
+        "pass": true,
+        "detail": "2026-09-21"
+      },
+      {
+        "id": "last-year-conversation",
+        "pass": true,
+        "detail": "6 historical messages"
+      },
+      {
+        "id": "explicit-agreement",
+        "pass": true,
+        "detail": "Agreement belongs to the historical section"
+      },
+      {
+        "id": "today-repayment",
+        "pass": true,
+        "detail": "5 current messages; completed payment=true; lender receipt=true"
+      },
+      {
+        "id": "chronological-days",
+        "pass": true,
+        "detail": "2025-09-21, 2025-09-21, 2025-09-21, 2025-09-21, 2025-09-21, 2025-09-21, 2026-09-21, 2026-09-21, 2026-09-21, 2026-09-21, 2026-09-21"
+      },
+      {
+        "id": "one-separator-per-day",
+        "pass": true,
+        "detail": "2025年9月21日 / 今天"
+      },
+      {
+        "id": "no-date-as-system-message",
+        "pass": true,
+        "detail": "Date labels belong to renderer"
+      },
+      {
+        "id": "synthetic-disclosure",
+        "pass": true,
+        "detail": "合成案例 · 虚构对话"
+      }
+    ]
+  },
+  "note": "Same original model output re-evaluated after adding completed transfer-card plus lender-receipt semantics; negation and reversed-payer counterexamples added."
+}

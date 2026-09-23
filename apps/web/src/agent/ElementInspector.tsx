@@ -1,39 +1,106 @@
-import {DEVICE_PROFILES} from '../studio/device-profiles';
-import { useEffect, useRef, useState } from 'react';
-import { MESSAGE_TYPES, MESSAGE_TYPE_LABELS, validateScene, type Message, type Scene } from '../studio/model';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { IconArrowDown, IconArrowUp, IconCopy, IconPhoto, IconPlus, IconTrash } from '@tabler/icons-react';
+import { DEVICE_PROFILES } from '../studio/device-profiles';
+import { MESSAGE_TYPES, validateScene, type Message, type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
+import { useCopy } from '../i18n';
 
-type Props = { scene:Scene; selected:string; locked:boolean; onSelect:(id:string)=>void; onChange:(scene:Scene)=>void; onBusy:(busy:boolean)=>void };
-export default function ElementInspector({scene,selected,locked,onSelect,onChange,onBusy}:Props) {
-  const [error,setError]=useState(''); const file=useRef<HTMLInputElement>(null); const [slot,setSlot]=useState('');
-  useEffect(()=>{setError('');setSlot('');},[selected]);
-  const message=scene.messages.find(m=>m.id===selected);
-  const person=scene.participants.find(p=>`@participant:${p.id}`===selected);
-  function apply(next:Scene) { const result=validateScene(next); if(!result.ok || !result.scene) {setError(result.errors.join('；'));return;} setError('');onChange(result.scene); }
-  function update(patch:Partial<Scene> | Partial<Message>) { apply(message ? {...scene,messages:scene.messages.map(m=>m.id===message.id?{...m,...patch}:m)} : person ? {...scene,participants:scene.participants.map(p=>p.id===person.id?{...p,...patch}:p)} : {...scene,...patch}); }
-  function text(label:string,key:string,value:string,multiline=false) {return <label>{label}{multiline ? <textarea value={value} onChange={e=>update({[key]:e.target.value})} maxLength={4000}/> : <input value={value} onChange={e=>update({[key]:e.target.value})} maxLength={4000}/>}</label>;}
-  async function upload(f:File) {onBusy(true);try {const result=await readImageFile(f);if(!result.ok){setError(result.error);return;} if(slot.startsWith('item:')&&message)update({items:message.items?.map(i=>i.id===slot.slice(5)?{...i,asset:result.dataUrl}:i)});else update({[slot]:result.dataUrl});} finally {onBusy(false);} }
-  const style=message?.appearance || scene.appearance || {};
-  return <details className="agent-manual agent-inspector" open><summary>元素与外观</summary><fieldset disabled={locked}>
-    <label>选中元素<select aria-label="选中元素" value={selected || '@scene'} onChange={e=>onSelect(e.target.value)}><option value="@scene">背景、标题与界面</option>{scene.participants.map(p=><option key={p.id} value={`@participant:${p.id}`}>人物 · {p.name}</option>)}{scene.messages.map((m,i)=><option key={m.id} value={m.id}>{i+1} · {m.text.slice(0,24)||MESSAGE_TYPE_LABELS[m.type]}</option>)}</select></label>
-    {person ? <>{text('姓名','name',person.name)}{text('资料说明','subtitle',person.subtitle||'')}<button type="button" className="agent-button" onClick={()=>{setSlot('avatar');file.current?.click();}}>上传头像</button></> : message ? <>
-      {text('消息文字','text',message.text,true)}{text('说明 / 地址 / 时长','subtitle',message.subtitle||'')}{text('引用内容','quote',message.quote||'',true)}{text('消息时间','time',message.time)}
-      <label>消息类型<select value={message.type} onChange={e=>update({type:e.target.value as Message['type']})}>{MESSAGE_TYPES.map(t=><option key={t} value={t}>{MESSAGE_TYPE_LABELS[t]}</option>)}</select></label>
-      <label>发送者<select value={message.participantId} onChange={e=>update({participantId:e.target.value})}>{message.type==='system'&&<option value="">系统</option>}{scene.participants.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <div className="inspector-pair">{(['width','height'] as const).map(k=><label key={k}>{k==='width'?'宽度':'高度'}<input type="number" min={k==='width'?40:24} max={k==='width'?1200:1800} value={message[k]??''} placeholder="自动" onChange={e=>update({[k]:e.target.value?Number(e.target.value):undefined})}/></label>)}</div>
-      <button type="button" className="agent-button" onClick={()=>{setSlot('asset');file.current?.click();}}>上传消息配图</button>
-      {message.type==='album'&&<>{message.items?.map(i=><button key={i.id} type="button" className="agent-button" onClick={()=>{setSlot(`item:${i.id}`);file.current?.click();}}>替换 {i.caption||i.id}</button>)}<button className="agent-button" disabled={(message.items?.length||0)>=9} onClick={()=>update({items:[...(message.items||[]),{id:crypto.randomUUID(),kind:'image',caption:'新照片'}]})}>添加相册图片</button></>}
-      <div className="inspector-pair"><button className="agent-button" disabled={scene.messages[0]?.id===message.id} onClick={()=>{const ms=[...scene.messages];const n=ms.findIndex(m=>m.id===message.id);[ms[n-1],ms[n]]=[ms[n],ms[n-1]];apply({...scene,messages:ms});}}>上移</button><button className="agent-button" onClick={()=>{apply({...scene,messages:scene.messages.filter(m=>m.id!==message.id)});onSelect('@scene');}}>删除消息</button></div>
+type Props = { scene: Scene; selected: string; locked: boolean; onSelect: (id: string) => void; onChange: (scene: Scene) => void; onBusy: (busy: boolean) => void };
+function Section({ title, children, advanced = false }: { title: string; children: ReactNode; advanced?: boolean }) {
+  return advanced ? <details className="property-section property-advanced"><summary>{title}</summary><div>{children}</div></details> : <section className="property-section"><h3>{title}</h3>{children}</section>;
+}
+export default function ElementInspector({ scene, selected, locked, onSelect, onChange, onBusy }: Props) {
+  const copy = useCopy();
+  const e = copy.elements;
+  const [error, setError] = useState('');
+  const file = useRef<HTMLInputElement>(null);
+  const slot = useRef('');
+  useEffect(() => { setError(''); }, [selected]);
+  const message = scene.messages.find(m => m.id === selected);
+  const person = scene.participants.find(p => `@participant:${p.id}` === selected);
+  const index = scene.messages.findIndex(m => m.id === selected);
+  function apply(next: Scene) {
+    const result = validateScene(next);
+    if (!result.ok || !result.scene) { setError(result.errors.join('；')); return; }
+    setError(''); onChange(result.scene);
+  }
+  function update(patch: Partial<Scene> | Partial<Message> | { name?: string; subtitle?: string; avatar?: string }) {
+    apply(message ? { ...scene, messages: scene.messages.map(m => m.id === message.id ? { ...m, ...patch } : m) } : person ? { ...scene, participants: scene.participants.map(p => p.id === person.id ? { ...p, ...patch } : p) } : { ...scene, ...patch });
+  }
+  function text(label: string, key: string, value: string, multiline = false) {
+    return <label>{label}{multiline ? <textarea aria-label={label} value={value} rows={3} onChange={e => update({ [key]: e.target.value })} maxLength={4000}/> : <input aria-label={label} value={value} onChange={e => update({ [key]: e.target.value })} maxLength={4000}/>}</label>;
+  }
+  function pick(key: string) { slot.current = key; file.current?.click(); }
+  async function upload(f: File) {
+    onBusy(true);
+    try {
+      const result = await readImageFile(f);
+      if (!result.ok) { setError(result.error); return; }
+      if (slot.current.startsWith('item:') && message) update({ items: message.items?.map(i => i.id === slot.current.slice(5) ? { ...i, asset: result.dataUrl } : i) });
+      else update({ [slot.current]: result.dataUrl });
+    } catch { setError(e.readFailed); }
+    finally { onBusy(false); }
+  }
+  function addMessage() {
+    const m: Message = { id: crypto.randomUUID(), participantId: scene.selfId, type: 'text', text: e.newMessage, time: scene.deviceTime, ...(scene.referenceDate ? {date:scene.referenceDate} : {}) };
+    apply({ ...scene, messages: [...scene.messages, m] }); onSelect(m.id);
+  }
+  function move(delta: number) {
+    const messages = [...scene.messages];
+    [messages[index], messages[index + delta]] = [messages[index + delta], messages[index]];
+    apply({ ...scene, messages });
+  }
+  const style = message?.appearance || (!message ? scene.appearance : undefined) || {};
+  const layout = scene.layout;
+  const media = message && ['image', 'video', 'album', 'contact', 'location', 'link'].includes(message.type);
+  return <div className="agent-inspector property-inspector"><fieldset disabled={locked}>
+    <label className="property-element-picker">{e.pickerLabel}<select aria-label={e.pickerLabel} value={selected || '@scene'} onChange={e => onSelect(e.target.value)}><option value="@scene">{e.sceneOption}</option>{scene.participants.map(p => <option key={p.id} value={`@participant:${p.id}`}>{e.personOption(p.name)}</option>)}{scene.messages.map((m, i) => <option key={m.id} value={m.id}>{e.messageOption(i + 1, m.text.slice(0, 24) || copy.messageTypes[m.type])}</option>)}</select></label>
+    {person ? <>
+      <Section title={e.personSection}><div className="property-avatar">{person.avatar ? <img src={person.avatar} alt={e.avatarAlt(person.name)}/> : <span>{person.name.slice(0, 1)}</span>}<div><button type="button" className="agent-button" onClick={() => pick('avatar')}><IconPhoto size={15}/>{e.changeAvatar}</button>{person.avatar && <button className="property-text-button" onClick={() => update({ avatar: undefined })}>{e.removeAvatar}</button>}</div></div>{text(e.name, 'name', person.name)}{scene.platform !== 'wechat' && <Section title={e.subtitle} advanced>{text(e.subtitle, 'subtitle', person.subtitle || '')}</Section>}<label>{e.messagePosition}<select value={scene.selfId === person.id ? 'self' : 'other'} onChange={e => { const selfId = e.target.value === 'self' ? person.id : scene.participants.find(p => p.id !== person.id)?.id; if (selfId) apply({ ...scene, selfId }); }}><option value="self">{e.selfSide}</option><option value="other" disabled={scene.participants.length < 2}>{e.otherSide}</option></select></label></Section>
+    </> : message ? <>
+      <Section title={e.messageSection}>{text(e.messageText, 'text', message.text, true)}<label>{e.sendDate}<input aria-label={e.sendDate} type="date" value={message.date || ''} onChange={e => update({date:e.target.value || undefined})}/></label><div className="inspector-pair"><label>{e.sender}<select value={message.participantId} onChange={e => update({ participantId: e.target.value })}>{message.type === 'system' && <option value="">{e.system}</option>}{scene.participants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>{text(e.messageTime, 'time', message.time)}</div><label>{e.messageType}<select value={message.type} onChange={e => update({ type: e.target.value as Message['type'], participantId: e.target.value !== 'system' && !message.participantId ? scene.selfId : message.participantId })}>{MESSAGE_TYPES.map(t => <option key={t} value={t}>{copy.messageTypes[t]}</option>)}</select></label></Section>
+      {media && <Section title={e.mediaSection}>{message.asset && <img className="property-media" src={message.asset} alt={e.currentMedia}/>}<button type="button" className="agent-button" onClick={() => pick('asset')}><IconPhoto size={15}/>{message.asset ? e.replaceMedia : e.uploadMedia}</button>{message.asset && <button className="property-text-button" onClick={() => update({ asset: undefined })}>{e.removeMedia}</button>}{message.type === 'album' && <>{message.items?.map((i, n) => <div key={i.id} className="property-album-item"><label>{e.albumCaption(n + 1)}<input aria-label={e.albumCaption(n + 1)} value={i.caption} onChange={e => update({items:message.items?.map(item => item.id===i.id ? {...item,caption:e.target.value} : item)})}/></label><div className="inspector-pair"><button type="button" className="agent-button" onClick={() => pick(`item:${i.id}`)}>{e.replaceImage}</button><button className="agent-button" onClick={()=>update({items:message.items?.filter(item=>item.id!==i.id)})}>{e.removeImage}</button></div></div>)}<button className="agent-button" disabled={(message.items?.length || 0) >= 9} onClick={() => update({ items: [...(message.items || []), { id: crypto.randomUUID(), kind: 'image', caption: e.newPhoto }] })}>{e.addAlbumImage}</button></>}</Section>}
+      <Section title={e.quoteSection} advanced>{text(e.subtitleField, 'subtitle', message.subtitle || '')}{text(e.quoteField, 'quote', message.quote || '', true)}</Section>
     </> : <>
-      {text('会话标题','headerText',scene.headerText??scene.title)}{text('设备时间','deviceTime',scene.deviceTime)}{text('日期文字','date',scene.date)}{text('输入栏提示','composerText',scene.composerText??'输入消息')}{text('水印','watermark',scene.watermark)}
-      <label>截图设备<select value={scene.deviceProfileId||''} onChange={e=>{if(!e.target.value){update({deviceProfileId:undefined});return;}const p=DEVICE_PROFILES.find(p=>p.id===e.target.value);if(p)update({deviceProfileId:p.id,surface:p.surface});}}><option value="">通用尺寸（当前系统）</option>{DEVICE_PROFILES.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
-      <label>电量<input type="number" min={0} max={100} value={scene.battery??60} onChange={e=>update({battery:Number(e.target.value)})}/></label>
-      <label>聊天背景<input type="color" value={scene.background||'#ededed'} onChange={e=>update({background:e.target.value})}/></label>
-      <div className="inspector-pair"><button className="agent-button" onClick={()=>{setSlot('backgroundImage');file.current?.click();}}>上传背景</button><button className="agent-button" disabled={!scene.backgroundImage} onClick={()=>update({backgroundImage:''})}>清除背景图</button></div>
-      <button className="agent-button" onClick={()=>{const m:Message={id:crypto.randomUUID(),participantId:scene.selfId,type:'text',text:'新消息',time:scene.deviceTime};apply({...scene,messages:[...scene.messages,m]});onSelect(m.id);}}>添加消息</button>
-      <button className="agent-button" disabled={scene.participants.length>=20} onClick={()=>{const p={id:crypto.randomUUID(),name:'新成员'};apply({...scene,participants:[...scene.participants,p]});onSelect(`@participant:${p.id}`);}}>添加成员</button>
+      <Section title={e.frameSection}>{text(e.headerText, 'headerText', scene.headerText ?? (scene.participants.length <= 2 ? scene.participants.find(p => p.id !== scene.selfId)?.name || scene.title : scene.title))}<div className="inspector-pair">{text(e.deviceTime, 'deviceTime', scene.deviceTime)}<label>{e.battery}<input type="number" min={0} max={100} value={scene.battery ?? 80} onChange={e => update({ battery: Number(e.target.value) })}/></label></div><label>{e.storyToday}<input aria-label={e.storyToday} type="date" value={scene.referenceDate || ''} onChange={e => update({referenceDate:e.target.value || undefined})}/></label>{scene.messages.some(m=>m.date) ? <p className="property-help">{e.dateHelp}</p> : text(e.dateText, 'date', scene.date)}{text(e.composerText, 'composerText', scene.composerText ?? '')}{text(e.watermark, 'watermark', scene.watermark)}</Section>
+      <Section title={e.backgroundSection}><label className="property-color">{e.background}<input type="color" value={scene.background || '#ededed'} onChange={e => update({ background: e.target.value })}/></label><div className="inspector-pair"><button className="agent-button" onClick={() => pick('backgroundImage')}><IconPhoto size={15}/>{e.backgroundImage}</button><button className="agent-button" disabled={!scene.backgroundImage} onClick={() => update({ backgroundImage: '' })}>{e.clearImage}</button></div></Section>
+      <Section title={e.deviceSection} advanced><label>{e.device}<select value={scene.deviceProfileId || ''} onChange={e => { const p = DEVICE_PROFILES.find(p => p.id === e.target.value); update(p ? { deviceProfileId: p.id, surface: p.surface } : { deviceProfileId: undefined }); }}><option value="">{e.genericDevice}</option>{DEVICE_PROFILES.map(p => <option key={p.id} value={p.id}>{copy.devices[p.id] || p.label}</option>)}</select></label></Section>
+      <Section title={e.addSection}><div className="inspector-pair"><button className="agent-button" disabled={scene.messages.length >= 200} onClick={addMessage}><IconPlus size={15}/>{e.addMessage}</button><button className="agent-button" disabled={scene.participants.length >= 20} onClick={() => { const p = { id: crypto.randomUUID(), name: e.newMember }; apply({ ...scene, participants: [...scene.participants, p] }); onSelect(`@participant:${p.id}`); }}>{e.addMember}</button></div></Section>
     </>}
-    {!person&&<><label>文字颜色<input type="color" value={style.color||'#222222'} onChange={e=>update({appearance:{...style,color:e.target.value}})}/></label><label>气泡颜色<input type="color" value={style.background||'#ffffff'} onChange={e=>update({appearance:{...style,background:e.target.value}})}/></label><div className="inspector-pair"><label>字号<input type="number" min={10} max={40} value={style.fontSize||15} onChange={e=>update({appearance:{...style,fontSize:Number(e.target.value)}})}/></label><label>圆角<input type="number" min={0} max={40} value={style.radius??8} onChange={e=>update({appearance:{...style,radius:Number(e.target.value)}})}/></label></div><button className="agent-button" onClick={()=>update({appearance:undefined})}>恢复平台默认外观</button></>}
-    <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0]);e.target.value='';}}/>
-    </fieldset>{error&&<p role="alert">{error}</p>}</details>;
+    {!person && <Section title={e.appearanceSection} advanced><div className="inspector-pair"><label>{e.textColor}<input type="color" value={style.color || '#222222'} onChange={e => update({ appearance: { ...style, color: e.target.value } })}/></label><label>{e.bubbleColor}<input type="color" value={style.background || '#ffffff'} onChange={e => update({ appearance: { ...style, background: e.target.value } })}/></label></div><div className="inspector-pair"><label>{e.fontSize}<input type="number" min={10} max={40} value={style.fontSize || 15} onChange={e => update({ appearance: { ...style, fontSize: Number(e.target.value) } })}/></label><label>{e.radius}<input type="number" min={0} max={40} value={style.radius ?? 8} onChange={e => update({ appearance: { ...style, radius: Number(e.target.value) } })}/></label></div>{!message && <label>{e.spacing}<input type="number" min={0} max={48} value={style.spacing ?? 8} onChange={e => update({appearance:{...style,spacing:Number(e.target.value)}})}/></label>}{message && <div className="inspector-pair">{(['width', 'height'] as const).map(k => <label key={k}>{k === 'width' ? e.width : e.height}<input type="number" min={k === 'width' ? 40 : 24} max={k === 'width' ? 1200 : 1800} value={message[k] ?? ''} placeholder={e.auto} onChange={e => update({ [k]: e.target.value ? Number(e.target.value) : undefined })}/></label>)}</div>}<button className="property-text-button" onClick={() => update({ appearance: undefined, ...(message ? { width: undefined, height: undefined } : {}) })}>{e.restoreAppearance}</button></Section>}
+    {!person && !message && <Section title={e.layoutSection} advanced>
+      {layout?.kind === 'custom' ? <>
+        <label>{e.layoutName}<input aria-label={e.layoutName} value={layout.name} maxLength={80} onChange={ev => update({ layout: { ...layout, name: ev.target.value } })}/></label>
+        <div className="inspector-pair">
+          <label>{e.layoutAvatarShape}<select aria-label={e.layoutAvatarShape} value={layout.avatarShape ?? 'circle'} onChange={ev => update({ layout: { ...layout, avatarShape: ev.target.value as 'circle' | 'rounded' | 'square' } })}><option value="circle">{e.layoutAvatarCircle}</option><option value="rounded">{e.layoutAvatarRounded}</option><option value="square">{e.layoutAvatarSquare}</option></select></label>
+          <label>{e.layoutFont}<select aria-label={e.layoutFont} value={layout.fontFamily ?? 'sans'} onChange={ev => update({ layout: { ...layout, fontFamily: ev.target.value as 'sans' | 'serif' | 'mono' } })}><option value="sans">{e.fontSans}</option><option value="serif">{e.fontSerif}</option><option value="mono">{e.fontMono}</option></select></label>
+        </div>
+        <label className="inspector-check"><input type="checkbox" aria-label={e.layoutShowAvatars} checked={layout.showAvatars !== false} onChange={ev => update({ layout: { ...layout, showAvatars: ev.target.checked } })}/> {e.layoutShowAvatars}</label>
+        <div className="inspector-pair">
+          <label>{e.layoutHeaderBg}<input type="color" aria-label={e.layoutHeaderBg} value={layout.headerBackground ?? '#f7f7f7'} onChange={ev => update({ layout: { ...layout, headerBackground: ev.target.value } })}/></label>
+          <label>{e.layoutBackground}<input type="color" aria-label={e.layoutBackground} value={layout.background ?? '#ffffff'} onChange={ev => update({ layout: { ...layout, background: ev.target.value } })}/></label>
+        </div>
+        <div className="inspector-pair">
+          <label>{e.layoutIncomingBg}<input type="color" aria-label={e.layoutIncomingBg} value={layout.incomingBackground ?? '#f1f2f4'} onChange={ev => update({ layout: { ...layout, incomingBackground: ev.target.value } })}/></label>
+          <label>{e.layoutOutgoingBg}<input type="color" aria-label={e.layoutOutgoingBg} value={layout.outgoingBackground ?? '#d8e8ff'} onChange={ev => update({ layout: { ...layout, outgoingBackground: ev.target.value } })}/></label>
+        </div>
+        <label>{e.layoutTextColor}<input type="color" aria-label={e.layoutTextColor} value={layout.textColor ?? '#111214'} onChange={ev => update({ layout: { ...layout, textColor: ev.target.value } })}/></label>
+        <div className="inspector-pair">
+          <label>{e.layoutRadius}<input type="number" min={0} max={40} value={layout.bubbleRadius ?? 10} onChange={ev => update({ layout: { ...layout, bubbleRadius: Number(ev.target.value) } })}/></label>
+          <label>{e.layoutSpacing}<input type="number" min={0} max={48} value={layout.messageSpacing ?? 10} onChange={ev => update({ layout: { ...layout, messageSpacing: Number(ev.target.value) } })}/></label>
+        </div>
+        <div className="inspector-pair">
+          <label>{e.layoutHeaderHeight}<input type="number" min={36} max={112} value={layout.headerHeight ?? 51} onChange={ev => update({ layout: { ...layout, headerHeight: Number(ev.target.value) } })}/></label>
+          <label>{e.layoutMaxBubble}<input type="number" min={120} max={560} value={layout.maxBubbleWidth ?? 300} onChange={ev => update({ layout: { ...layout, maxBubbleWidth: Number(ev.target.value) } })}/></label>
+        </div>
+        <p className="property-help">{e.layoutNote}</p>
+        <button className="property-text-button" onClick={() => update({ layout: undefined })}>{e.layoutReset}</button>
+      </> : <>
+        <p className="property-help">{e.layoutNote}</p>
+        <button className="agent-button" onClick={() => update({ layout: { kind: 'custom', name: (scene.title || 'Custom').slice(0, 80) } })}>{e.layoutCreate}</button>
+      </>}
+    </Section>}
+    {message && <Section title={e.arrangeSection}><div className="property-message-actions"><button className="agent-button" aria-label={e.moveUp} disabled={index === 0} onClick={() => move(-1)}><IconArrowUp size={15}/></button><button className="agent-button" aria-label={e.moveDown} disabled={index === scene.messages.length - 1} onClick={() => move(1)}><IconArrowDown size={15}/></button><button className="agent-button" disabled={scene.messages.length >= 200} onClick={() => { const copy = { ...message, id: crypto.randomUUID() }; const messages = [...scene.messages]; messages.splice(index + 1, 0, copy); apply({ ...scene, messages }); onSelect(copy.id); }}><IconCopy size={15}/>{e.duplicate}</button><button className="agent-button property-delete" aria-label={e.deleteMessage} onClick={() => { apply({ ...scene, messages: scene.messages.filter(m => m.id !== message.id) }); onSelect(scene.messages[index + 1]?.id || scene.messages[index - 1]?.id || '@scene'); }}><IconTrash size={15}/></button></div></Section>}
+    <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { if (e.target.files?.[0]) void upload(e.target.files[0]); e.target.value = ''; }}/>
+  </fieldset>{error && <p role="alert">{error}</p>}</div>;
 }

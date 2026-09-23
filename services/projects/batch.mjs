@@ -15,6 +15,7 @@
  */
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
+import { instantiateTemplate } from '../../packages/schema/templates.ts';
 import { projectsError } from './errors.mjs';
 import { blankScene, buildTaskPrompt } from './model.mjs';
 import {
@@ -41,6 +42,30 @@ function sleep(ms) {
     const timer = setTimeout(resolve, ms);
     timer.unref?.();
   });
+}
+
+/**
+ * Build the starting scene for one task. A queued job that froze a template
+ * instantiates that exact snapshot with the item values; otherwise the legacy
+ * blank scene is used. Platform comes from the task so project defaults keep
+ * working for template-free batches.
+ */
+function initialScene(job, task) {
+  if (typeof job.template_json === 'string' && job.template_json !== '') {
+    let definition = null;
+    try { definition = JSON.parse(job.template_json); } catch { definition = null; }
+    if (definition) {
+      const result = instantiateTemplate(definition, task.values ?? {}, task.sceneId);
+      if (!result.ok) throw projectsError(422, 'invalid_template_instance', `模板变量不合法：${result.errors.slice(0, 3).join('；')}`);
+      // A screenshot-reference template keeps its source platform; switching the
+      // label would not convert the source image or its edit layer.
+      const candidate = result.value.reference ? result.value : { ...result.value, platform: task.platform };
+      const validated = validateScene(candidate);
+      if (!validated.ok || !validated.scene) throw projectsError(422, 'invalid_template_instance', '模板实例未通过校验');
+      return validated.scene;
+    }
+  }
+  return blankScene(task.platform, task.sceneId);
 }
 
 function eventDetail(event) {
@@ -232,11 +257,21 @@ export function createBatchQueue({
       activeRuns.set(jobId, controller);
       markTaskRunning(db, task.id, nowMs());
       const watcher = startWatcher(job, controller);
+      let scene;
+      try {
+        scene = initialScene(job, task);
+      } catch (error) {
+        clearInterval(watcher);
+        activeRuns.delete(jobId);
+        lease.release();
+        markTaskFailed(db, task.id, { code: error?.code ?? 'invalid_template_instance', message: error?.message ?? '无法从模板创建场景' }, nowMs());
+        continue;
+      }
       let result;
       try {
         result = await agent.runtime.run({
           prompt: buildTaskPrompt(job.rules, task.prompt),
-          scene: blankScene(task.platform, task.sceneId),
+          scene,
           onEvent: (event) => {
             const detail = eventDetail(event);
             if (detail) updateTaskDetail(db, task.id, detail, nowMs());

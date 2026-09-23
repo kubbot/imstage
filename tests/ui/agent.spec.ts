@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import sharp from 'sharp';
+// Header navigation is localised; this suite asserts the Chinese labels.
+test.use({ locale: 'zh-CN' });
 async function ready(page: Page) {
   await page.goto('/#/create');
   const origin = new URL(page.url()).origin;
@@ -24,6 +26,7 @@ test('Agent creation, scoped Vibe Edit, undo and PNG export share the rendered s
   await ready(page); await generate(page);
   await page.getByRole('button',{name:'选择消息：周末一起去看展吗？',exact:true}).click();
   await expect(page.getByRole('complementary',{name:'Vibe Edit'})).toBeVisible();
+  await page.getByRole('button',{name:'AI 修改',exact:true}).click();
   const request = page.waitForRequest('**/api/agent/run');
   await page.getByLabel('描述想怎样修改').fill('周末要不要一起去逛展？');
   await page.getByRole('button',{name:'发送修改',exact:true}).click();
@@ -68,6 +71,7 @@ for(const theme of ['light','dark'] as const) test(`Agent responsive and accessi
     if(width===390) await page.getByRole('button',{name:/渲染画面/}).click();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
     await page.getByRole('button',{name:'选择消息：周末一起去看展吗？',exact:true}).click();
+    await page.getByRole('button',{name:'AI 修改',exact:true}).click();
     await expect(page.getByLabel('描述想怎样修改')).toBeVisible();
     const axe = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();
     expect(axe.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
@@ -75,21 +79,25 @@ for(const theme of ['light','dark'] as const) test(`Agent responsive and accessi
     await page.getByRole('button',{name:'关闭 AI 编辑'}).click();
   }
 });
-test('account save and Agent generation cannot interrupt each other',async({page})=>{
+test('autosave stays non-blocking and waits for Agent completion',async({page})=>{
   await ready(page); await page.goto('/#/workspace?scene=new');
-  await page.getByLabel('描述想生成的聊天',{exact:true}).fill('请生成一句你好');
-  let releaseSave:()=>void=()=>{}; const holdSave=new Promise<void>(resolve=>{releaseSave=resolve;});
-  await page.route('**/api/scenes/*',async route=>{if(route.request().method()!=='PUT')return route.continue();await holdSave;await route.fulfill({response:await route.fetch()});});
-  await page.getByRole('button',{name:'保存作品',exact:true}).click();
-  await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toBeDisabled();
-  await expect(page.getByRole('button',{name:'开始生成',exact:true})).toBeDisabled();
+  let releaseSave!:()=>void; const holdSave=new Promise<void>(resolve=>{releaseSave=resolve;});
+  let saveStarted!:()=>void; const saving=new Promise<void>(resolve=>{saveStarted=resolve;}); let writes=0;
+  await page.route('**/api/scenes/*',async route=>{if(route.request().method()!=='PUT')return route.continue();writes++;if(writes===1){saveStarted();await holdSave;}await route.fulfill({response:await route.fetch()});});
+  await generate(page); await saving;
+  await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'保存作品',exact:true})).toHaveCount(0);
   releaseSave();await expect(page).toHaveURL(/scene=[0-9a-f-]{36}/);
-  let releaseRun:()=>void=()=>{};const holdRun=new Promise<void>(resolve=>{releaseRun=resolve;});
+  let releaseRun!:()=>void;const holdRun=new Promise<void>(resolve=>{releaseRun=resolve;});
   await page.route('**/api/agent/run',async route=>{const {scene}=route.request().postDataJSON();await holdRun;await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,messages:[{id:'hello',participantId:scene.selfId,type:'text',text:'你好',time:''}]}},{type:'done'}].map(v=>JSON.stringify(v)).join('\n')+'\n'});});
+  const before=writes;
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('请生成一句你好');await page.getByRole('button',{name:'开始生成',exact:true}).click();
-  await expect(page.getByRole('button',{name:'保存作品',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'停止生成',exact:true})).toBeVisible();
+  await page.waitForTimeout(1000);expect(writes).toBe(before);
   releaseRun();await expect(page.locator('.agent-phone')).toContainText('你好');
-  await expect(page.getByRole('button',{name:'保存作品',exact:true})).toBeEnabled();
+  await expect.poll(()=>writes).toBe(before+1);
+  const id=new URLSearchParams(page.url().split('?').at(-1)).get('scene');
+  await expect.poll(async()=>JSON.stringify(await(await page.request.get(`/api/scenes/${id}`)).json())).toContain('你好');
 });
 test('guest login preserves the request and returns to Agent creation',async({page})=>{
   await page.goto('/#/create');await page.getByLabel('描述想生成的聊天',{exact:true}).fill('和朋友约周六看展');
@@ -101,7 +109,7 @@ test('guest login preserves the request and returns to Agent creation',async({pa
 });
 test('unsaved Agent request in an account scene is protected when recovery storage fails',async({page})=>{
   await ready(page);await page.goto('/#/workspace?scene=new');
-  await page.getByRole('button',{name:'保存作品',exact:true}).click();await expect(page).toHaveURL(/scene=[0-9a-f-]{36}/);
+  await generate(page);await expect(page).toHaveURL(/scene=[0-9a-f-]{36}/);
   await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('imstage.agent.'))throw new DOMException('full','QuotaExceededError');return original.call(this,k,v);};});
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('这条创作需求还没有提交');await expect(page.getByRole('alert')).toContainText('无法保存草稿');
   let dialogs=0;page.on('dialog',async d=>{dialogs++;await d.dismiss();});

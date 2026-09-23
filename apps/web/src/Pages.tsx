@@ -1,21 +1,198 @@
-import { useState } from 'react';
-import { IconSearch, IconHeart, IconChevronRight, IconBrandGithub, IconArrowUpRight, IconArrowDown } from '@tabler/icons-react';
-import { templates, TemplateCard, LinkButton, github } from './components';
+import { useMemo, useState } from 'react';
+import { IconSearch, IconChevronRight, IconBrandGithub, IconArrowUpRight, IconHeart } from '@tabler/icons-react';
+import { github } from './components';
+import { useLocale } from './marketing/LocaleContext';
+import { DOCS_COPY, TEMPLATES_COPY, type TemplateCategory, type TemplateEntry } from './marketing/pagesCopy';
+import type { Locale } from './marketing/locale';
+import { createScenario } from './marketing/scenes';
+import { ScaledSceneFrame, DEMO_DEVICE } from './marketing/DeviceFrame';
+import { SceneView } from './studio/SceneView';
 
 export function Templates() {
-  const [filter, setFilter] = useState('全部');
+  const { locale } = useLocale();
+  const copy = TEMPLATES_COPY[locale];
+  const [filter, setFilter] = useState<'all' | TemplateCategory>('all');
   const [query, setQuery] = useState('');
-  const shown = templates.filter(t => (filter === '全部' || t.category === filter) && `${t.title}${t.description}${t.category}${t.platform}`.includes(query.trim()));
-  return <div className="templates-page section-shell"><div className="page-intro"><span className="section-label">场景灵感</span><h1>一个开场。<br />无限种你的版本。</h1><p>全部使用合成内容。挑一个喜欢的，进入工作台继续写。</p></div><div className="gallery-controls"><div className="filter-tabs" role="group" aria-label="场景分类">{['全部', '生活叙事', '产品演示', '教学示例'].map(f => <button aria-pressed={filter === f} key={f} onClick={() => setFilter(f)}>{f}</button>)}</div><label className="search-field"><IconSearch size={17} /><input aria-label="搜索场景" value={query} onChange={e => setQuery(e.target.value)} placeholder="找一个场景" /></label></div><div className="library-grid">{shown.map(t => <TemplateCard key={t.id} template={t} index={templates.indexOf(t)} />)}</div>{!shown.length && <div className="empty-results"><IconSearch size={30} /><h2>没有找到这个场景</h2><p>换个关键词，或者从空白故事开始。</p><button className="btn btn-secondary" onClick={() => { setQuery(''); setFilter('全部'); }}>查看全部场景</button></div>}<div className="template-note"><IconHeart size={18} /><p>模板是故事的起点。你可以修改每个细节，也可以在工作台新建自己的场景。</p></div></div>;
+  const needle = query.trim().toLocaleLowerCase();
+  const shown = copy.entries.filter((entry) => {
+    if (filter !== 'all' && entry.category !== filter) return false;
+    if (!needle) return true;
+    return `${entry.title}${entry.description}${entry.word}${copy.filters[entry.category]}`.toLocaleLowerCase().includes(needle);
+  });
+  const filterOrder: ('all' | TemplateCategory)[] = ['all', 'life', 'product', 'teaching'];
+
+  return (
+    <div className="templates-page section-shell">
+      <div className="page-intro">
+        <span className="section-label">{copy.label}</span>
+        <h1>{copy.title}</h1>
+        <p>{copy.lede}</p>
+      </div>
+      <div className="gallery-controls">
+        <div className="filter-tabs" role="group" aria-label={copy.label}>
+          {filterOrder.map((id) => (
+            <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {copy.filters[id]}
+            </button>
+          ))}
+        </div>
+        <label className="search-field">
+          <IconSearch size={17} />
+          <input aria-label={copy.searchLabel} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} />
+        </label>
+      </div>
+      <div className="library-grid">
+        {shown.map((entry) => (
+          <TemplateCard key={entry.id} entry={entry} locale={locale} platform={copy.platform} category={copy.filters[entry.category]} open={copy.open} />
+        ))}
+      </div>
+      {!shown.length && (
+        <div className="empty-results">
+          <IconSearch size={30} />
+          <h2>{copy.emptyTitle}</h2>
+          <p>{copy.emptyBody}</p>
+          <button className="btn btn-secondary" onClick={() => { setQuery(''); setFilter('all'); }}>
+            {copy.reset}
+          </button>
+        </div>
+      )}
+      <div className="template-note">
+        <IconHeart size={18} />
+        <p>{copy.note}</p>
+      </div>
+    </div>
+  );
+}
+
+function TemplateCard({ entry, locale, platform, category, open }: {
+  entry: TemplateEntry;
+  locale: Locale;
+  platform: string;
+  category: string;
+  open: string;
+}) {
+  const scene = useMemo(() => createScenario(entry.kind, locale), [entry.kind, locale]);
+  return (
+    <a className={`template-card ${entry.id}`} href={`#/studio?template=${entry.id}`} aria-label={`${entry.title} · ${open}`}>
+      <div className="template-art">
+        <div className="template-word" aria-hidden="true">{entry.word}</div>
+        <div className="template-device" aria-hidden="true">
+          <ScaledSceneFrame size={DEMO_DEVICE}>
+            <SceneView scene={scene} exportMode locale={locale} />
+          </ScaledSceneFrame>
+        </div>
+        <span className="template-open" aria-hidden="true"><IconArrowUpRight size={21} /></span>
+      </div>
+      <div className="template-caption">
+        <div>
+          <span>{category} / {platform}</span>
+          <h3>{entry.title}</h3>
+        </div>
+        <IconArrowUpRight size={19} />
+      </div>
+      <p>{entry.description}</p>
+    </a>
+  );
 }
 
 export function Docs() {
+  const { locale } = useLocale();
+  const copy = DOCS_COPY[locale];
   const initial = new URLSearchParams(location.hash.split('?')[1]).get('tab');
-  const [tab, setTab] = useState(initial === 'mcp' ? 'mcp' : 'web');
-  return <div className="docs-page section-shell"><div className="page-intro"><span className="section-label">使用与接入</span><h1>从你的浏览器，<br />到你的工具链。</h1><p>现在开始编辑，了解接下来会开放什么。</p></div><div className="docs-layout"><nav className="docs-nav" aria-label="文档目录">{[['web','浏览器工作台'],['mcp','MCP / API'],['templates','模板与真实 UI'],['privacy','数据与隐私']].map(([id,label]) => <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}<IconChevronRight size={15} /></button>)}<a href={github} target="_blank" rel="noreferrer"><IconBrandGithub size={17} /> 源代码 <IconArrowUpRight size={14} /></a></nav><article className="docs-content">
-      {tab === 'web' && <><span className="available-tag">本轮可体验</span><h2>浏览器里的对话创作台</h2><p>打开工作台，无需登录就可以使用本地示例。所有内容在当前浏览器内处理。</p><ol className="doc-steps"><li><strong>选一个故事</strong><p>从场景灵感开始，或在工作台新建空白场景。</p></li><li><strong>点选消息，修改细节</strong><p>调整台词、发送人和时间。预览实时更新，改错可以撤销。</p></li><li><strong>保存你要的画面</strong><p>导出普通截图或完整长图；也可以下载 JSON 备份可编辑场景。</p></li></ol><div className="doc-callout">创作台支持 Agent 生成与截图参考：登录后描述需求，点选消息继续 AI 编辑。需要自托管实例配置 DeepSeek；消息配图使用独立图片服务，连接状态在创作台显示。</div><LinkButton href="#/create">进入 Agent 创作 <IconArrowUpRight size={17} /></LinkButton></>}
-      {tab === 'mcp' && <><span className="planned-tag">规划中 · 尚未开放接入</span><h2>让 Agent 使用同一份场景</h2><p>Web、MCP 与 API 计划共用场景数据和渲染器。AI 理解修改意图，确定性渲染器负责排版输出。</p><div className="doc-diagram"><span>Web / MCP / API</span><IconArrowDown /><span>结构化场景 + 模板版本</span><IconArrowDown /><span>共用渲染器 → 图片</span></div><h3>接入前还需要完成什么</h3><ul><li>服务端场景与素材存储、账号授权。</li><li>确定 API 与 MCP 工具契约、额度与计费边界。</li><li>在目标客户端分别验收图片内容与资源链接。</li></ul><div className="doc-callout">目前没有可用的服务地址或 API key 申请入口。这里没有可执行的远程调用示例，避免把规划当成已上线服务。</div><a className="text-link" href={`${github}/tree/main/services`} target="_blank" rel="noreferrer">在仓库查看进展 <IconArrowUpRight size={16} /></a></>}
-      {tab === 'templates' && <><h2>真实 UI，要有真实参照</h2><p>当前模板是视觉近似。微信、小红书优先；具体系统与 App 版本的精确校准仍待完成。</p><ol className="doc-steps"><li><strong>采集经过授权的真实截图</strong><p>使用测试账号和合成对话，记录平台、系统、版本、设备与字体设置。</p></li><li><strong>按组件建立参考库</strong><p>拆分状态栏、导航、头像、消息、时间和卡片。不要混合不同版本的规则。</p></li><li><strong>同场景对照渲染</strong><p>固定字体与尺寸，逐项检查布局、文本和关键状态，校准后再宣称准确还原。</p></li></ol><div className="doc-callout">图像生成适合制作聊天里的图片素材。整张聊天界面应由程序渲染，保证修改可控、文字准确。</div><a className="text-link" href="https://developer.apple.com/design/resources/" target="_blank" rel="noreferrer">Apple 系统设计资源 <IconArrowUpRight size={16} /></a></>}
-      {tab === 'privacy' && <><h2>你的故事，目前留在本机</h2><p>本轮前端不上传聊天或图片，也没有账号、支付或分析追踪服务。</p><h3>本地草稿</h3><p>草稿保存在当前站点的浏览器存储中。隐私模式、空间不足、浏览器清理或更换设备，都可能使草稿不可用。界面会在无法保存时提示。</p><h3>保存一份副本</h3><p>重要场景请下载 JSON 或导出 PNG。当前 JSON 备份用于留存场景数据，尚未提供通用导入接口。</p><h3>素材与水印</h3><p>请使用自己创作或有权使用的素材。水印默认关闭，可以在导出前设置；所有内置示例均为合成内容。</p><div className="doc-callout">云端永久保存是未来产品方向，不代表本地草稿具有云端备份。</div></>}
-    </article></div></div>;
+  const [tab, setTab] = useState<'web' | 'mcp' | 'templates' | 'privacy'>(initial === 'mcp' ? 'mcp' : initial === 'templates' ? 'templates' : initial === 'privacy' ? 'privacy' : 'web');
+  const order: ('web' | 'mcp' | 'templates' | 'privacy')[] = ['web', 'mcp', 'templates', 'privacy'];
+
+  return (
+    <div className="docs-page section-shell">
+      <div className="page-intro">
+        <span className="section-label">{copy.label}</span>
+        <h1>{copy.title}</h1>
+        <p>{copy.lede}</p>
+      </div>
+      <div className="docs-layout">
+        <nav className="docs-nav" aria-label={copy.label}>
+          {order.map((id) => (
+            <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
+              {copy.tabs[id]}
+              <IconChevronRight size={15} />
+            </button>
+          ))}
+          <a href={github} target="_blank" rel="noreferrer">
+            <IconBrandGithub size={17} /> {copy.source} <IconArrowUpRight size={14} />
+          </a>
+        </nav>
+        <article className="docs-content">
+          {tab === 'web' && (
+            <>
+              <span className="available-tag">{copy.web.tag}</span>
+              <h2>{copy.web.title}</h2>
+              <p>{copy.web.body}</p>
+              <ol className="doc-steps">
+                {copy.web.steps.map((step) => (
+                  <li key={step.title}>
+                    <strong>{step.title}</strong>
+                    <p>{step.detail}</p>
+                  </li>
+                ))}
+              </ol>
+              <div className="doc-callout">{copy.web.callout}</div>
+              <a className="btn btn-primary" href="#/create">{copy.web.cta} <IconArrowUpRight size={17} /></a>
+            </>
+          )}
+          {tab === 'mcp' && (
+            <>
+              <span className="available-tag">{copy.mcp.tag}</span>
+              <h2>{copy.mcp.title}</h2>
+              <p>{copy.mcp.body}</p>
+              <h3>{copy.mcp.authTitle}</h3>
+              <ul>
+                {copy.mcp.auth.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <div className="doc-callout">{copy.mcp.callout}</div>
+              <a className="text-link" href={`${github}/tree/main/services/mcp`} target="_blank" rel="noreferrer">
+                {copy.mcp.link} <IconArrowUpRight size={16} />
+              </a>
+            </>
+          )}
+          {tab === 'templates' && (
+            <>
+              <h2>{copy.templates.title}</h2>
+              <p>{copy.templates.body}</p>
+              <ol className="doc-steps">
+                {copy.templates.steps.map((step) => (
+                  <li key={step.title}>
+                    <strong>{step.title}</strong>
+                    <p>{step.detail}</p>
+                  </li>
+                ))}
+              </ol>
+              <div className="doc-callout">{copy.templates.callout}</div>
+              <a className="text-link" href="https://developer.apple.com/design/resources/" target="_blank" rel="noreferrer">
+                {copy.templates.link} <IconArrowUpRight size={16} />
+              </a>
+            </>
+          )}
+          {tab === 'privacy' && (
+            <>
+              <h2>{copy.privacy.title}</h2>
+              <p>{copy.privacy.body}</p>
+              {copy.privacy.items.map((item) => (
+                <section key={item.title}>
+                  <h3>{item.title}</h3>
+                  <p>{item.detail}</p>
+                </section>
+              ))}
+              <div className="doc-callout">
+                <p>{copy.privacy.recovery}</p>
+                <p>{copy.privacy.payment}</p>
+                <p>{copy.privacy.cloudNote}</p>
+              </div>
+            </>
+          )}
+        </article>
+      </div>
+    </div>
+  );
 }

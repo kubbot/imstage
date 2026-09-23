@@ -1,4 +1,6 @@
+import { isCalendarDate } from '../../../../packages/schema/timeline.mjs';
 import { validateReference, type ReferenceDocument } from '../../../../packages/schema/reference.ts';
+import { validateCustomLayout, type CustomLayout } from '../../../../packages/schema/layout.ts';
 import { deviceProfileError } from './device-profiles.ts';
 /**
  * IMStage studio scene model.
@@ -34,6 +36,8 @@ export interface Message {
   type: MessageType;
   text: string;
   time: string;
+  /** Local calendar date, ISO YYYY-MM-DD. Kept separate from displayed time. */
+  date?: string;
   asset?: string;
   subtitle?: string;
   quote?: string;
@@ -54,6 +58,8 @@ export interface Scene {
   messages: Message[];
   watermark: string;
   reference?: ReferenceDocument;
+  /** Frozen reference for relative labels such as 今天. */
+  referenceDate?: string;
   surface?: 'ios' | 'android' | 'desktop';
   /** Optional coded device profile id; must match `surface` when present. */
   deviceProfileId?: string;
@@ -63,6 +69,8 @@ export interface Scene {
   composerText?: string;
   headerText?: string;
   battery?: number;
+  /** Optional declarative neutral layout; absent keeps the platform skin. */
+  layout?: CustomLayout;
 }
 
 export const PLATFORMS: readonly Platform[] = [
@@ -420,6 +428,7 @@ export function validateScene(value: unknown): ValidationResult {
       if (raw.asset !== undefined && typeof raw.asset !== 'string') {
         errors.push(`消息 ${index + 1} 的素材必须是字符串`);
       }
+      if (raw.date !== undefined && !isCalendarDate(raw.date)) errors.push(`消息 ${index + 1} 的日期必须是有效 YYYY-MM-DD`);
       if (raw.asset && !isLocalImage(raw.asset)) errors.push(`消息 ${index + 1} 的素材必须是本地图片`);
 
       if (!mid || !type) return;
@@ -430,6 +439,7 @@ export function validateScene(value: unknown): ValidationResult {
         text: typeof raw.text === 'string' ? raw.text : '',
         time: typeof raw.time === 'string' ? raw.time : '',
       };
+      if (typeof raw.date === 'string' && isCalendarDate(raw.date)) message.date = raw.date;
       if (typeof raw.asset === 'string' && raw.asset !== '') message.asset = raw.asset;
       extraFields(raw, message as unknown as Record<string, unknown>, errors);
       if (raw.items !== undefined) {
@@ -450,6 +460,7 @@ export function validateScene(value: unknown): ValidationResult {
   if (typeof value.watermark !== 'string') errors.push('水印必须是字符串');
 
   const extras: Record<string, unknown> = {};
+  if (value.referenceDate !== undefined) { if (!isCalendarDate(value.referenceDate)) errors.push('参考日期必须是有效 YYYY-MM-DD'); else extras.referenceDate = value.referenceDate; }
   if (value.reference !== undefined) { try {extras.reference = validateReference(value.reference);} catch(e) {errors.push(e instanceof Error ? e.message : '截图文档无效');} }
   extraFields(value, extras, errors);
   if (value.surface !== undefined) {
@@ -473,6 +484,10 @@ export function validateScene(value: unknown): ValidationResult {
   if (value.backgroundImage !== undefined && value.backgroundImage !== '') {
     if (!isLocalImage(value.backgroundImage)) errors.push('背景必须是本地图片');
     else extras.backgroundImage = value.backgroundImage;
+  }
+  if (value.layout !== undefined) {
+    try { extras.layout = validateCustomLayout(value.layout); }
+    catch (error) { errors.push(error instanceof Error ? error.message : '自定义布局无效'); }
   }
   if (errors.length > 0 || !id || !platform) {
     return { ok: false, errors };

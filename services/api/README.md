@@ -3,8 +3,8 @@
 Local / self-hosted backend for IMStage accounts and owned scenes.
 
 `services/api/server.mjs` implements the real backend only: registration, login,
-logout, password change, opaque server-side sessions, and per-user scene
-persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
+logout, password change, opaque server-side sessions, and per-user scene,
+contact, template and project persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
 
 ## What this is (and is not)
 
@@ -13,7 +13,7 @@ persistence. Auth uses the Node standard library; the separate Agent service use
   no way to recover an account through this server; document that to users.
 - Not a Vercel/serverless backend. It is a long-lived Node process with a local
   SQLite file storing both accounts and sessions. Rate-limit counters are process-local.
-- DeepSeek Agent creation/editing is implemented under `/api/agent/run`; see [Agent service](../agent/README.md). Image generation requires separate provider configuration. MCP, billing and hosted API keys remain unimplemented.
+- DeepSeek Agent creation/editing is implemented under `/api/agent/run`; see [Agent service](../agent/README.md). Image generation requires separate provider configuration. MCP runs as a separate authenticated service; see [MCP service](../mcp/README.md). Billing and per-customer hosted API keys remain unimplemented.
 - The Web UI is integrated with these endpoints. Run `npm run dev` for both development servers, or `npm run build && npm start` for the unified app.
 
 Requires **Node >= 22.18** (native TypeScript type stripping is used to import
@@ -43,6 +43,7 @@ and the API must share one origin. `dist/` is produced by `npm run build`.
 | Data directory | `IMSTAGE_DATA_DIR` | `.local/app` | Directory created with mode `0700`. |
 | Database file | — | `<data dir>/imstage.db` | Created with mode `0600`; WAL mode. |
 | App origin | `IMSTAGE_APP_ORIGIN` | `http://127.0.0.1:4417` | Exact browser origin allowed on mutations. |
+| Trusted proxy | `IMSTAGE_TRUST_LOOPBACK_PROXY` | unset | Set `1` only behind a local proxy that overwrites `X-Real-IP`; used for auth throttling. |
 | Static dir | `IMSTAGE_DIST_DIR` | `dist` | Built web app; missing directory → static 404s. |
 | Node env | `NODE_ENV` | `development` | In `production`, a non-loopback origin must be `https://` or startup fails. |
 
@@ -160,6 +161,14 @@ rejects unknown platforms, invalid message/participant references, and remote
 asset/avatar URLs (only bounded local `data:image/...` values are accepted).
 No arbitrary metadata is stored: the scene JSON is capped by the request limit
 and the indexed columns are bounded.
+
+## Reusable templates and project batches
+
+Authenticated `/api/templates` routes create, list, read, update, delete and
+instantiate owner-scoped snapshots. Revisions prevent silent overwrites; normal
+scene autosave does not modify the original template. Project `batch-jobs`
+accept structured variants and freeze template values and common rules before
+the sequential Agent worker starts. See [the complete contracts and limits](../../docs/templates-and-projects.md).
 
 ## Limits and resource bounds
 

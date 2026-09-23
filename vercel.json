@@ -3,5 +3,90 @@
   "framework": "vite",
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://103.195.188.236/api/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.imstage.org"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "project-91bgj.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "imstage-kubbots-projects.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.imstage.org"
+        }
+      ],
+      "destination": "https://imstage.org/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "project-91bgj.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "imstage-kubbots-projects.vercel.app"
+        }
+      ],
+      "destination": "https://imstage.org/:path*",
+      "permanent": true
+    }
+  ]
 }
