@@ -133,7 +133,7 @@ test('retired reference drafts stay intact and show an explicit policy error', a
   const source = JSON.stringify({ scene: { ...fixture.scene, reference: { image: 'synthetic-legacy-marker' } }, prompt: 'preserve this draft' });
   await page.addInitScript(source => sessionStorage.setItem('imstage.agent.guest.draft', source), source);
   await page.goto('/#/create');
-  await expect(page.getByRole('alert')).toContainText('真实截图参考编辑已停用');
+  await expect(page.getByRole('status')).toContainText('真实截图参考编辑已停用');
   expect(await page.evaluate(() => sessionStorage.getItem('imstage.agent.guest.draft'))).toBe(source);
   await expect(page.locator('.scene-root')).toHaveCount(0);
 });
