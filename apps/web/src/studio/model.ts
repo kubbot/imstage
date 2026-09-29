@@ -435,12 +435,14 @@ export function validateScene(input: unknown): ValidationResult {
       // old stored work keeps loading (never erased) but a payment card can
       // never render again. Id, order and timestamp are preserved.
       if (isPaymentMessageType(raw.type)) {
+        if (raw.date !== undefined && !isCalendarDate(raw.date)) errors.push(`消息 ${index + 1} 的日期必须是有效 YYYY-MM-DD`);
         if (!mid) return;
         messages.push({
           id: mid,
           participantId: '',
           type: 'system',
           text: PAYMENT_NEUTRALIZED_TEXT,
+          ...(isCalendarDate(raw.date) ? { date: raw.date as string } : {}),
           time: typeof raw.time === 'string' ? raw.time : '',
         });
         return;

@@ -1,3 +1,4 @@
+import { hasReferenceLayer, REFERENCE_DISABLED_MESSAGE } from '../../../../packages/schema/policy.mjs';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import { useAuth } from './Auth';
@@ -116,13 +117,19 @@ export default function AccountEditor({ sceneId }: { sceneId: string }) {
       }
       try {
         const data = await api<{ item: SavedScene }>(`/scenes/${encodeURIComponent(sceneId)}`, { signal: controller.signal });
-        if (!cancelled) setItem(data.item);
+        if (hasReferenceLayer(data.item.scene)) throw new Error(REFERENCE_DISABLED_MESSAGE);
+        const parsed = validateScene(data.item.scene);
+        if (!parsed.ok || !parsed.scene) throw new Error(parsed.errors.join(' / '));
+        if (!cancelled) setItem({ ...data.item, scene: parsed.scene });
       } catch (error) {
         if (!cancelled) setError(errorText(error));
       }
     })();
     return () => { cancelled = true; controller.abort(); };
   }, [sceneId, retry, user?.id]);
+  let recoveryBlocked = false;
+  try { recoveryBlocked = hasReferenceLayer(JSON.parse(sessionStorage.getItem(`imstage.account.${user?.id}.${sceneId}`) || 'null')?.scene); } catch { /* preserve unreadable recovery data */ }
+  if (recoveryBlocked) return <section className="account-gate"><p role="alert">{REFERENCE_DISABLED_MESSAGE}</p><a href="#/workspace">{copy.account.backToWorks}</a></section>;
   if (error) return <section className="account-gate"><h1>{copy.account.openWorkFailed}</h1><p role="alert">{error}</p><button className="btn btn-secondary" onClick={() => setRetry(retry + 1)}>{copy.common.retry}</button> <a className="text-link" href="#/workspace">{copy.account.backToWorks}</a></section>;
   if (!item || !user) return <p className="page-loading" role="status">{copy.account.openingWork}</p>;
   return <EditorSession key={`${user.id}:${sceneId}:${retry}`} item={item} userId={user.id} draftId={sceneId} />;

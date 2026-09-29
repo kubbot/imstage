@@ -107,3 +107,11 @@ test('a new session record is independent and starts unversioned', () => {
   assert.equal(record.preview, '');
   assert.equal(record.count, 0);
 });
+
+ test('reference draft recovery is rejected without replacing or mutating its source', () => {
+  const draft = emptyDraft();
+  draft.scene.reference = { image: 'legacy-source' };
+  const original = JSON.stringify(draft);
+  assert.throws(() => recoverDraft(draft), /reference editing is disabled/);
+  assert.equal(JSON.stringify(draft), original);
+});

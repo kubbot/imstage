@@ -92,3 +92,14 @@ test('scene hashes for the audit are canonical and content-private', () => {
   assert.equal(a, b, 'key order must not change the hash input');
   assert.deepEqual(JSON.parse(a), { extra: 1, messages: [{ text: 'x' }], title: 't' });
 });
+
+test('legacy payment notices preserve calendar dates and explain retirement bilingually', () => {
+  const scene = validScene();
+  scene.messages[0] = { ...scene.messages[0], type: 'transfer', date: '2026-09-29' };
+  const result = validateScene(scene);
+  assert.equal(result.ok, true);
+  assert.equal(result.scene.messages[0].date, '2026-09-29');
+  assert.match(result.scene.messages[0].text, /This message type is disabled/);
+  scene.messages[0].date = '2026-02-30';
+  assert.equal(validateScene(scene).ok, false);
+});

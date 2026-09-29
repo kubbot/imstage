@@ -97,8 +97,8 @@ export function isPaymentMessageType(type) {
 }
 
 /** Neutral replacement text; the original text is not rendered. */
-export const PAYMENT_NEUTRALIZED_TEXT = '该消息类型已停用（不支持支付/转账/红包类内容）';
 export const PAYMENT_NEUTRALIZED_TEXT_EN = 'This message type is disabled (no payment, transfer or red-packet content).';
+export const PAYMENT_NEUTRALIZED_TEXT = `该消息类型已停用（不支持支付/转账/红包类内容） / ${PAYMENT_NEUTRALIZED_TEXT_EN}`;
 
 /**
  * Neutralise payment-style messages in a messages array.

@@ -128,3 +128,12 @@ test('login handoff creates a separate session even when that account already ha
   await page.evaluate(({scene,image})=>sessionStorage.setItem('imstage.agent.login-handoff',JSON.stringify({scene,prompt:'访客登录前的输入',attachments:[image],turns:[{role:'user',id:'guest-u',content:'访客创作记录'}]})),{scene:fixture.scene,image});
   await page.reload();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('访客登录前的输入');await expect(page.locator('.agent-attachments img')).toHaveCount(1);await open(page);await expect(page.getByRole('button',{name:'打开会话：账号已有会话',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'打开会话：访客创作记录',exact:true})).toBeVisible();
 });
+
+test('retired reference drafts stay intact and show an explicit policy error', async ({ page }) => {
+  const source = JSON.stringify({ scene: { ...fixture.scene, reference: { image: 'synthetic-legacy-marker' } }, prompt: 'preserve this draft' });
+  await page.addInitScript(source => sessionStorage.setItem('imstage.agent.guest.draft', source), source);
+  await page.goto('/#/create');
+  await expect(page.getByRole('alert')).toContainText('真实截图参考编辑已停用');
+  expect(await page.evaluate(() => sessionStorage.getItem('imstage.agent.guest.draft'))).toBe(source);
+  await expect(page.locator('.scene-root')).toHaveCount(0);
+});
