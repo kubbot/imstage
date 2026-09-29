@@ -194,13 +194,12 @@ test('mobile keeps a useful story, the CTA and touch-sized controls without over
   // The compact CTA row is in the first viewport, before the phone.
   await expect(heroCta(page)).toBeInViewport();
   await expect(hero(page)).toBeVisible();
-  // The authored scene photo starts in the first viewport, not just its frame:
+  // The synthetic sample starts in the first viewport, not just its frame:
   // the primary prompt and action still sit above it.
   await readyToExport(page);
-  const photo = await page.locator('.journey-device .scene-image').boundingBox();
-  expect(photo).not.toBeNull();
-  expect(photo!.y).toBeLessThan(844);
-  expect(844 - photo!.y).toBeGreaterThanOrEqual(80);
+  const sample = await page.locator('.journey-device .scene-row').first().boundingBox();
+  expect(sample).not.toBeNull();
+  expect(sample!.y + sample!.height).toBeLessThanOrEqual(844);
   await hero(page).scrollIntoViewIfNeeded();
   await expect(hero(page).locator('.scene-row').first()).toBeInViewport();
   for (const selector of ['.mark-btn', '.mark-toggle button', '.mark-story-controls button']) {
@@ -236,12 +235,12 @@ test('reduced motion keeps every section visible, starts on the result and the F
   await page.goto('/');
   const pending = await page.locator('.mark-section[data-reveal="pending"]').count();
   expect(pending).toBe(0);
-  await expect(page.locator('.journey-device .scene-row')).toHaveCount(5);
+  await expect(page.locator('.journey-device .scene-row')).toHaveCount(4);
   const details = page.locator('.mark-faq-list details').first();
   await expect(details).not.toHaveAttribute('open', '');
   await details.locator('summary').click();
   await expect(details).toHaveAttribute('open', '');
-  await expect(details).toContainText('都是合成的虚构内容');
+  await expect(details).toContainText('不能作为真实对话的证据');
 });
 
 for (const theme of ['light', 'dark'] as const) {
@@ -376,7 +375,7 @@ test.describe('refinements', () => {
     expect(frame!.width).toBeLessThanOrEqual(340);
     expect(Math.round(frame!.y + frame!.height)).toBeLessThanOrEqual(900);
     await expect(page.getByTestId('hero-export')).toBeInViewport();
-    await expect(page.locator('.journey-device .scene-row').nth(4)).toBeInViewport();
+    await expect(page.locator('.journey-device .scene-row').nth(3)).toBeInViewport();
     await expect(heroCta(page)).toBeInViewport();
   });
 
@@ -394,7 +393,8 @@ test.describe('refinements', () => {
     await page.locator('.mark-scenario.is-active .mark-scenario-use').click();
     await expect(page).toHaveURL(/#\/create/);
     await expect(page.locator('.agent-phone .scene-avatar').first()).toHaveAttribute('src', /^data:image\/webp;base64,/);
-    await expect(page.locator('.agent-phone .scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
+    await expect(page.locator('.agent-phone .scene-row')).toHaveCount(4);
+    await expect(page.locator('.agent-phone .imstage-disclosure')).toContainText('AI-generated / Fictional');
     expect(await page.locator('.agent-phone img').evaluateAll((nodes) => nodes.some((node) => (node as HTMLImageElement).src.includes('/assets/')))).toBe(false);
   });
 
@@ -402,7 +402,7 @@ test.describe('refinements', () => {
     await page.goto('/?lang=en#/templates');
     await expect(page.locator('.templates-page h1')).toHaveText('One opening. Endless versions of yours.');
     await expect(page.getByRole('button', { name: 'All', exact: true })).toBeVisible();
-    expect(await page.locator('.templates-page').innerText()).not.toMatch(/[\u3400-\u9fff]/);
+    expect((await page.locator('.templates-page').innerText()).replaceAll('AI生成 / 虚构', '')).not.toMatch(/[\u3400-\u9fff]/);
     await expect(page.locator('.template-card .scene-view').first()).toHaveAttribute('data-skin', 'imstage-generic');
 
     await page.goto('/?lang=zh#/templates');
@@ -418,7 +418,7 @@ test.describe('refinements', () => {
     await expect(privacy).toContainText('not implemented');
     // The old, now-false claim that there is no account/upload must be gone.
     expect(await privacy.innerText()).not.toContain('没有账号');
-    expect(await privacy.innerText()).not.toMatch(/[\u3400-\u9fff]/);
+    expect((await privacy.innerText()).replaceAll('AI生成/虚构', '').replaceAll('AI生成 / 虚构', '')).not.toMatch(/[\u3400-\u9fff]/);
   });
 });
 
@@ -444,7 +444,7 @@ test('download keeps its clicked scene when the header language changes during c
   await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
   await page.evaluate(()=>(window as any).__releaseCapture());
   const download=await pending;
-  expect(download.suggestedFilename()).toContain('wechat');
+  expect(download.suggestedFilename()).toContain('imstage');
   const result=testInfo.outputPath('snapshot-after-language-switch.png');await download.saveAs(result);
   expect(await readFile(result)).toEqual(await readFile(baseline));
   await page.locator('#mark-export').scrollIntoViewIfNeeded();

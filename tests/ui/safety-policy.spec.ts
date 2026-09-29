@@ -43,6 +43,7 @@ test('the mandatory mark has no UI switch and the API cannot disable it', async 
     data: { email: `mark-${crypto.randomUUID()}@example.test`, name: '标记验收', password },
   });
   expect(response.ok()).toBeTruthy();
+  await page.reload();
   await page.goto('/#/welcome');
   await expect(page.locator('.prefs-preview .imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(page.getByLabel('显示「虚构对话」标记')).toHaveCount(0);

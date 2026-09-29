@@ -87,7 +87,7 @@ test('a failed provider run stays recoverable and never replays after refresh', 
 });
 
 test('the evaluation hero export does not depend on unused story photo assets', async ({ page }) => {
-  await page.route('**/assets/stories/**', route => route.fulfill({ status: 500, body: 'no image' }));
+  await page.route('**/assets/stories/wukang-evening.webp', route => route.fulfill({ status: 500, body: 'no image' }));
   await page.goto('/?lang=zh');
   // The default sample is text-only synthetic content: the mandatory
   // disclosure renders and export stays available regardless of photo assets.

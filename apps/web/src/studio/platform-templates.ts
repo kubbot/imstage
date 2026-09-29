@@ -8,7 +8,7 @@ export const GENERIC_TEMPLATE = {
   version: 'imstage-generic-2026-v1',
   headerAvatar: false,
   messageAvatars: 'all',
-  inlineTime: false,
+  inlineTime: true,
   composer: 'default',
   background: '#e9edf2',
 } as const;
