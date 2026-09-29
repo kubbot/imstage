@@ -12,7 +12,7 @@ async function registerToOnboarding(page: Page, name = '偏好验收') {
   await page.getByLabel('怎么称呼你').fill(name);
   await page.getByLabel('邮箱', { exact: true }).fill(`prefs-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await expect(page).toHaveURL(/\/welcome/);
   await expect(page.getByRole('heading', { name: '让对话更像你的作品' })).toBeVisible();
 }
@@ -30,18 +30,17 @@ async function avatarPng(width = 240, height = 120) {
 test('new registration enters one skippable onboarding; reload does not re-enter', async ({ page }) => {
   await registerToOnboarding(page);
 
-  // Preview uses the real SceneView and shows the fictional mark by default.
+  // Preview uses the real SceneView and always shows the mandatory disclosure.
   await expect(page.locator('.prefs-preview .scene-view')).toBeVisible();
-  await expect(page.locator('.prefs-preview .scene-watermark')).toHaveText('虚构对话');
+  await expect(page.locator('.prefs-preview .imstage-disclosure')).toContainText('AI生成 / 虚构');
 
-  // The switch reflects immediately in the preview.
-  await page.getByLabel('显示「虚构对话」标记').uncheck();
-  await expect(page.locator('.prefs-preview .scene-watermark')).toHaveCount(0);
+  // Safety behavior: the mandatory mark has no switch anywhere in the UI.
+  await expect(page.getByLabel('显示「虚构对话」标记')).toHaveCount(0);
 
   // Refresh recovers the in-progress draft instead of losing it.
   await page.reload();
   await expect(page.getByRole('heading', { name: '让对话更像你的作品' })).toBeVisible();
-  await expect(page.getByLabel('显示「虚构对话」标记')).not.toBeChecked();
+  await expect(page.locator('.prefs-preview .imstage-disclosure')).toContainText('AI生成 / 虚构');
 
   // Skip finishes onboarding and returns to the preserved original target.
   await page.getByTestId('prefs-skip').click();
@@ -93,22 +92,26 @@ test('saved avatar and mark become the defaults for new scenes only', async ({ p
     return response.status();
   }).toBe(200);
   const detail = await (await page.request.get(`/api/scenes/${sceneId}`)).json();
-  expect(detail.item.scene.watermark).toBe('虚构对话');
+  // The mandatory mark is rendered by the renderer, never stored in watermark.
+  expect(detail.item.scene.watermark).toBe('');
   expect(detail.item.scene.participants.some((person: { avatar?: string }) => typeof person.avatar === 'string' && person.avatar.startsWith('data:image/'))).toBe(true);
 
-  // Existing scenes are never rewritten by a later preferences change.
-  await page.goto('/#/account');
-  await page.getByRole('link', { name: '头像与虚构标记偏好' }).click();
-  await page.getByLabel('显示「虚构对话」标记').uncheck();
-  await page.getByTestId('prefs-save').click();
-  await expect(page).toHaveURL(/#\/account/);
+  // Safety behavior: the API refuses to disable the mandatory mark, and
+  // preferences calls never rewrite existing scenes.
+  const origin = new URL(page.url()).origin;
+  const prefs = (await (await page.request.get('/api/preferences')).json()).item;
+  const disabled = await page.request.put('/api/preferences', {
+    headers: { Origin: origin, 'X-IMStage-Request': '1' },
+    data: { revision: prefs.revision, showFictionalMark: false },
+  });
+  expect(disabled.status()).toBe(400);
   const after = await (await page.request.get(`/api/scenes/${sceneId}`)).json();
-  expect(after.item.scene.watermark).toBe('虚构对话');
+  expect(after.item.scene.watermark).toBe('');
 });
 
 test('a failed save keeps the draft and can be retried', async ({ page }) => {
   await registerToOnboarding(page);
-  await page.getByLabel('显示「虚构对话」标记').uncheck();
+  await expect(page.getByLabel('显示「虚构对话」标记')).toHaveCount(0);
 
   let fail = true;
   await page.route('**/api/preferences', async (route) => {
@@ -121,8 +124,8 @@ test('a failed save keeps the draft and can be retried', async ({ page }) => {
 
   await page.getByTestId('prefs-save').click();
   await expect(page.getByRole('alert')).toContainText(/保存|失败/);
-  // The draft survives the failure.
-  await expect(page.getByLabel('显示「虚构对话」标记')).not.toBeChecked();
+  // The draft survives the failure: the page keeps the entered state.
+  await expect(page).toHaveURL(/\/welcome/);
 
   fail = false;
   await page.getByRole('alert').getByRole('button', { name: '重试' }).click();
@@ -163,7 +166,7 @@ test('signed-in manual Studio scenes inherit account defaults', async ({ page })
   await page.getByTestId('prefs-save').click();
   await expect(page).toHaveURL(/#\/workspace/);
   await page.goto('/#/studio');
-  await expect(page.locator('.studio-canvas .scene-view .scene-watermark')).toHaveText('虚构对话');
+  await expect(page.locator('.studio-canvas .scene-view .imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(page.locator('.studio-canvas .scene-view img.scene-avatar').first()).toBeVisible();
 });
 
@@ -183,6 +186,8 @@ test('an authored handoff scene keeps its explicit empty mark and missing avatar
   await page.goto(`/#/create?new=1&handoff=${token}`);
   await expect(page.locator('.agent-phone .scene-view')).toContainText('交接内容');
   await expect(page.locator('.agent-phone .scene-watermark')).toHaveCount(0);
+  // The mandatory disclosure is always rendered, even for migrated scenes.
+  await expect(page.locator('.agent-phone .imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(page.locator('.agent-phone .scene-view img.scene-avatar')).toHaveCount(0);
 });
 
@@ -305,8 +310,10 @@ test('a migrated legacy local scene keeps its own empty mark and avatars', async
   }, { id: userId, scene: legacyScene });
   await page.reload();
   await expect(page.locator('.agent-phone .scene-view')).toContainText('旧草稿内容');
-  // The migrated scene keeps its own empty mark and missing avatars.
+  // The migrated scene keeps its own empty mark and missing avatars, while the
+  // mandatory disclosure band is still rendered.
   await expect(page.locator('.agent-phone .scene-watermark')).toHaveCount(0);
+  await expect(page.locator('.agent-phone .imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(page.locator('.agent-phone .scene-view img.scene-avatar')).toHaveCount(0);
 });
 

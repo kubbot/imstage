@@ -12,3 +12,5 @@
 
 /* The signed-in library is a working surface, with no promotional panel. */
 .workspace-heading{margin-bottom:28px;align-items:center}.workspace-heading h1{font-size:25px;line-height:1.35;letter-spacing:-.6px;margin:0}.workspace-library-heading{margin-top:0}.workspace-content{padding-top:34px}.workspace-nav{font-size:12px}
+
+.auth-terms{flex-direction:row;align-items:flex-start;gap:10px;font-weight:400;line-height:1.8;color:var(--muted);font-size:12px}.auth-terms input{width:16px;height:16px;flex:0 0 auto;margin-top:3px}.auth-terms a{color:var(--accent);text-decoration:underline}

@@ -2,7 +2,7 @@
  * Synthetic scenes for the public website.
  *
  * Authored content only: no real people, no private conversations, no metrics.
- * Chinese renders on the WeChat template, English on WhatsApp, so switching the
+ * Both locales use the generic IMStage template, so switching the
  * language also switches the platform chrome. Avatars are injected later as
  * data URIs (see `portable.ts`) because validation and export require local
  * image data, never a remote or raw static path.
@@ -31,9 +31,9 @@ export const EDITABLE_REPLY_ID = 'm2';
 /** A line owned by the export section, so both areas edit different things. */
 export const COMMENTARY_LINE_ID = 'm4';
 
-/** Locale decides the platform: 中文 → WeChat, English → WhatsApp. */
-export function platformFor(locale: Locale): Platform {
-  return locale === 'zh' ? 'wechat' : 'whatsapp';
+/** Both locales render the generic IMStage chat skin; legacy platform ids stay migration-only. */
+export function platformFor(_locale: Locale): Platform {
+  return 'imstage';
 }
 
 export interface ScenarioMeta {
@@ -224,8 +224,8 @@ function product(locale: Locale): Scene {
 
 /** The authored instruction the visitor can edit and carry into the Agent. */
 export const WUKANG_PROMPT: Record<Locale, string> = {
-  zh: '我约了苏晚在武康路见面。我问她在哪里，她请路人拍了一张照片发给我。',
-  en: 'I asked Su Wan to meet me on Wukang Road. I asked where she was, and she had a passerby take a photo and sent it to me.',
+  zh: '生成一段合成评测对话：固定同一段上下文，让对方在周五前给出确认，保留可对照的时间与措辞差异。',
+  en: 'Author a synthetic evaluation conversation: keep one fixed context, have the other person confirm before Friday, and preserve comparable timestamps and wording.',
 };
 
 /**

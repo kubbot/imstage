@@ -7,61 +7,46 @@
 //   scene/options it always returns the same bytes.
 // - Safe: every scene string is HTML-escaped. Uploaded images are embedded as
 //   `data:` URIs. No remote resources, no inline event handlers, no scripts.
-// - Real templates: WeChat / Telegram / WhatsApp each get distinct header,
-//   background, bubble colors, sender alignment, names and system messages.
+// - Generic IMStage skin: one independent chat UI for every legacy platform
+//   identifier. No messaging-platform logos, names or clone styling, on any
+//   public rendered output (browser, MCP widget, PNG export).
+// - Mandatory disclosure: every frame carries the "AI生成 / 虚构" mark. It is
+//   unconditional and cannot be disabled through UI, AI, import or API.
 // - Surface differences: iOS/Android status bars, desktop/web window chrome.
 //
 // The companion screenshotter lives in tools/eval/src/render.mjs and loads the
 // browser with all network requests aborted; this module never emits one.
 
-export const RENDERER_VERSION = 'v1';
+import {
+  DISCLOSURE_ATTRIBUTE,
+  DISCLOSURE_CLASS,
+  DISCLOSURE_TEXT,
+  disclosureStyleText,
+  isPaymentMessageType,
+  PAYMENT_NEUTRALIZED_TEXT,
+} from '../schema/policy.mjs';
 
-export const RENDERER_PLATFORMS = Object.freeze(['wechat', 'telegram', 'whatsapp']);
+export const RENDERER_VERSION = 'v2';
+
+/**
+ * Legacy platform identifiers are accepted for migration only. They select no
+ * theme and no brand styling — every value renders the generic IMStage skin.
+ */
+export const RENDERER_PLATFORMS = Object.freeze(['imstage', 'wechat', 'telegram', 'whatsapp', 'xiaohongshu', 'imessage', 'slack', 'instagram']);
 export const RENDERER_SURFACES = Object.freeze(['ios', 'android', 'desktop', 'web']);
 
-const PLATFORM_THEMES = Object.freeze({
-  wechat: {
-    label: '微信',
-    headerBg: '#ededed',
-    headerFg: '#111111',
-    headerBorder: '#d9d9d9',
-    bg: '#f5f5f5',
-    selfBubble: '#95ec69',
-    otherBubble: '#ffffff',
-    bubbleFg: '#111111',
-    metaFg: '#8a8a8a',
-    accent: '#07c160',
-    bubbleRadius: '8px',
-    bubbleTail: true,
-  },
-  telegram: {
-    label: 'Telegram',
-    headerBg: '#517da2',
-    headerFg: '#ffffff',
-    headerBorder: '#3f6d92',
-    bg: '#a3c2d6',
-    selfBubble: '#effdde',
-    otherBubble: '#ffffff',
-    bubbleFg: '#111111',
-    metaFg: '#5f7d8f',
-    accent: '#3390ec',
-    bubbleRadius: '16px',
-    bubbleTail: false,
-  },
-  whatsapp: {
-    label: 'WhatsApp',
-    headerBg: '#075e54',
-    headerFg: '#ffffff',
-    headerBorder: '#064c44',
-    bg: '#ece5dd',
-    selfBubble: '#dcf8c6',
-    otherBubble: '#ffffff',
-    bubbleFg: '#111111',
-    metaFg: '#667781',
-    accent: '#25d366',
-    bubbleRadius: '10px',
-    bubbleTail: true,
-  },
+const THEME = Object.freeze({
+  label: 'IMStage',
+  headerBg: '#f5f7fa',
+  headerFg: '#16202e',
+  headerBorder: '#d5dce5',
+  bg: '#e9edf2',
+  selfBubble: '#d6e5ff',
+  otherBubble: '#ffffff',
+  bubbleFg: '#16202e',
+  metaFg: '#5b6675',
+  accent: '#2f6fed',
+  bubbleRadius: '14px',
 });
 
 function escapeHtml(value) {
@@ -127,6 +112,10 @@ function statusBar(surface, deviceTime, theme) {
 
 function renderMessage(message, context) {
   const { theme, surface, participantsById, selfId } = context;
+  // Payment / transfer / red-packet cards can never render on any surface.
+  if (isPaymentMessageType(message.type)) {
+    return `<div class="system-message"><span>${escapeHtml(PAYMENT_NEUTRALIZED_TEXT)}</span><time>${escapeHtml(message.time ?? '')}</time></div>`;
+  }
   const participant = participantsById.get(message.participantId) ?? null;
   const isSelf = message.participantId === selfId;
 
@@ -166,9 +155,10 @@ export function renderSceneHtml(scene, options = {}) {
   const surface = RENDERER_SURFACES.includes(options.surface) ? options.surface : 'ios';
   const width = Number.isInteger(options.width) && options.width > 0 ? options.width : 390;
   const outputKind = options.outputKind === 'long-screenshot' ? 'long-screenshot' : 'screenshot';
-  // Never trust scene.platform as a CSS class: normalize to a known enum.
-  const platform = RENDERER_PLATFORMS.includes(scene.platform) ? scene.platform : 'wechat';
-  const theme = PLATFORM_THEMES[platform];
+  // Never trust scene.platform as a CSS class: normalize to a known enum and
+  // render the generic IMStage skin regardless of the legacy identifier.
+  const platform = RENDERER_PLATFORMS.includes(scene.platform) ? scene.platform : 'imstage';
+  const theme = THEME;
 
   const assetsInput = Array.isArray(options.assets) ? options.assets : [];
   const assets = assetsInput.map(assetToDataUri);
@@ -185,9 +175,14 @@ export function renderSceneHtml(scene, options = {}) {
   const watermark = scene.watermark
     ? `<div class="watermark" aria-hidden="true">${escapeHtml(scene.watermark)}</div>`
     : '';
+  // Mandatory AI-generated / fictional disclosure — always present as the
+  // fixed header band below the status bar, on every preview and export. Not controlled by
+  // scene data, options, custom layouts or callers.
+  const disclosure = `<div class="${DISCLOSURE_CLASS}" ${DISCLOSURE_ATTRIBUTE}="true" style="${disclosureStyleText()}">${escapeHtml(DISCLOSURE_TEXT)}</div>`;
   const surfaceClass = `surface-${surface}`;
   const kindClass = `kind-${outputKind}`;
-  const platformClass = `platform-${platform}`;
+  // Legacy ids never reach the DOM: the body class is always generic.
+  const platformClass = 'platform-imstage';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -318,6 +313,12 @@ export function renderSceneHtml(scene, options = {}) {
     position: absolute; right: 10px; bottom: 54px; font-size: 10px; color: ${theme.metaFg};
     opacity: 0.7; pointer-events: none;
   }
+  .${DISCLOSURE_CLASS} {
+    position: relative; display: block; flex: 0 0 auto; width: 100%; box-sizing: border-box;
+    margin: 0; padding: 4px 10px; background: #1f2430; color: #ffffff;
+    font-size: 11px; line-height: 1.5; letter-spacing: 0.02em; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  }
 
   /* Surface-specific framing. */
   body.surface-ios .device { border-radius: 0; }
@@ -330,6 +331,7 @@ export function renderSceneHtml(scene, options = {}) {
 <body class="${platformClass} ${surfaceClass} ${kindClass}">
   <div class="device">
     ${statusBar(surface, scene.deviceTime, theme)}
+    ${disclosure}
     <header class="chat-header">
       <span class="back" aria-hidden="true">${surface === 'android' ? '←' : surface === 'desktop' || surface === 'web' ? '' : '‹'}</span>
       <span class="title">${headerTitle}</span>

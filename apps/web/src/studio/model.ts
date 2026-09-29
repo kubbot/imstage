@@ -1,6 +1,12 @@
 import { isCalendarDate } from '../../../../packages/schema/timeline.mjs';
-import { validateReference, type ReferenceDocument } from '../../../../packages/schema/reference.ts';
+import type { ReferenceDocument } from '../../../../packages/schema/reference.ts';
 import { validateCustomLayout, type CustomLayout } from '../../../../packages/schema/layout.ts';
+import {
+  isPaymentMessageType,
+  PAYMENT_NEUTRALIZED_TEXT,
+  REFERENCE_DISABLED_MESSAGE,
+  stripDisclosureOverrides,
+} from '../../../../packages/schema/policy.mjs';
 import { deviceProfileError } from './device-profiles.ts';
 /**
  * IMStage studio scene model.
@@ -11,9 +17,15 @@ import { deviceProfileError } from './device-profiles.ts';
  * changed). This keeps undo/redo predictable.
  */
 
-export type Platform = 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram';
+/**
+ * Platform identifiers are *legacy schema ids kept for migration only*. The
+ * public product renders one generic IMStage chat UI for every value, so old
+ * stored scenes keep loading while no brand chrome is ever drawn.
+ */
+export type Platform = 'imstage' | 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram';
 export type TemplateId = 'weekend' | 'launch' | 'welcome';
-export type MessageType = 'text' | 'image' | 'location' | 'system' | 'contact' | 'transfer' | 'voice' | 'video' | 'link' | 'album';
+/** Payment-style types (transfer/red packet/balance) were removed by policy. */
+export type MessageType = 'text' | 'image' | 'location' | 'system' | 'contact' | 'voice' | 'video' | 'link' | 'album';
 
 export interface Appearance {
   background?: string;
@@ -74,6 +86,7 @@ export interface Scene {
 }
 
 export const PLATFORMS: readonly Platform[] = [
+  'imstage',
   'wechat',
   'xiaohongshu',
   'imessage',
@@ -82,17 +95,22 @@ export const PLATFORMS: readonly Platform[] = [
   'instagram',
 ];
 
+/** Legacy identifiers accepted on import for migration; never rendered as brands. */
+export const LEGACY_PLATFORMS: readonly Platform[] = PLATFORMS.slice(1);
+
 export const TEMPLATE_IDS: readonly TemplateId[] = ['weekend', 'launch', 'welcome'];
 
-export const MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album'];
+export const MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album'];
 
+/** Generic labels only. No messaging-platform brand names anywhere in the UI. */
 export const PLATFORM_LABELS: Record<Platform, string> = {
-  wechat: '微信',
-  xiaohongshu: '小红书',
-  imessage: 'iMessage',
-  whatsapp: 'WhatsApp',
-  slack: 'Slack',
-  instagram: 'Instagram',
+  imstage: 'IMStage 通用聊天',
+  wechat: '聊天样式 A（兼容旧数据）',
+  xiaohongshu: '聊天样式 B（兼容旧数据）',
+  imessage: '聊天样式 C（兼容旧数据）',
+  whatsapp: 'Chat style D (legacy data)',
+  slack: '聊天样式 E（兼容旧数据）',
+  instagram: '聊天样式 F（兼容旧数据）',
 };
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
@@ -100,7 +118,7 @@ export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
   image: '图片',
   location: '定位',
   system: '系统提示',
-  contact: '联系人', transfer: '转账', voice: '语音', video: '视频', link: '链接', album: '相册',
+  contact: '联系人', voice: '语音', video: '视频', link: '链接', album: '相册',
 };
 
 export const TEMPLATE_LABELS: Record<TemplateId, string> = {
@@ -175,7 +193,7 @@ function templateWeekend(): Scene {
   return {
     id: 'scene-weekend',
     title: '周末去看海',
-    platform: 'wechat',
+    platform: 'imstage',
     deviceTime: '09:41',
     date: '周六 09:38',
     selfId: 'p-linxiaoman',
@@ -221,7 +239,7 @@ function templateLaunch(): Scene {
   return {
     id: 'scene-launch',
     title: '新品发布讨论组',
-    platform: 'wechat',
+    platform: 'imstage',
     deviceTime: '14:20',
     date: '今天 14:18',
     selfId: 'p-linxiaoman',
@@ -268,7 +286,7 @@ function templateWelcome(): Scene {
   return {
     id: 'scene-welcome',
     title: '新朋友',
-    platform: 'wechat',
+    platform: 'imstage',
     deviceTime: '21:05',
     date: '21:03',
     selfId: 'p-linxiaoman',
@@ -333,10 +351,14 @@ export interface ValidationResult {
  * return a normalised scene. Unknown fields are dropped so malformed stored
  * data can never smuggle extra state into the editor.
  */
-export function validateScene(value: unknown): ValidationResult {
-  if (!isRecord(value)) {
+export function validateScene(input: unknown): ValidationResult {
+  if (!isRecord(input)) {
     return { ok: false, errors: ['场景数据必须是一个对象'] };
   }
+  // The mandatory AI生成 / 虚构 disclosure cannot be disabled by import/API:
+  // any attempt is silently dropped before validation, the mark is rendered
+  // unconditionally on every preview and export.
+  const value: Record<string, unknown> = stripDisclosureOverrides(input);
 
   const errors: string[] = [];
 
@@ -409,6 +431,21 @@ export function validateScene(value: unknown): ValidationResult {
       if (mid && messageIds.has(mid)) errors.push(`消息 id 重复：${mid}`);
       if (mid) messageIds.add(mid);
 
+      // Payment / transfer / red-packet messages are neutralised on import so
+      // old stored work keeps loading (never erased) but a payment card can
+      // never render again. Id, order and timestamp are preserved.
+      if (isPaymentMessageType(raw.type)) {
+        if (!mid) return;
+        messages.push({
+          id: mid,
+          participantId: '',
+          type: 'system',
+          text: PAYMENT_NEUTRALIZED_TEXT,
+          time: typeof raw.time === 'string' ? raw.time : '',
+        });
+        return;
+      }
+
       const type = MESSAGE_TYPES.includes(raw.type as MessageType)
         ? (raw.type as MessageType)
         : undefined;
@@ -456,12 +493,18 @@ export function validateScene(value: unknown): ValidationResult {
     });
   }
 
+  // A missing watermark means "none"; a present one must be a string. The
+  // mandatory disclosure is rendered separately and never depends on this.
   const watermark = typeof value.watermark === 'string' ? value.watermark : '';
-  if (typeof value.watermark !== 'string') errors.push('水印必须是字符串');
+  if (value.watermark !== undefined && typeof value.watermark !== 'string') errors.push('水印必须是字符串');
 
   const extras: Record<string, unknown> = {};
   if (value.referenceDate !== undefined) { if (!isCalendarDate(value.referenceDate)) errors.push('参考日期必须是有效 YYYY-MM-DD'); else extras.referenceDate = value.referenceDate; }
-  if (value.reference !== undefined) { try {extras.reference = validateReference(value.reference);} catch(e) {errors.push(e instanceof Error ? e.message : '截图文档无效');} }
+  // Real-screenshot reference editing is disabled on every public surface.
+  // Internal offline evaluation tooling keeps its own research code path.
+  if (value.reference !== undefined && value.reference !== null) {
+    errors.push(REFERENCE_DISABLED_MESSAGE);
+  }
   extraFields(value, extras, errors);
   if (value.surface !== undefined) {
     if (!['ios','android','desktop'].includes(String(value.surface))) errors.push('设备平台无效');
@@ -585,6 +628,9 @@ export interface NewMessageInput {
 
 export function addMessage(scene: Scene, input: NewMessageInput = {}): Scene {
   const type = input.type ?? 'text';
+  if (isPaymentMessageType(type) || !MESSAGE_TYPES.includes(type)) {
+    throw new Error(`不支持的消息类型：${String(type)}（支付/转账/红包类消息已移除）`);
+  }
   const participantId =
     type === 'system' ? '' : (input.participantId ?? scene.selfId);
   const message: Message = {

@@ -49,7 +49,6 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
   const { locale } = useLocale();
   const c = preferencesCopy(locale);
   const userId = user?.id ?? '';
-  const label = cachedPreferences(userId)?.markLabel || '虚构对话';
 
   const [server, setServer] = useState<CreatorPreferences | null>(() => cachedPreferences(userId));
   const [loading, setLoading] = useState(() => !cachedPreferences(userId));
@@ -58,7 +57,6 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
 
   const [myAvatar, setMyAvatar] = useState<string | null>(null);
   const [otherAvatar, setOtherAvatar] = useState<string | null>(null);
-  const [showFictionalMark, setShowFictionalMark] = useState(true);
   const [restored, setRestored] = useState(false);
   const [storageError, setStorageError] = useState(false);
 
@@ -114,10 +112,8 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
     const draft = readOnboardingDraft(userId);
     const initialMy = draft ? draft.myAvatar : server.myAvatar;
     const initialOther = draft ? draft.otherAvatar : server.otherAvatar;
-    const initialMark = draft ? draft.showFictionalMark : server.showFictionalMark;
     setMyAvatar(initialMy);
     setOtherAvatar(initialOther);
-    setShowFictionalMark(initialMark);
     if (draft) setRestored(true);
     // `onboarding_shown` is deduped server-side, and it is what stops an
     // interrupted account from being auto-prompted again on the next visit.
@@ -131,8 +127,8 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
   /* Recoverable per-user draft (only when it differs)               */
   /* -------------------------------------------------------------- */
   const dirty = server
-    ? myAvatar !== server.myAvatar || otherAvatar !== server.otherAvatar || showFictionalMark !== server.showFictionalMark
-    : myAvatar !== null || otherAvatar !== null || !showFictionalMark;
+    ? myAvatar !== server.myAvatar || otherAvatar !== server.otherAvatar
+    : myAvatar !== null || otherAvatar !== null;
   useEffect(() => {
     if (!userId || loading || !initialized.current) return;
     if (!dirty) {
@@ -140,9 +136,9 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
       setStorageError(false);
       return;
     }
-    const ok = writeOnboardingDraft(userId, { myAvatar, otherAvatar, showFictionalMark, updatedAt: Date.now() });
+    const ok = writeOnboardingDraft(userId, { myAvatar, otherAvatar, showFictionalMark: true, updatedAt: Date.now() });
     setStorageError(!ok);
-  }, [userId, loading, dirty, myAvatar, otherAvatar, showFictionalMark]);
+  }, [userId, loading, dirty, myAvatar, otherAvatar]);
 
   /* -------------------------------------------------------------- */
   /* Auto-generate the fictional other avatar (guarded)              */
@@ -233,7 +229,7 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
       const updated = await savePreferences(
         userId,
         mode === 'save'
-          ? { revision, myAvatar, otherAvatar, showFictionalMark, onboardingStatus: 'completed' }
+          ? { revision, myAvatar, otherAvatar, onboardingStatus: 'completed' }
           : { revision, onboardingStatus: 'completed' },
       );
       setServer(updated);
@@ -254,7 +250,7 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
     () => ({
       id: 'onboarding-preview',
       title: c.previewTitle,
-      platform: locale === 'en' ? 'whatsapp' : 'wechat',
+      platform: 'imstage',
       deviceTime: '09:41',
       date: locale === 'en' ? 'Today 09:38' : '今天 09:38',
       selfId: 'me',
@@ -266,9 +262,9 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
         { id: 'm-1', participantId: 'other', type: 'text', text: locale === 'en' ? 'A sample line to preview avatars and the mark.' : '这是一句示例对话，用来预览头像与标记。', time: '09:38' },
         { id: 'm-2', participantId: 'me', type: 'text', text: locale === 'en' ? 'Settings update live in this preview.' : '设置会实时反映在这张预览里。', time: '09:39' },
       ],
-      watermark: showFictionalMark ? label : '',
+      watermark: '',
     }),
-    [c.previewTitle, locale, selfName, otherName, myAvatar, otherAvatar, showFictionalMark, label],
+    [c.previewTitle, locale, selfName, otherName, myAvatar, otherAvatar],
   );
 
   if (!user) return null;
@@ -374,20 +370,11 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
             </div>
           </fieldset>
 
-          {/* Fictional mark */}
+          {/* Mandatory disclosure notice (never a switch: it cannot be off) */}
           <fieldset className="prefs-group">
             <legend>{c.mark.title}</legend>
-            <label className="prefs-switch">
-              <input
-                type="checkbox"
-                checked={showFictionalMark}
-                disabled={busy}
-                onChange={(event) => setShowFictionalMark(event.target.checked)}
-              />
-              <span>{c.mark.label}</span>
-            </label>
             <p className="prefs-help">{c.mark.help}</p>
-            <p className="prefs-help" role="status">{showFictionalMark ? c.markOnNote : c.markOffNote}</p>
+            <p className="prefs-help" role="status">{c.markOnNote}</p>
           </fieldset>
 
           {saveError && (
@@ -415,7 +402,7 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
               <SceneView scene={previewScene} exportMode locale={locale} />
             </DevicePreview>
           </div>
-          <p className="prefs-preview-note">{showFictionalMark ? c.markOnNote : c.markOffNote}</p>
+          <p className="prefs-preview-note">{c.markOnNote}</p>
         </aside>
       </div>
 

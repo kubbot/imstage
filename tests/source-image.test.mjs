@@ -10,7 +10,9 @@ const fixture=JSON.parse(fs.readFileSync(new URL('../tools/eval/fixtures/loan-an
 const png=await sharp({create:{width:200,height:100,channels:3,background:'#ee2266'}}).composite([{input:await sharp({create:{width:100,height:100,channels:3,background:'#118855'}}).png().toBuffer(),left:100,top:0}]).png().toBuffer();
 const source='data:image/png;base64,'+png.toString('base64');
 const args={kind:'avatar',targetId:'achuan',attachmentIndex:0,box:[500,0,500,1000]};
-const context=()=>({scene:structuredClone(fixture.scene),attachments:[source],maxAttachmentChars:6*1024*1024});
+// Screenshot-research tools are internal-only: this suite exercises the
+// retained offline evaluation code path behind the explicit flag.
+const context=()=>({scene:structuredClone(fixture.scene),attachments:[source],maxAttachmentChars:6*1024*1024,internalReferenceResearch:true});
 const data=url=>Buffer.from(url.split(',')[1],'base64');
 test('extract original pixels without invoking an image generator; emit labeled crop for visual verification',async()=>{
  const ctx=context();ctx.imageProvider={generate(){throw new Error('must not generate');}};
@@ -43,8 +45,14 @@ test('runtime passes real attachments to crop tool and permits recovery after a 
 test('failed extraction cannot be followed by a false completion after a text change',async()=>{
  let round=0;const result=await runAgent({...context(),prompt:'按截图还原',onEvent:()=>{},provider:{complete:async()=>{round++;return round===1?{content:'',finishReason:'tool_calls',toolCalls:[{id:'title',name:'update_element',arguments:JSON.stringify({targetId:'@scene',patch:{title:'新标题'}})},{id:'badcrop',name:'extract_image',arguments:JSON.stringify({...args,attachmentIndex:9})}]}:{content:'完成了',finishReason:'stop',toolCalls:[]};}}});assert.equal(result.ok,false);assert.equal(result.reason,'image_tools_failed');
 });
-test('screenshot prompt prefers exact crop, identifies attachment index, and preserves source trust boundary',()=>{
- const messages=buildInitialMessages({scene:fixture.scene,prompt:'还原截图',attachments:[source]});assert.match(messages[0].content,/extract_image/);assert.match(messages[0].content,/不要一律改成人像/);assert.match(JSON.stringify(messages.at(-1)),/attachmentIndex=0/);assert.match(JSON.stringify(messages.at(-1)),/不可信素材/);
+test('public runs reject the screenshot crop tool; the prompt never offers screenshot reconstruction',async()=>{
+ const ctx={scene:structuredClone(fixture.scene),attachments:[source],maxAttachmentChars:6*1024*1024};
+ const blocked=await executeTool('extract_image',args,ctx);assert.equal(blocked.ok,false);assert.match(blocked.detail,/已停用/);assert.equal(ctx.scene.participants[1].avatar,undefined);
+ const messages=buildInitialMessages({scene:fixture.scene,prompt:'生成一段合成对话',attachments:[source]});
+ assert.doesNotMatch(messages[0].content,/extract_image|截图重建|还原截图/);
+ assert.match(messages[0].content,/合成/);
+ assert.match(JSON.stringify(messages.at(-1)),/不可信/);
+ assert.doesNotMatch(JSON.stringify(messages.at(-1)),/attachmentIndex/);
 });
 
 test('scoped extraction preserves every field outside the selected participant',async()=>{

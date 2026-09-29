@@ -26,7 +26,7 @@ test('authorize, create through MCP, edit in the website, render and revoke', as
   await page.getByLabel('怎么称呼你').fill('连接验收');
   await page.getByLabel('邮箱', { exact: true }).fill(`connection-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill(crypto.randomBytes(24).toString('base64url'));
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await expect(page.getByRole('heading', { name: '允许连接你的 IMStage？' })).toBeVisible();
   await expect(page.getByText('client.example.test', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '允许连接', exact: true }).click();

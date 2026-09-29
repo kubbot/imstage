@@ -132,7 +132,9 @@ export async function callDeepSeekAgent({ config, request, assets = [], signal, 
       maxCalls: 80,
       deadlineMs: 360000,
     }),
-    deps,
+    // Internal offline evaluation retains the real-screenshot research tools.
+    // This flag is never settable from a public API/MCP request.
+    { internalReferenceResearch: true, ...deps },
   );
   const scene = referenceScene(request, assets);
   const trace = [];

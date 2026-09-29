@@ -18,6 +18,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { fail } from './errors.mjs';
+import {
+  cleanupGenerationAudit,
+  ensurePolicyVersionColumn,
+  installGenerationAuditSchema,
+  isCurrentPolicyVersion,
+  newRunId as newAuditRunId,
+  recordGenerationAudit,
+  scheduleAuditCleanup,
+  POLICY_VERSION,
+} from '../audit/generation-audit.mjs';
 import { MAX_STORED_RENDERS } from './limits.mjs';
 import { nowIso } from './util.mjs';
 import { installTemplateSchema } from '../templates/store.mjs';
@@ -114,6 +124,12 @@ function isSqliteError(error) {
   return Boolean(error && error.code === 'ERR_SQLITE_ERROR');
 }
 
+/**
+ * Audit identity for the self-hosted instance store: one administrator
+ * instance token, recorded as a stable label (never the raw token).
+ */
+export const MCP_INSTANCE_ACCOUNT = 'mcp:instance';
+
 function openDatabase(dbPath) {
   if (dbPath !== ':memory:') {
     const dir = path.dirname(dbPath);
@@ -132,6 +148,11 @@ function openDatabase(dbPath) {
   // Reuse the shared owner-scoped template store inside this isolated database.
   // The instance scope is an explicit constant, never a Web user id.
   installTemplateSchema(db);
+  // Persistent generation audit for MCP-hosted generation (metadata only).
+  installGenerationAuditSchema(db);
+  // Non-destructive render-cache policy migration: pre-policy PNG blobs are
+  // identified and blocked on read, never deleted.
+  ensurePolicyVersionColumn(db, 'renders');
   db.prepare('INSERT OR REPLACE INTO mcp_meta (key, value) VALUES (?, ?)').run(
     'schema_version',
     String(STORE_SCHEMA_VERSION),
@@ -186,14 +207,19 @@ export function openStore({ dataDir, maxStoredRenders = MAX_STORED_RENDERS } = {
   }
   const dbPath = path.join(path.resolve(dataDir), STORE_FILE_NAME);
   const db = openDatabase(dbPath);
-  return new Store(db, { dbPath, maxStoredRenders });
+  // Real 90-day audit retention: purge now and on an unref'd interval that is
+  // cleared when the store closes.
+  cleanupGenerationAudit(db);
+  const auditTimer = scheduleAuditCleanup(db);
+  return new Store(db, { dbPath, maxStoredRenders, auditTimer });
 }
 
 class Store {
-  constructor(db, { dbPath, maxStoredRenders }) {
+  constructor(db, { dbPath, maxStoredRenders, auditTimer = null }) {
     this.db = db;
     this.dbPath = dbPath;
     this.maxStoredRenders = maxStoredRenders;
+    this.auditTimer = auditTimer;
   }
 
   #checkCapacity(scene, creating) {
@@ -249,7 +275,7 @@ class Store {
   }
 
   createScene({ scene, requestHash, idempotencyKey = null }) {
-    return withTransaction(this.db, () => {
+    const result = withTransaction(this.db, () => {
       const existing = this.#readIdempotent(idempotencyKey, 'create_scene', requestHash);
       if (existing) return { ...existing, deduplicated: true };
 
@@ -275,12 +301,16 @@ class Store {
 
       const response = { sceneId: scene.id, revision: 1, updatedAt: timestamp };
       this.#writeIdempotent(idempotencyKey, 'create_scene', requestHash, response);
+      // The mandatory audit row is written in the same transaction: a failed
+      // audit insert rolls the whole write back instead of silently skipping.
+      this.#auditGeneration('mcp_scene', scene);
       return { ...response, deduplicated: false };
     });
+    return result;
   }
 
   updateScene({ sceneId, expectedRevision, scene, requestHash, idempotencyKey = null }) {
-    return withTransaction(this.db, () => {
+    const result = withTransaction(this.db, () => {
       const existing = this.#readIdempotent(idempotencyKey, 'update_scene', requestHash);
       if (existing) return { ...existing, deduplicated: true };
 
@@ -322,7 +352,25 @@ class Store {
 
       const response = { sceneId, revision: nextRevision, updatedAt: timestamp };
       this.#writeIdempotent(idempotencyKey, 'update_scene', requestHash, response);
+      this.#auditGeneration('mcp_scene', scene);
       return { ...response, deduplicated: false };
+    });
+    return result;
+  }
+
+  /**
+   * Durable generation audit (metadata only — run id/time/account/policy/
+   * status/scene hash; never prompts, screenshots or tokens). Runs inside the
+   * caller's transaction: an audit failure fails the write explicitly.
+   */
+  #auditGeneration(flow, scene, sceneHash = null) {
+    recordGenerationAudit(this.db, {
+      runId: newAuditRunId(),
+      accountId: MCP_INSTANCE_ACCOUNT,
+      flow,
+      status: 'ok',
+      scene,
+      sceneHash,
     });
   }
 
@@ -355,48 +403,58 @@ class Store {
 
   saveRender(record) {
     const timestamp = nowIso();
-    this.db
-      .prepare(
-        `INSERT INTO renders (render_id, scene_id, revision, png_base64, sha256, bytes, width, height, title, output_kind, surface, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(render_id) DO UPDATE SET
-           png_base64 = excluded.png_base64,
-           sha256 = excluded.sha256,
-           bytes = excluded.bytes,
-           width = excluded.width,
-           height = excluded.height,
-           title = excluded.title,
-           output_kind = excluded.output_kind,
-           surface = excluded.surface,
-           created_at = excluded.created_at`,
-      )
-      .run(
-        record.renderId,
-        record.sceneId ?? null,
-        Number.isInteger(record.revision) ? record.revision : null,
-        record.pngBase64,
-        record.sha256,
-        record.bytes,
-        record.width,
-        record.height,
-        record.title,
-        record.outputKind,
-        record.surface,
-        timestamp,
-      );
-    this.db
-      .prepare(
-        `DELETE FROM renders WHERE render_id NOT IN (
-           SELECT render_id FROM renders ORDER BY created_at DESC, render_id DESC LIMIT ?
-         )`,
-      )
-      .run(this.maxStoredRenders);
-    return { ...record, createdAt: timestamp };
+    return withTransaction(this.db, () => {
+      this.db
+        .prepare(
+          `INSERT INTO renders (render_id, scene_id, revision, png_base64, sha256, bytes, width, height, title, output_kind, surface, created_at, policy_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(render_id) DO UPDATE SET
+             png_base64 = excluded.png_base64,
+             sha256 = excluded.sha256,
+             bytes = excluded.bytes,
+             width = excluded.width,
+             height = excluded.height,
+             title = excluded.title,
+             output_kind = excluded.output_kind,
+             surface = excluded.surface,
+             created_at = excluded.created_at,
+             policy_version = excluded.policy_version`,
+        )
+        .run(
+          record.renderId,
+          record.sceneId ?? null,
+          Number.isInteger(record.revision) ? record.revision : null,
+          record.pngBase64,
+          record.sha256,
+          record.bytes,
+          record.width,
+          record.height,
+          record.title,
+          record.outputKind,
+          record.surface,
+          timestamp,
+          POLICY_VERSION,
+        );
+      this.db
+        .prepare(
+          `DELETE FROM renders WHERE render_id NOT IN (
+             SELECT render_id FROM renders ORDER BY created_at DESC, render_id DESC LIMIT ?
+           )`,
+        )
+        .run(this.maxStoredRenders);
+      // Hosted deterministic render outputs are audited like other hosted
+      // generation (metadata only, same transaction).
+      this.#auditGeneration('render', null, record.sha256);
+      return { ...record, createdAt: timestamp };
+    });
   }
 
   getRender(renderId) {
     const row = this.db.prepare('SELECT * FROM renders WHERE render_id = ?').get(renderId);
     if (!row) return null;
+    // Blobs rendered before the current safety policy (unknown/older policy
+    // version) are never served again. The rows and scene data stay untouched.
+    if (!isCurrentPolicyVersion(row.policy_version)) return null;
     return {
       renderId: row.render_id,
       sceneId: row.scene_id,
@@ -509,7 +567,7 @@ class Store {
     if (items.length > MCP_BATCH_LIMIT) fail('limit_exceeded', `每批最多 ${MCP_BATCH_LIMIT} 个条目`);
     const batchId = `bat_${crypto.randomBytes(12).toString('hex')}`;
     const stamp = nowIso(nowMs);
-    return withTransaction(this.db, () => {
+    const result = withTransaction(this.db, () => {
       if (clientKey) {
         const existing = this.db.prepare('SELECT id, request_hash FROM mcp_batches WHERE client_key = ?').get(clientKey);
         if (existing) {
@@ -555,8 +613,12 @@ class Store {
       this.db
         .prepare('INSERT INTO mcp_batches (id, project_id, template_id, template_revision, template_json, rules, client_key, request_hash, item_count, receipt_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(batchId, projectId, templateId, templateRevision, templateDefinition ? JSON.stringify(templateDefinition) : null, rules, clientKey, requestHash, items.length, JSON.stringify(receipt), stamp);
+      // One durable audit row per batch-produced scene, atomically with the
+      // batch write (metadata only).
+      for (const item of items) this.#auditGeneration('mcp_batch', item.scene);
       return { ...this.getBatch(batchId), deduplicated: false };
     });
+    return result;
   }
 
   getBatch(batchId) {
@@ -604,6 +666,8 @@ class Store {
   }
 
   close() {
+    if (this.auditTimer) clearInterval(this.auditTimer);
+    this.auditTimer = null;
     try {
       this.db.close();
     } catch {

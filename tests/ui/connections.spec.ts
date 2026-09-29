@@ -21,7 +21,7 @@ test('homepage focuses navigation and leads to an honest connection setup', asyn
   await expect(header.locator('.nav-github svg')).toHaveAttribute('width', '24');
   const bounds = await header.locator('.nav-github').boundingBox();
   expect(bounds?.width).toBeGreaterThanOrEqual(44);
-  await expect(page.locator('#chatgpt')).toContainText('连接 ChatGPT，用一句话创作和修改聊天截图。');
+  await expect(page.locator('#chatgpt')).toContainText('连接 ChatGPT，用一句话创作和修改合成聊天场景。');
   await page.locator('#chatgpt').getByRole('link', { name: '连接 ChatGPT' }).click();
   await expect(page).toHaveURL(/#\/connect$/);
   await expect(page.getByLabel('连接地址', { exact: true })).toHaveValue(/\/api\/mcp$/);

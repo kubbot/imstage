@@ -14,7 +14,7 @@ const storyExport = (page: Page) => page.getByTestId('hero-export');
 
 /** The story export is ready only once the bounded assets are local. */
 async function readyToExport(page: Page) {
-  await expect(hero(page).locator('.scene-image img')).toBeVisible({ timeout: 15000 });
+  await expect(hero(page).locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(storyExport(page)).toBeEnabled();
 }
 
@@ -37,17 +37,17 @@ test.describe('landing default (zh-CN browser)', () => {
   test('the hero promises one prompt, replays one authored story and exports the real frame', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#mark-hero-title')).toHaveCount(1);
-    await expect(page.locator('#mark-hero-title')).toContainText('让对话，');
-    await expect(page.locator('#mark-hero-title em')).toHaveText('有画面。');
-    await expect(page.locator('.journey-promise')).toHaveText('写下情节。AI 生成对话、人物与照片。');
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'wechat');
+    await expect(page.locator('#mark-hero-title')).toContainText('合成对话，');
+    await expect(page.locator('#mark-hero-title em')).toHaveText('用于测试与评测。');
+    await expect(page.locator('.journey-promise')).toHaveText('描述固定上下文，生成可对照的合成样本。');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     // The instruction composer is the authored example, and it is editable.
-    await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
+    await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/评测|合成/);
     await expect(page.locator('.journey-caption').getByText('虚构人物 · AI 合成示例', { exact: false })).toBeVisible();
     await expect(heroCta(page)).toBeVisible();
     await readyToExport(page);
-    await expect(hero(page).locator('.scene-row')).toHaveCount(5);
-    await expect(hero(page).locator('.scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
+    await expect(hero(page).locator('.scene-row')).toHaveCount(4);
+    await expect(hero(page)).toContainText('这周末要不要一起去看展？');
   });
 
   test('the hero export writes a real PNG at the iPhone 17 Pro resolution', async ({ page }, testInfo) => {
@@ -90,8 +90,8 @@ test.describe('landing default (zh-CN browser)', () => {
     await page.getByRole('button', { name: /周末看海/ }).click();
     await expect(page.getByLabel('我说的话', { exact: true })).toHaveValue('那就周六见，我带上相机。');
     await expect(page.locator('.mark-scenario.is-active')).toContainText('周末看海');
-    // The hero keeps playing the authored Wukang story.
-    await expect(hero(page)).toContainText('苏晚');
+    // The hero keeps playing the authored synthetic evaluation sample.
+    await expect(hero(page)).toContainText('测试对象 A');
     await expect(page.locator('.journey-caption')).toContainText('虚构人物 · AI 合成示例');
     // The landing demo never writes the studio draft.
     expect(await page.evaluate((key) => localStorage.getItem(key), draftKey)).toBe(original);
@@ -99,7 +99,7 @@ test.describe('landing default (zh-CN browser)', () => {
     await expect(useLink).toHaveAttribute('href', /new=1.*scenario=weekend|scenario=weekend.*new=1/);
     await useLink.click();
     await expect(page).toHaveURL(/#\/create/);
-    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'wechat');
+    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
     await expect(page.locator('.agent-phone')).toContainText('好，我订了早班船。');
   });
 });
@@ -108,32 +108,34 @@ test.describe('language', () => {
   test('an explicit ?lang=en switches platform, names, times and the whole marketing chrome', async ({ page }) => {
     await page.goto('/?lang=en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('#mark-hero-title')).toContainText('Conversations,');
-    await expect(page.locator('#mark-hero-title em')).toHaveText('with a scene.');
+    await expect(page.locator('#mark-hero-title')).toContainText('Synthetic conversations,');
+    await expect(page.locator('#mark-hero-title em')).toHaveText('for tests & evaluation.');
     await expect(page.getByRole('banner').getByRole('link', { name: /GitHub/ })).toBeVisible();
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
-    await expect(hero(page)).toContainText('Where are you?');
-    await expect(hero(page)).toContainText('Su Wan');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
+    await expect(hero(page)).toContainText('Want to see the exhibition this weekend?');
+    await expect(hero(page)).toContainText('Sample A');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Templates$/ })).toHaveCount(0);
     await expect(page.getByRole('contentinfo').getByRole('link', { name: /^Templates$/ })).toBeVisible();
-    await expect(page.getByRole('contentinfo')).toContainText('A stage for every conversation.');
-    await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
-    await expect(page).toHaveTitle(/One prompt. A story unfolds./);
+    await expect(page.getByRole('contentinfo')).toContainText('Synthetic conversations for tests & evaluation.');
+    await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/evaluation|synthetic/);
+    await expect(page).toHaveTitle(/Synthetic conversations for tests & evaluation/);
     await readyToExport(page);
-    // The English example must not leak any Chinese renderer fallback copy.
-    expect(await hero(page).innerText()).not.toMatch(/[\u3400-\u9fff]/);
+    // The English example must not leak Chinese renderer fallback copy; the
+    // mandatory bilingual disclosure band is the only allowed Chinese text.
+    const heroText = (await hero(page).innerText()).replace(/AI生成[^]*$/, '');
+    expect(heroText).not.toMatch(/[\u3400-\u9fff]/);
   });
 
   test('the saved preference is applied on the next visit and the toggle updates the URL', async ({ page }) => {
     await page.goto('/');
     await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
     await expect(page).toHaveURL(/lang=en/);
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     await page.locator('.mark-toggle').getByRole('button', { name: '中文', exact: true }).click();
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'wechat');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   });
@@ -152,7 +154,7 @@ test.describe('english-first browser', () => {
   test('navigator language selects English and WhatsApp on a first visit', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(heroScene(page)).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     await expect(page.getByLabel('Your instruction', { exact: true })).toBeVisible();
   });
 });
@@ -166,7 +168,7 @@ test('the English landing starts a new WhatsApp session without overwriting an e
   await page.goto('/?lang=en');
   await page.getByTestId('hero-start').click();
   await expect(page).toHaveURL(/#\/create/);
-  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
 
   await page.getByRole('button', { name: 'Manage sessions' }).click();
   await expect(page.getByRole('button', { name: 'Open session: 不能被覆盖的会话', exact: true })).toBeVisible();
@@ -276,14 +278,14 @@ test.describe('refinements', () => {
     await expect(page.getByRole('button', { name: '管理创作会话' })).toContainText('已保存到本机');
 
     await page.goto('/?lang=en');
-    await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
     await page.getByRole('banner').getByRole('link', { name: 'Start creating' }).click();
     await expect(page).toHaveURL(/#\/create/);
-    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
 
     // The in-app "New session" button also follows the current language.
     await page.getByRole('button', { name: 'New session', exact: true }).click();
-    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
     await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
 
     // The pre-existing Chinese draft is still there and opens unchanged.
@@ -336,7 +338,7 @@ test.describe('refinements', () => {
     // Hold a new render, switch language, release: only the English frame commits.
     await page.evaluate(() => (window as unknown as { __gateFonts: () => void }).__gateFonts());
     await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
-    await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
     await page.waitForTimeout(600);
     await page.evaluate(() => (window as unknown as { __releaseFonts: () => void }).__releaseFonts());
     await expect(page.locator('[data-export-preview="ready"]')).toBeVisible({ timeout: 15000 });
@@ -401,11 +403,11 @@ test.describe('refinements', () => {
     await expect(page.locator('.templates-page h1')).toHaveText('One opening. Endless versions of yours.');
     await expect(page.getByRole('button', { name: 'All', exact: true })).toBeVisible();
     expect(await page.locator('.templates-page').innerText()).not.toMatch(/[\u3400-\u9fff]/);
-    await expect(page.locator('.template-card .scene-view').first()).toHaveAttribute('data-platform', 'whatsapp');
+    await expect(page.locator('.template-card .scene-view').first()).toHaveAttribute('data-skin', 'imstage-generic');
 
     await page.goto('/?lang=zh#/templates');
     await expect(page.getByRole('button', { name: '全部', exact: true })).toBeVisible();
-    await expect(page.locator('.template-card .scene-view').first()).toHaveAttribute('data-platform', 'wechat');
+    await expect(page.locator('.template-card .scene-view').first()).toHaveAttribute('data-skin', 'imstage-generic');
 
     await page.goto('/?lang=en#/docs');
     await expect(page.getByRole('button', { name: 'Data & privacy', exact: true })).toBeVisible();
@@ -439,7 +441,7 @@ test('download keeps its clicked scene when the header language changes during c
   await storyExport(page).click();
   await expect(page.getByRole('button', { name: '正在导出 PNG…', exact: true }).first()).toBeDisabled();
   await page.locator('.mark-toggle').getByRole('button',{name:'EN',exact:true}).click();
-  await expect(heroScene(page)).toHaveAttribute('data-platform','whatsapp');
+  await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
   await page.evaluate(()=>(window as any).__releaseCapture());
   const download=await pending;
   expect(download.suggestedFilename()).toContain('wechat');

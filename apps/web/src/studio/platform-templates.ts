@@ -1,11 +1,21 @@
 import type {Platform} from './model';
-/** Platform chrome belongs to code. Agent content cannot redefine platform structure. */
-export const PLATFORM_TEMPLATES = {
-  wechat: {version:'wechat-ios-2026-v1', headerAvatar:false, messageAvatars:'all', inlineTime:false, composer:'wechat', background:'#ededed'},
-  whatsapp: {version:'whatsapp-ios-2026-v1', headerAvatar:true, messageAvatars:'group', inlineTime:true, composer:'whatsapp', background:'#f4f0e7'},
-  instagram: {version:'instagram-ios-2026-v1', headerAvatar:true, messageAvatars:'incoming', inlineTime:false, composer:'instagram', background:'#ffffff'},
-  imessage: {version:'imessage-v1', headerAvatar:false, messageAvatars:'none', inlineTime:false, composer:'default', background:'#ffffff'},
-  xiaohongshu: {version:'xiaohongshu-v1', headerAvatar:false, messageAvatars:'all', inlineTime:false, composer:'default', background:'#f6f6f6'},
-  slack: {version:'slack-v1', headerAvatar:false, messageAvatars:'all', inlineTime:false, composer:'default', background:'#ffffff'},
+/**
+ * Generic IMStage chat chrome. Platform identifiers survive in stored scenes
+ * for migration only; every value renders the same independent IMStage UI, so
+ * public output never shows a messaging-platform logo, name or clone.
+ */
+export const GENERIC_TEMPLATE = {
+  version: 'imstage-generic-2026-v1',
+  headerAvatar: false,
+  messageAvatars: 'all',
+  inlineTime: false,
+  composer: 'default',
+  background: '#e9edf2',
 } as const;
-export function platformTemplate(platform:Platform){return PLATFORM_TEMPLATES[platform];}
+/** @deprecated legacy structural keys kept only so old code keeps compiling. */
+export const PLATFORM_TEMPLATES = new Proxy({} as Record<Platform, typeof GENERIC_TEMPLATE>, {
+  get: () => GENERIC_TEMPLATE,
+});
+export function platformTemplate(_platform: Platform) {
+  return GENERIC_TEMPLATE;
+}

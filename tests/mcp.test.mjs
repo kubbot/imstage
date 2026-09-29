@@ -26,6 +26,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import pngjs from 'pngjs';
 
 import { resolveMcpConfig } from '../services/mcp/config.mjs';
+import { STUDIO_RENDERER_VERSION } from '../services/mcp/studio-html.mjs';
 import { resolveChromiumExecutable } from '../services/mcp/render.mjs';
 import { EXAMPLE_CREATE_SCENE } from '../services/mcp/scene.mjs';
 import { startMcpServer } from '../services/mcp/server.mjs';
@@ -146,9 +147,9 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       const result = await client.callTool({ name: 'imstage_get_capabilities', arguments: {} });
       assert.notEqual(result.isError, true);
       const capabilities = result.structuredContent;
-      assert.deepEqual(capabilities.supportedSubset.platforms, ['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+      assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
       assert.deepEqual(capabilities.supportedSubset.surfaces, ['ios', 'android', 'desktop']);
-      assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album']);
+      assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
       assert.equal(capabilities.canonicalValidator, 'apps/web/src/studio/model.ts#validateScene');
       assert.ok(capabilities.examples.createScene.scene.participants.length >= 1);
       assert.equal(capabilities.examples.updateScene.patch.updateMessages.length, 1);
@@ -331,7 +332,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
         }),
       );
       assert.equal(badPlatform.code, 'unsupported_platform');
-      assert.deepEqual(badPlatform.details.supported, ['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+      assert.deepEqual(badPlatform.details.supported, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
 
       const remoteAsset = toolError(
         await client.callTool({
@@ -379,7 +380,10 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.equal(result.structuredContent.sceneId, sceneId);
       assert.equal(result.structuredContent.revision, latestRevision);
       assert.match(result.structuredContent.sha256, /^[0-9a-f]{64}$/);
-      assert.equal(result.structuredContent.rendererVersion, 'studio-20260923-custom-v4');
+      // The renderer version must move whenever output/policy changes, so
+      // pre-policy cached PNGs can be identified and blocked.
+      assert.equal(result.structuredContent.rendererVersion, STUDIO_RENDERER_VERSION);
+      assert.match(STUDIO_RENDERER_VERSION, /20260930/, 'renderer version carries the current policy revision');
       assert.equal(result.structuredContent.widgetUri, WIDGET_RESOURCE_URI);
       assert.match(result.structuredContent.downloadUri, /^imstage:\/\/renders\/rnd_[0-9a-f]{32}\.png$/);
       assert.match(result._meta.preview.dataUri, /^data:image\/png;base64,/);

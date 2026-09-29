@@ -1189,7 +1189,7 @@ test('same-key retry recovers the frozen job after the template is updated and d
   assert.equal(fresh.res.status, 404);
 });
 
-test('screenshot-reference templates reject other platforms before enqueue', async () => {
+test('real-screenshot reference templates are rejected at the API — no template/batch bypass', async () => {
   const provider = countingProvider();
   const { base } = await makeApp({ agent: { chatProvider: provider, limits: highLimits } });
   const cookie = await register(base);
@@ -1214,19 +1214,12 @@ test('screenshot-reference templates reject other platforms before enqueue', asy
     method: 'POST', cookie,
     body: { name: '截图模板', description: '', scene, variables: [] },
   });
-  assert.equal(template.res.status, 200, JSON.stringify(template.data));
-  assert.equal(template.data.item.mode, 'reference');
+  assert.equal(template.res.status, 400, JSON.stringify(template.data));
+  assert.match(JSON.stringify(template.data), /已停用|disabled/, 'the policy reason is reported');
 
+  // No batch enqueue can smuggle the rejected template through either.
   const rejected = await enqueue(base, cookie, project.id, {
-    prompts: ['生成'], platforms: ['slack'], templateId: template.data.item.id, templateRevision: 1, clientBatchId: crypto.randomUUID(),
+    prompts: ['生成'], platforms: ['wechat'], templateId: 'tmpl_missing', templateRevision: 1, clientBatchId: crypto.randomUUID(),
   });
-  assert.equal(rejected.res.status, 400);
-  assert.equal(rejected.data.error.code, 'reference_platform_mismatch');
-
-  const accepted = await enqueue(base, cookie, project.id, {
-    prompts: ['生成'], platforms: ['wechat'], templateId: template.data.item.id, templateRevision: 1, clientBatchId: crypto.randomUUID(),
-  });
-  assert.equal(accepted.res.status, 200, JSON.stringify(accepted.data));
-  assert.equal(accepted.data.item.templateId, template.data.item.id);
-  assert.equal(accepted.data.item.tasks[0].platform, 'wechat');
+  assert.equal(rejected.res.status, 404);
 });

@@ -640,7 +640,7 @@ html[data-theme='dark'] .mark-phone-frame {
   z-index: -1;
 }
 .mark-export-frame {
-  background: #ededed;
+  background: #e9edf2;
 }
 .mark-export-frame .scene-view {
   width: 100%;
@@ -1265,3 +1265,8 @@ html[data-theme='dark'] .mark-export-card {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------- commercial contact */
+.mark-commercial-contact { display: grid; gap: 10px; justify-items: start; }
+.mark-commercial-contact p { margin: 0; }
+.mark-commercial-pending { display: inline-block; padding: 10px 16px; border: 1px dashed var(--line, #d5dce5); border-radius: 8px; font-size: 13px; color: var(--muted, #5b6675); }

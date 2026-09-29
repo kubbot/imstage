@@ -27,6 +27,16 @@ import {
   type TemplateSummary,
 } from '../account/api';
 import { PLATFORMS, type Platform } from '../studio/model';
+
+/**
+ * Public UI offers only the generic IMStage chat skin. Legacy platform ids in
+ * stored projects stay readable (migration) but no brand/platform selector is
+ * presented: every value renders the same generic IMStage chat UI.
+ */
+const selectablePlatforms = (current?: string | string[]): Platform[] => {
+  const keep = Array.isArray(current) ? current : current ? [current] : [];
+  return Array.from(new Set(['imstage', ...keep])).filter((value): value is Platform => PLATFORMS.includes(value as Platform));
+};
 import { readImageFile } from '../studio/storage';
 import { useAuth } from '../account/Auth';
 import { useCopy } from '../i18n';
@@ -155,7 +165,7 @@ function ProjectList() {
         <label>
           {p.platformLabel}
           <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
-            {PLATFORMS.map((value) => (
+            {selectablePlatforms(platform).map((value) => (
               <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
             ))}
           </select>
@@ -604,7 +614,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             <label>
               {p.platformLabel}
               <select value={autosave.settings.platform} onChange={(event) => autosave.setPlatform(event.target.value as Platform)}>
-                {PLATFORMS.map((value) => (
+                {selectablePlatforms(autosave.settings.platform).map((value) => (
                   <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
                 ))}
               </select>
@@ -714,7 +724,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           </fieldset>}
           <fieldset className="project-platforms">
             <legend>{p.platformShort}</legend>
-            {PLATFORMS.map((value) => (
+            {selectablePlatforms(platforms).map((value) => (
               <label key={value} className="project-checkbox">
                 <input type="checkbox" checked={platforms.includes(value)} onChange={() => togglePlatform(value)} />
                 {PLATFORM_LABELS[value]}

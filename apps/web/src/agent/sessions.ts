@@ -29,10 +29,10 @@ export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
   const base = createScene();
   let scene: Scene;
   if (isSceneKind(seed.scenario)) {
-    // Seeded scenario: real authored content, platform chosen by language.
+    // Seeded scenario: authored synthetic content on the generic IMStage skin.
     scene = { ...createScenario(seed.scenario, locale), id: crypto.randomUUID(), referenceDate: calendarToday() };
   } else if (locale === 'en') {
-    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'whatsapp', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
+    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'imstage', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
   } else {
     scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
   }

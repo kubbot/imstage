@@ -15,7 +15,7 @@ import { validateScene } from '../apps/web/src/studio/model.ts';
 
 test('a seeded scenario produces a real localized scene, never a placeholder', () => {
   const zh = emptyDraft('project-1', { locale: 'zh', scenario: 'wukang' });
-  assert.equal(zh.scene.platform, 'wechat');
+  assert.equal(zh.scene.platform, 'imstage');
   assert.equal(zh.scene.title, '武康路的傍晚');
   assert.equal(zh.scene.messages.length, 5);
   assert.equal(zh.prompt, '');
@@ -23,7 +23,7 @@ test('a seeded scenario produces a real localized scene, never a placeholder', (
   assert.equal(validateScene(zh.scene).ok, true);
 
   const en = emptyDraft('', { locale: 'en', scenario: 'wukang' });
-  assert.equal(en.scene.platform, 'whatsapp');
+  assert.equal(en.scene.platform, 'imstage');
   assert.equal(en.scene.title, 'Wukang Road, evening');
   assert.ok(en.scene.messages.every((message) => !/[\u3400-\u9fff]/.test(message.text)));
   assert.equal(validateScene(en.scene).ok, true);
@@ -45,11 +45,11 @@ test('a handoff instruction is pre-filled, bounded, and never auto-sent', () => 
 test('an unknown scenario falls back to a blank localized conversation', () => {
   const draft = emptyDraft('', { locale: 'en', scenario: 'not-a-scenario' });
   assert.equal(draft.scene.messages.length, 0);
-  assert.equal(draft.scene.platform, 'whatsapp');
+  assert.equal(draft.scene.platform, 'imstage');
   assert.equal(draft.scene.participants.find((participant) => participant.id === 'other').name, 'Ava');
 
   const zh = emptyDraft();
-  assert.equal(zh.scene.platform, 'wechat');
+  assert.equal(zh.scene.platform, 'imstage');
   assert.equal(zh.scene.messages.length, 0);
 });
 

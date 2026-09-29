@@ -23,7 +23,7 @@ test('landing instruction composer follows the language and keeps a typed instru
   await page.goto('/');
   await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
   await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
-  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform','whatsapp');
+  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
   await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
   // A written instruction is never discarded by a language switch.
   await page.getByLabel('Your instruction', { exact: true }).fill('my own instruction');

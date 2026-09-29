@@ -500,7 +500,7 @@ export function adaptSceneForRenderer(scene) {
 
 const EXAMPLE_CREATE_SCENE = Object.freeze({
   title: '周末去看海',
-  platform: 'wechat',
+  platform: 'imstage',
   deviceTime: '09:41',
   date: '周六 09:38',
   selfId: 'p-linxiaoman',
@@ -539,8 +539,9 @@ export function buildCapabilities() {
       nativelyRenderedMessageTypes: [...NATIVE_MESSAGE_TYPES],
       degradedMessageTypes: degraded,
       persistedNotRendered: [],
-      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时保持平台皮肤不变。',
-      unsupported: ['reference screenshot overlays; use the Web editor for those'],
+      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用通用 IMStage 聊天皮肤（所有平台 id 渲染一致，不复刻任何真实平台界面）。',
+      unsupported: ['reference screenshot overlays (real-screenshot editing is disabled on all public surfaces)', 'payment / transfer / red-packet / balance message types'],
+      disclosure: '所有预览与导出固定带有 AI生成 / 虚构 标识，不可关闭。',
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',
     },
     limits: {

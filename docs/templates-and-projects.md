@@ -10,12 +10,11 @@
 { id, name, revision, scene, variables, createdAt, updatedAt }
 ```
 
-- `scene` 是**完整校验后**的场景快照（structured 场景，或带 `layout.kind=custom` 的自定义布局，或 `Scene.reference` 保留原截图模板）。
+- `scene` 是**完整校验后**的场景快照（structured 场景，或带 `layout.kind=custom` 的自定义布局；公开入口拒绝 `Scene.reference`）。
 - `variables` 是命名类型化目标，最多 50 个：
   - `{entity:'participant', id, field:'name'|'avatar'}`
   - `{entity:'message', id, field:'text'|'asset'}`
   - `{entity:'scene', field:'title'|'deviceTime'}`
-  - `{entity:'reference', id, field:'text'|'image'}`
 - 变量 key 必须唯一且形如 `^[a-z][a-z0-9_]{0,47}$`；禁止 `__proto__` / `constructor` / `prototype`。
 - 图像变量只接受有界的内嵌 `data:image/(png|jpeg|webp);base64,...`，不接受远程 URL；文本有长度上限（姓名 100、场景标题 120、设备时间 40、消息 4000）。
 - 纯函数入口：`packages/schema/templates.ts` 的 `validateTemplateDefinition`、`instantiateTemplate`、`discoverTemplateVariables`、`variableValue`。`instantiateTemplate(raw, values, newSceneId)` 返回 `{ok:true,value}|{ok:false,errors}`，调用方生成新的 UUID，实例化永远深拷贝、不改源模板。
@@ -40,16 +39,13 @@
 - 外账号的 id 一律返回 404，不泄露存在性。
 - 普通场景自动保存不会静默修改源模板。
 
-## 3. Web 模板库与截图流程
+## 3. Web 模板库
 
 - 路由 `#/templates`：已登录时进入账号模板库；未登录仍是公开的官网模板画廊（不发任何模型请求）。
 - 从画面创建：选择“我的作品”里的一个场景，命名模板，勾选/改名可发现变量，提交后服务端校验并冻结快照。
 - 使用模板：`POST /templates/:id/instantiate` → 通过 landing handoff 打开**全新创作会话**，不会调用模型、不会修改模板，之后按普通自动保存写回账号。
 - 重命名/删除为真实操作，包含空态与错误态。
-- 截图 → 模板：上传截图 → 明确选择“重建可编辑布局”或“保留原截图并添加可编辑区域” → 打开创作会话并带入该意图：
-  - 重建：截图作为附件进入现有 Agent 流程，提示词要求结构化平台、人物、消息，并在非六种平台皮肤时用 `layout.kind=custom` 近似版式；
-  - 保留：创建 `Scene.reference` 编辑层，只替换显式区域，不声称还原全部像素。
-  - 生成结果画面后可用“存为模板”按钮保存为模板。
+- 真实截图上传、重建与保留原图编辑入口已下线；模板只接受合成结构化场景或通用自定义布局。
 - 创作工具栏的“存为模板”可在当前可编辑画面上直接创建模板，变量来自共享的 `discoverTemplateVariables`。
 
 ## 4. 自定义声明式布局
@@ -99,7 +95,7 @@ layout: {
 - `values` 必须对应模板声明的 key；在写入 job 之前逐个校验，失败整批拒绝。提供 values 但没有 `templateId` 会被拒绝。
 - 提交事务内冻结 `rules`、`templateId/templateRevision/templateJson` 与每个条目的 `values`；之后修改或删除模板、修改项目规则都不会影响已排队任务。
 - 同一 `clientBatchId` 的重试会在“当前模板/新任务校验”之前返回已存在的冻结任务，因此模板被更新或删除后重试仍能拿回原任务，且不会触发新的 provider 调用。
-- **保留原截图的模板锁定源平台**：`template.definition.scene.reference.plan.im` 之外的平台会在入队前以 `reference_platform_mismatch` 拒绝；worker 不会改写源平台。UI 会把平台锁定到源平台并给出中英文提示。
+- **真实截图模板停用**：公开模板创建、实例化与批量入口拒绝 `Scene.reference`。历史存储不会被静默删除。
 - worker 按序取任务：有模板则用冻结快照 + 该条目 values 实例化（可套用条目差异），否则空白场景；随后调用**同一个** Agent runtime 生成差异，保留项目规则。每个输出都是独立的新场景 id。
 - 没有任何隐藏的图像生成：只有条目提示词要求时 Agent 才调用图片工具；provider 失败时不会报告“已生成图片”。
 - 取消、登录失效、服务重启按既有语义中断，不会伪报成功。
@@ -150,7 +146,7 @@ MCP 服务器使用**独立的** `IMSTAGE_MCP_DATA_DIR` SQLite 与 Bearer 实例
 5. `imstage_get_batch` 读取各 `sceneId`，再用 `imstage_render_scene` 渲染。
 
 ## 7. 当前限制
-- MCP 不接受 `Scene.reference`（保留原截图）与 `layout` 之外的任意样式；截图编辑仍只在 Web。
+- Web 和 MCP 均不接受 `Scene.reference`（保留原截图）；所有公开输出使用通用聊天界面并携带固定 AI生成 / 虚构 标识。
 - 模板实例化不会自动调用模型；需要在创作会话里继续用 Agent 生成/改写。
 - screenshot 重建是“近似版式”，不是像素级还原。
 - 批次条目图片若显式提供，需为内嵌 data URL 且受请求体上限约束（Web 端 16 MiB 请求体、单条目 values 1.5 MB 上限）。

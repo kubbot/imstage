@@ -25,6 +25,7 @@ import {
 import { SceneView } from '../studio/SceneView';
 import type { Scene } from '../studio/model';
 import { useLocale } from './LocaleContext';
+import { CommercialContact } from './CommercialContact';
 import { LANDING_COPY } from './copy';
 import { createHandoffHref, type Locale } from './locale';
 import { useDemoAvatars, useStoryPhoto } from './avatars';
@@ -100,11 +101,11 @@ export default function MarketingSite() {
   const photoReady = photoState.status === 'ready';
   const stories = useMemo<DemoStories>(() => (storyPhoto ? { wukang: storyPhoto } : {}), [storyPhoto]);
 
-  const [kind, setKind] = useState<SceneKind>(() => readScenarioParam(window.location.search, window.location.hash) ?? 'wukang');
+  const [kind, setKind] = useState<SceneKind>(() => readScenarioParam(window.location.search, window.location.hash) ?? 'evaluation');
   const [prompt, setPrompt] = useState(() => WUKANG_PROMPT[locale]);
   const [promptEdited, setPromptEdited] = useState(false);
   const [scene, setScene] = useState<Scene>(() => buildScene(kind, locale, null, undefined));
-  const [storyScene, setStoryScene] = useState<Scene>(() => buildScene('wukang', locale, null, undefined));
+  const [storyScene, setStoryScene] = useState<Scene>(() => buildScene('evaluation', locale, null, undefined));
   const [heroStatus, setHeroStatus] = useState('');
   const [staging, setStaging] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -130,9 +131,10 @@ export default function MarketingSite() {
   const exportScene = portable.scene ?? scene;
   const storyPortable = useMemo(() => portableScene(storyScene, avatars, stories), [storyScene, avatars, stories]);
   const storyExportScene = storyPortable.scene ?? storyScene;
-  const sceneNeedsPhoto = kind === 'wukang';
+  const sceneNeedsPhoto = kind === 'wukang'; // photo staging exists only for the internal story asset
+  const storyHasImage = storyScene.messages.some((message) => message.type === 'image');
   const exportReady = portable.ok && assetsReady && (!sceneNeedsPhoto || photoReady);
-  const storyExportReady = storyPortable.ok && assetsReady && photoReady;
+  const storyExportReady = storyPortable.ok && assetsReady && (!storyHasImage || photoReady);
 
   // Single-flight preview queue: only the newest revision may publish.
   const queueRef = useRef<RevisionQueue<PreviewState> | null>(null);
@@ -169,7 +171,7 @@ export default function MarketingSite() {
 
   // The story is always the authored Wukang example; a language switch reseeds it.
   useEffect(() => {
-    setStoryScene(buildScene('wukang', locale, avatarsRef.current, photoRef.current));
+    setStoryScene(buildScene('evaluation', locale, avatarsRef.current, photoRef.current));
   }, [locale]);
 
   // Keep a localized authored instruction unless the visitor wrote their own.
@@ -241,7 +243,7 @@ export default function MarketingSite() {
   }, [photoOpen]);
 
   const exportStory = useCallback(async () => {
-    if (!storyPortable.ok || !storyPortable.scene || !assetsReady || !photoReady) {
+    if (!storyPortable.ok || !storyPortable.scene || !assetsReady || (storyHasImage && !photoReady)) {
       setHeroStatus(copy.exportFail);
       return;
     }
@@ -343,13 +345,13 @@ export default function MarketingSite() {
 
   /** The hero Send/Create authorizes exactly one Agent request. */
   const submitStory = useCallback(
-    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined, true),
+    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'evaluation', prompt.trim() || undefined, true),
     [prompt, stageHandoff, storyScene],
   );
 
   /** The closing navigation stages content; only the labelled Send form dispatches AI. */
   const handoffStory = useCallback(
-    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'wukang', prompt.trim() || undefined),
+    (event: { preventDefault(): void }) => stageHandoff(event, storyScene, 'evaluation', prompt.trim() || undefined),
     [prompt, stageHandoff, storyScene],
   );
 
@@ -378,8 +380,8 @@ export default function MarketingSite() {
   return (
     <div className="mark" data-locale={locale}>
       <ScrollJourney locale={locale} scene={storyScene} avatars={avatars} onChange={setStoryScene}
-        continueHref={createHandoffHref(locale, 'wukang')}
-        onContinue={(event, source) => stageHandoff(event, source, 'wukang')}
+        continueHref={createHandoffHref(locale, 'evaluation')}
+        onContinue={(event, source) => stageHandoff(event, source, 'evaluation')}
         onPhoto={() => setPhotoOpen(true)} onExport={() => void exportStory()}
         exportDisabled={exporting || !storyExportReady} photoReady={photoReady}
         composer={<>
@@ -539,9 +541,9 @@ export default function MarketingSite() {
 
       <Reveal id="mark-open">
         <div className="mark-shell mark-open-simple">
-          <div><h2 className="mark-h2">{locale === 'zh' ? '为下一次发布，准备好画面。' : 'Set the scene for your next launch.'}</h2>
-          <p className="mark-lede">{locale === 'zh' ? '产品演示、品牌故事、沟通培训。从一段对话，开始你的下一份内容。' : 'Product demos, brand stories, and team training. Start your next piece of content with a conversation.'}</p></div>
-          <a className="mark-btn mark-btn-ghost" href="https://github.com/kubbot/imstage" target="_blank" rel="noreferrer"><IconBrandGithub size={24} aria-hidden="true" />{locale === 'zh' ? '在 GitHub 一起构建' : 'Build with us on GitHub'}<IconArrowUpRight size={17} aria-hidden="true" /></a>
+          <div><h2 className="mark-h2">{locale === 'zh' ? '为你的评测准备专属数据集' : 'Datasets built for your evaluation'}</h2>
+          <p className="mark-lede">{locale === 'zh' ? '围绕测试场景定制合成测试集、Evaluation 数据集与标注集。商业合作采用独立协议与非公开交付，相关实现闭源；通过邮件沟通范围与需求。公开工具仅供非商业测试、学习与研究。' : 'Custom synthetic test sets, evaluation datasets and annotations for your testing scenarios. Commercial engagements use separate agreements, private delivery and closed-source implementations. Contact us by email to discuss scope. The public tool is for non-commercial testing, learning and research.'}</p></div>
+          <CommercialContact locale={locale} />
         </div>
       </Reveal>
 

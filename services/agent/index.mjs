@@ -32,7 +32,7 @@ export {
 } from './finish.mjs';
 export { serializeAgentEvent, AGENT_EVENT_TYPES, AGENT_TOOL_STATES } from './events.mjs';
 export { writeNdjsonLine, finishNdjsonResponse, abortedError, isResponseGone } from './stream.mjs';
-export { AGENT_TOOL_SCHEMAS, TOOL_NAMES } from './tools.mjs';
+export { AGENT_TOOL_SCHEMAS, TOOL_NAMES, INTERNAL_REFERENCE_TOOL_NAMES, INTERNAL_REFERENCE_TOOL_SCHEMAS } from './tools.mjs';
 export { runAgent } from './run.mjs';
 export { ProviderError, createChatProvider, createImageProvider } from './providers.mjs';
 export { createTencentImageProvider } from './tencent-images.mjs';
@@ -41,9 +41,12 @@ export { createTencentImageProvider } from './tencent-images.mjs';
  * Build the agent runtime from resolved configuration.
  *
  * @param {ReturnType<typeof resolveAgentConfig>} config
- * @param {object} [deps] `chatProvider`, `imageProvider`, `fetchImpl`, `logger`.
+ * @param {object} [deps] `chatProvider`, `imageProvider`, `fetchImpl`, `logger`,
+ *   `internalReferenceResearch` (offline evaluation only — never settable from
+ *   an API/MCP request; enables the retained real-screenshot research tools).
  */
 export function createAgentRuntime(config, deps = {}) {
+  const internalReferenceResearch = deps.internalReferenceResearch === true;
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function' && !deps.chatProvider) {
     throw new Error('运行 Agent 需要可用的 fetch');
@@ -95,10 +98,19 @@ export function createAgentRuntime(config, deps = {}) {
         error.code = 'ai_not_configured';
         throw error;
       }
-      const screenshot = args.scene.reference ? await import('./screenshot-tools.mjs') : null;
+      const referenceRequested = Boolean(args.scene && args.scene.reference);
+      if (referenceRequested && !internalReferenceResearch) {
+        // Real-screenshot reference editing is disabled on all public surfaces.
+        // The research implementation is retained for internal offline
+        // evaluation only and is unreachable from the API and both MCP servers.
+        const error = new Error('真实截图参考编辑已停用：仅支持合成（虚构）对话场景');
+        error.code = 'reference_disabled';
+        throw error;
+      }
+      const screenshot = referenceRequested ? await import('./screenshot-tools.mjs') : null;
       if(screenshot) await screenshot.verifyReferenceSources(args.scene.reference,args.signal);
       const toolset = screenshot?.screenshotToolset || null;
-      return runAgent({ config, provider: chatProvider, imageProvider, ...args, toolset });
+      return runAgent({ config, provider: chatProvider, imageProvider, ...args, toolset, internalReferenceResearch });
     },
   };
 }

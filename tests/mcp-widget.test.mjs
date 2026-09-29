@@ -7,12 +7,19 @@ import {renderStudioHtml} from '../services/mcp/studio-html.mjs';
 import {EXAMPLE_CREATE_SCENE,prepareCreateScene} from '../services/mcp/scene.mjs';
 import {PLATFORMS} from '../apps/web/src/studio/model.ts';
 
-test('shared Web render preserves all platforms, appearance, media cards and escaped text',async()=>{
+test('shared Web render is the generic IMStage UI with the mandatory disclosure on every platform',async()=>{
  for(const platform of PLATFORMS){
-  const scene=prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),platform,background:'#dceeff',messages:[{id:'voice',participantId:'p-ayuan',type:'voice',text:'12 秒',time:'09:41'},{id:'transfer',participantId:'p-linxiaoman',type:'transfer',text:'演示卡片',time:'09:42'}]});
+  const scene=prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),platform,background:'#dceeff',messages:[{id:'voice',participantId:'p-ayuan',type:'voice',text:'12 秒',time:'09:41'}]});
   const html=await renderStudioHtml(scene,{width:390,height:844,outputKind:'screenshot'});
-  assert.ok(html.includes(`data-platform="${platform}"`));assert.ok(html.includes('演示卡片'));assert.ok(html.includes('scene-transfer'));assert.ok(html.includes('12 秒'));assert.ok(html.includes('#dceeff'));assert.equal(/<script/i.test(html),false);
+  assert.ok(html.includes('data-skin="imstage-generic"'));
+  assert.ok(html.includes('AI生成 / 虚构'),'mandatory disclosure on every preview/export');
+  assert.ok(html.includes('12 秒'));assert.ok(html.includes('#dceeff'));
+  assert.equal(/data-platform|scene-transfer/.test(html),false,'no platform chrome or payment cards');
+  assert.equal(/<script/i.test(html),false);
+  assert.equal(/wechat|whatsapp|telegram|微信|WhatsApp|Telegram|Instagram|Slack/i.test(html),false,'no brand names or clones in public output');
  }
+ // Payment / transfer / red-packet messages are rejected, never rendered.
+ assert.throws(()=>prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),messages:[{id:'transfer',participantId:'p-linxiaoman',type:'transfer',text:'演示卡片',time:'09:42'}]}),/transfer|不支持|已移除|只能是/);
 });
 
 test('MCP Apps bridge actually displays the result, exports PNG and targets the same scene on follow-up',async()=>{

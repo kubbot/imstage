@@ -224,7 +224,7 @@ and actual image decoding.
 
 Generated image tools additionally require actual PNG/JPEG/WebP decoding through sharp, with a 16-megapixel limit. Invalid/truncated image bytes never produce a successful tool result. Combined scene assets are capped at 12 MiB of data URL characters. The same check runs after each mutation.
 
-## Rich elements, image edits and reference screenshots
+## Rich elements and authorised image assets
 
 `update_element` supports `@scene` settings and `@participant:ID` identity.
 Message targets include image, video-thumbnail, contact, location, link and
@@ -234,26 +234,20 @@ for the OpenAI-compatible client, inline `input[].content[].image_url` for
 Tencent WAND) instead of regenerating from text alone. No live image-provider
 acceptance is claimed without credentials.
 
-`Scene.reference` contains a verified source raster, normalized editing plan
-and owned assets. It switches the same `runAgent` loop to `read_text`,
-`inspect_region`, `find_frame`, `list_assets`, `set_text`, `set_edits`,
-`place_image`, `generate_image`, `render_preview`, and `finish`. Only source,
-task and authorized asset descriptions enter the model; expected answers and
-scoring boxes do not. Web and evaluation use the same plan validator, HTML,
-font fitting and server PNG renderer. macOS OCR uses Vision; Linux uses
-Tesseract with Chinese, English and Russian language data.
+Real-screenshot reconstruction and editing are disabled on public surfaces.
+`Scene.reference` is rejected by public scene validation, and
+`POST /api/agent/render` returns `reference_disabled`. Public Agent tools cannot
+extract screenshot regions or disable the mandatory AI-generated / fictional
+label. Payment-style message types are not supported. All scene styles render
+the generic IMStage UI.
 
-Reference inputs are decoded with an 8-megapixel cap and actual source
-width/height must equal the document. WebP is converted to PNG for rendering.
-`POST /api/agent/render` requires the existing session/CSRF gates and returns
-an original-resolution PNG. Source-backed editing and cross-platform Scene
-reconstruction are distinct modes; selecting another platform requests a new
-Scene rather than relabelling the original raster.
+The reference research implementation is retained only for the internal offline
+evaluation adapter, which explicitly enables `internalReferenceResearch` as a
+runtime dependency. No request parameter enables it. Its source validator, OCR,
+editing plan and preview checks are research infrastructure, not hosted features.
 
-Completion rejects unresolved image failures, missing message media and
-newly generated reference assets not placed in the output. Reference mode
-also requires a successful preview of the latest state. This proves execution,
-not semantic correctness; dataset scores and human reviews remain separate.
+Hosted runs persist metadata-only audit rows with 90-day primary retention;
+see [safety policy](../../docs/safety-policy.md) for exact coverage and limitations.
 
 Interactive runs use 8 rounds / 24 calls / 120 seconds; the bounded evaluation
 adapter allows 12 rounds / 40 calls / 180 seconds. Project batches share the

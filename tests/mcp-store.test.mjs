@@ -50,7 +50,7 @@ function expectCode(fn, code) {
 test('scene adapter reuses the shared validator and rejects anything outside the renderer subset', () => {
   const scene = prepareCreateScene(freshScene());
   assert.match(scene.id, /^scn_[0-9a-f]{32}$/);
-  assert.equal(scene.platform, 'wechat');
+  assert.equal(scene.platform, 'imstage');
   assert.equal(scene.messages.length, EXAMPLE_CREATE_SCENE.messages.length);
 
   expectCode(() => prepareCreateScene({ ...freshScene(), platform: 'telegram' }), 'unsupported_platform');
@@ -297,8 +297,8 @@ test('widget markup is self-contained, uses the MCP Apps bridge and never trusts
 
 test('capabilities describe the honest fidelity subset', () => {
   const capabilities = buildCapabilities();
-  assert.deepEqual(capabilities.supportedSubset.platforms, ['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
-  assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album']);
+  assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+  assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
   assert.deepEqual(capabilities.supportedSubset.degradedMessageTypes, []);
   assert.deepEqual(capabilities.supportedSubset.persistedNotRendered, []);
   assert.equal(capabilities.limits.scene.messagesMax, 120);

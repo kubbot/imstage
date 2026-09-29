@@ -6,26 +6,11 @@ import { setNavigationGuard } from '../account/navigation';
 import { useCopy, useFormatLocale } from '../i18n';
 import { clearHandoffScene, readHandoffPayload } from '../marketing/handoff';
 import type { SendIntent } from '../sendIntent';
-import loanCase from '../../../../tools/eval/fixtures/loan-anniversary.json';
 import { emptyDraft, recoverDraft, newSession, readSession, writeSession, listSessions, removeSession, type SessionDraft, type SessionMeta, type SessionRecord } from './sessions';
-import { isTemplateScreenshotMode, readTemplateScreenshot, clearTemplateScreenshot } from '../templates/screenshotSeed';
 import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import type { Scene } from '../studio/model';
 import './sessions.css';
 
-/** Build a preserve-source reference document from an uploaded screenshot. */
-async function referenceFromSource(source: string, platform: Scene["platform"]): Promise<Partial<Scene> | null> {
-  try {
-    const img = new Image();
-    img.src = source;
-    await img.decode();
-    const width = img.naturalWidth || 360;
-    const height = img.naturalHeight || 640;
-    return { reference: { source, assets: [], plan: { schemaVersion: 1 as const, im: platform === 'whatsapp' ? 'whatsapp' as const : platform === 'instagram' ? 'instagram' as const : 'wechat' as const, surface: 'ios' as const, width, height, edits: [], warnings: [] } } };
-  } catch {
-    return null;
-  }
-}
 
 export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>) {
   const {user}=useAuth();const owner=user?.id||'guest';
@@ -34,15 +19,14 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   const withDefaults=<T extends {scene:Scene}>(draft:T):T=>({...draft,scene:applyNewSceneDefaults(draft.scene,user?.id)});
   const copy=useCopy();
   const formatLocale=useFormatLocale();
-  const params=new URLSearchParams(location.hash.split('?')[1]);const sample=params.get('case')==='loan-anniversary';
+  const params=new URLSearchParams(location.hash.split('?')[1]);
   // Explicit launch handoff from the public site. It is only honoured while
   // creating a brand new session, so an existing draft can never be replaced.
   const launchNew=params.get('new')==='1';
   const requestedLocale=params.get('lang')==='en'?'en':params.get('lang')==='zh'?'zh':undefined;
   const seedScenario=params.get('scenario')||undefined;
   const handoffToken=params.get('handoff')||undefined;
-  const templateFlow=params.get('templateFlow');
-  const origin=`${sample?'case-loan-anniversary':'draft'}:${params.get('project')||''}`;
+  const origin=`draft:${params.get('project')||''}`;
   const pointer=`imstage.sessions.active.${owner}.${origin}`;
   const [record,setRecord]=useState<SessionRecord|null>(null),[items,setItems]=useState<SessionMeta[]>([]);
   const [open,setOpen]=useState(false),[query,setQuery]=useState(''),[busy,setBusy]=useState(false),[switching,setSwitching]=useState(false);
@@ -101,32 +85,6 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
         if(handoff){const next=await writeSession(newSession(owner,origin,recoverDraft(handoff,emptyDraft(params.get('project')||'',{locale:seedLocale}))));try{sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}return next;}
       }
       if(launchNew){
-        // Screenshot → template starter: the uploaded image and the explicit
-        // reconstruct/preserve choice arrive before navigation. Nothing is sent
-        // to a provider here; the visitor reviews the composer first.
-        if(isTemplateScreenshotMode(templateFlow)){
-          const seed=readTemplateScreenshot();
-          if(seed){
-            const draft=emptyDraft(params.get('project')||'',{locale:seedLocale});
-            if(seed.mode==='preserve'){
-              const reference=await referenceFromSource(seed.source, draft.scene.platform);
-              // A decode failure must not silently create an empty scene: throw so
-              // the seed stays stored and the visitor can retry the upload.
-              if(!reference)throw new Error(copy.templates.screenshotDecodeFailed);
-              draft.scene={...draft.scene,...reference};
-              draft.prompt=copy.templates.flowPreservePrompt;
-            }else{
-              draft.attachments=[seed.source];
-              draft.prompt=copy.templates.flowReconstructPrompt;
-            }
-            draft.scene.id=crypto.randomUUID();
-            // Only clear the exact payload after the session is durably written.
-            const created=await writeSession(newSession(owner,origin,withDefaults(draft)));
-            clearTemplateScreenshot(seed);
-            try{const [path,query='']=location.hash.slice(1).split('?');const p=new URLSearchParams(query);p.delete('new');p.delete('templateFlow');history.replaceState(null,'',`${location.pathname}${location.search}#${path}${p.toString()?`?${p.toString()}`:''}`);}catch{/* The session exists; the URL hint is only a convenience. */}
-            return created;
-          }
-        }
         const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale,scenario:seedScenario});
         // A handed-off scene was written to sessionStorage before navigation and
         // is validated here; invalid or missing payloads fall back to the seed.
@@ -143,10 +101,10 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
       }
       let activeId:string|null=null;try{activeId=sessionStorage.getItem(pointer);}catch{}
       if(activeId){try{return await readSession(owner,activeId);}catch(e){if(!(e instanceof Error)||!e.message.startsWith('会话已被删除'))throw e;}}
-      const key=`imstage.agent.${owner}.${sample?'case-loan-anniversary':'draft'}`;
+      const key=`imstage.agent.${owner}.draft`;
       let legacy:Partial<SessionDraft>|null=null;
       try{legacy=JSON.parse(sessionStorage.getItem(key)||'null');if(legacy)legacy.turns=JSON.parse(sessionStorage.getItem(`${key}.chat`)||'[]');}catch{}
-      const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale});if(sample){fallback.scene=loanCase.scene as SessionDraft['scene'];fallback.full=true;}
+      const fallback=emptyDraft(params.get('project')||'',{locale:seedLocale});
       if(!legacy){const recent=(await listSessions(owner)).find(s=>s.origin===origin);if(recent)return readSession(owner,recent.id);}
       // A migrated legacy local draft is an existing scene: it must keep its own
       // avatars/watermark (including empty/off). Defaults apply only when this is
@@ -154,7 +112,7 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
       const migrated=recoverDraft(legacy,fallback);
       // Only a genuinely blank new scene receives defaults; migrated drafts and
       // authored sample scenes keep their own avatars/watermark.
-      const created=await writeSession(newSession(owner,origin,(legacy||sample)?migrated:withDefaults(migrated),sample?'去年借款，今天归还':undefined));
+      const created=await writeSession(newSession(owner,origin,legacy?migrated:withDefaults(migrated)));
       // Remove only after durable migration, never before a successful transaction.
       try{sessionStorage.removeItem(key);sessionStorage.removeItem(`${key}.chat`);if(user)sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}
       return created;

@@ -15,7 +15,7 @@ test('a scenario handoff opens the English WhatsApp scene and keeps the previous
   await expect(page.getByRole('button', { name: '管理创作会话' })).toContainText('已保存到本机');
 
   await page.goto('/#/create?new=1&lang=en&scenario=product');
-  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
   await expect(page.locator('.agent-phone')).toContainText('The home headline should wrap to two lines.');
   await expect(page.getByLabel('描述想生成的聊天', { exact: true })).toHaveValue('');
   // The explicit new-session parameter is consumed, not left in the URL.
@@ -27,7 +27,7 @@ test('a scenario handoff opens the English WhatsApp scene and keeps the previous
 
 test('a plain English handoff starts a blank WhatsApp session instead of fabricating content', async ({ page }) => {
   await page.goto('/#/create?new=1&lang=en');
-  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
   await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
   await expect(page.getByLabel('Describe the chat to generate', { exact: true })).toHaveValue('');
   await expect(page.locator('.agent-phone .scene-header-name')).toHaveText('Ava');
@@ -35,7 +35,7 @@ test('a plain English handoff starts a blank WhatsApp session instead of fabrica
 
 test('the new-session handoff is consumed: reloading resumes the same session', async ({ page }) => {
   await page.goto('/#/create?new=1&lang=en&scenario=coffee');
-  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
   const firstId = await page.evaluate((key) => sessionStorage.getItem(key), pointerKey);
   expect(firstId).toBeTruthy();
   await page.getByRole('button', { name: 'Manage sessions' }).click();
