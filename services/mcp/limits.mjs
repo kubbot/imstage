@@ -70,9 +70,12 @@ export const MAX_STORED_RENDERS = 50;
 export const RENDER_SURFACES = Object.freeze(['ios', 'android', 'desktop']);
 export const RENDER_OUTPUT_KINDS = Object.freeze(['screenshot', 'long-screenshot']);
 
-/** Platforms and static message cards implemented by the shared Web SceneView. */
-export const SUPPORTED_PLATFORMS = Object.freeze(['wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
-export const NATIVE_MESSAGE_TYPES = Object.freeze(['text', 'image', 'location', 'system', 'contact', 'transfer', 'voice', 'video', 'link', 'album']);
+/**
+ * Platforms implemented by the shared Web SceneView. `imstage` is the generic
+ * skin; legacy ids are accepted for migration and render generically.
+ */
+export const SUPPORTED_PLATFORMS = Object.freeze(['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+export const NATIVE_MESSAGE_TYPES = Object.freeze(['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
 
 /** Resource MIME for MCP Apps widgets. */
 export const WIDGET_MIME_TYPE = 'text/html;profile=mcp-app';

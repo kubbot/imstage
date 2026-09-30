@@ -8,7 +8,7 @@ async function register(page: import('@playwright/test').Page, name: string) {
   await page.getByLabel('怎么称呼你').fill(name);
   await page.getByLabel('邮箱', { exact: true }).fill(`template-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-template-password-2026');
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: `${name}的创作空间` })).toBeVisible();
 }
@@ -73,23 +73,14 @@ test('account templates can be created, reused in a new session, renamed and del
   await expect(page.getByRole('heading', { name: '还没有模板' })).toBeVisible();
 });
 
-test('screenshot -> template starter passes the explicit intent to the existing Agent flow', async ({ page }) => {
-  const { default: sharp } = await import('sharp');
+test('the real-screenshot -> template starter is removed (safety)', async ({ page }) => {
   await register(page, '截图模板');
   await page.goto('/#/templates');
-  const png = await sharp({ create: { width: 360, height: 640, channels: 3, background: '#ededed' } }).png().toBuffer();
-  await page.locator('.templates-shell input[type="file"]').setInputFiles({ name: 'source.png', mimeType: 'image/png', buffer: png });
-  await expect(page.locator('.template-shot')).toBeVisible();
-  await page.getByLabel('保留原截图').check();
-  await page.getByRole('button', { name: '在创作中打开', exact: true }).click();
-  await expect(page).toHaveURL(/#\/create\?new=1/);
-  // Preserve-source mode really enters the existing screenshot edit layer.
-  await expect(page.frameLocator('iframe[title="原截图精确编辑画面"]').locator('html')).toBeVisible();
-  await expect(page.getByLabel('描述想生成的聊天')).toHaveValue(/保留这张原截图/);
-  // No provider run starts on its own.
-  await expect(page.getByRole('button', { name: '开始生成' })).toBeVisible();
-  // The one-shot seed is cleared only after the session is durably written.
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('imstage.templates.screenshot'))).toBeNull();
+  // No upload entry for real screenshots and no reference editor anywhere.
+  await expect(page.locator('.templates-shell input[type="file"]')).toHaveCount(0);
+  await expect(page.getByLabel('保留原截图')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '在创作中打开', exact: true })).toHaveCount(0);
+  await expect(page.locator('.template-shot')).toHaveCount(0);
 });
 
 test('a delayed instantiate response never hands off after the account changes', async ({ page }) => {
@@ -118,25 +109,27 @@ test('a delayed instantiate response never hands off after the account changes',
   expect(writes).toBe(0);
 });
 
-test('a failed session write keeps the screenshot seed recoverable', async ({ page }) => {
-  await page.addInitScript(() => {
-    try { IDBFactory.prototype.open = function () { throw new Error('blocked-for-test'); }; } catch { /* ignore */ }
-  });
-  const { default: sharp } = await import('sharp');
+test('template creation cannot smuggle a real-screenshot reference layer', async ({ page }) => {
+  const { createScene } = await import('../../apps/web/src/studio/model');
   await register(page, '存储失败');
-  await page.goto('/#/templates');
-  const png = await sharp({ create: { width: 360, height: 640, channels: 3, background: '#ededed' } }).png().toBuffer();
-  await page.locator('.templates-shell input[type="file"]').setInputFiles({ name: 'source.png', mimeType: 'image/png', buffer: png });
-  await expect(page.locator('.template-shot')).toBeVisible();
-  await page.getByRole('button', { name: '在创作中打开', exact: true }).click();
-  await expect(page).toHaveURL(/#\/create\?new=1/);
-  await expect(page.getByRole('status')).toContainText('blocked-for-test');
-  // Uploaded bytes and the explicit mode survive the storage failure.
-  const stored = await page.evaluate(() => sessionStorage.getItem('imstage.templates.screenshot'));
-  expect(stored).toContain('"mode":"reconstruct"');
+  const origin = new URL(page.url()).origin;
+  const scene = {
+    ...createScene(), id: crypto.randomUUID(),
+    reference: {
+      source: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6dN4AAAAASUVORK5CYII=',
+      assets: [],
+      plan: { schemaVersion: 1, im: 'wechat', surface: 'ios', width: 1, height: 1, warnings: [], edits: [] },
+    },
+  };
+  const res = await page.request.post('/api/templates', {
+    headers: { Origin: origin, 'X-IMStage-Request': '1' },
+    data: { name: '截图模板', description: '', scene, variables: [] },
+  });
+  expect(res.status()).toBe(400);
+  expect(JSON.stringify(await res.json())).toMatch(/已停用|disabled/);
 });
 
-test('an undecodable screenshot keeps the seed and never creates an empty scene', async ({ page }) => {
+test('legacy screenshot seeds never enter the creator workspace', async ({ page }) => {
   await register(page, '解码失败');
   await page.goto('/#/templates');
   await page.evaluate(() => {
@@ -144,9 +137,9 @@ test('an undecodable screenshot keeps the seed and never creates an empty scene'
     location.hash = '/create?new=1&lang=zh&templateFlow=preserve';
   });
   await expect(page).toHaveURL(/#\/create\?new=1/);
-  await expect(page.getByRole('status')).toContainText(/截图无法解码/);
-  const stored = await page.evaluate(() => sessionStorage.getItem('imstage.templates.screenshot'));
-  expect(stored).toContain('"mode":"preserve"');
+  await expect(page.locator('iframe[title="原截图精确编辑画面"]')).toHaveCount(0);
+  await expect(page.locator('.agent-phone .imstage-disclosure')).toContainText('AI生成 / 虚构');
+  expect((await page.getByRole('status').allInnerTexts()).join('')).not.toMatch(/截图无法解码/);
 });
 
 test('template library is fully bilingual and keeps the public gallery signed out', async ({ page }) => {
@@ -158,10 +151,11 @@ test('template library is fully bilingual and keeps the public gallery signed ou
   await saveScene(page);
   await page.goto('/?lang=en#/templates');
   await expect(page.getByRole('heading', { name: 'Reusable templates', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Screenshot → template', exact: true })).toBeVisible();
+  // Safety behavior: the screenshot -> template panel is gone in every locale.
+  await expect(page.getByRole('heading', { name: 'Screenshot → template', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Use template' })).toHaveCount(0); // no templates yet
   await expect(page.getByRole('button', { name: 'Support conversation', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Upload screenshot', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload screenshot', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No templates yet' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '可复用模板' })).toHaveCount(0);
 });

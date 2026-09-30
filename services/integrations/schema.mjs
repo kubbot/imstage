@@ -21,6 +21,8 @@
 // and every query in `connections.mjs` / `oauth.mjs` / `account-mcp.mjs`
 // filters on it, so two accounts can never observe each other's data.
 
+import { ensurePolicyVersionColumn } from '../audit/generation-audit.mjs';
+
 export const INTEGRATION_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS oauth_clients (
   client_id                 TEXT PRIMARY KEY,
@@ -131,6 +133,9 @@ CREATE INDEX IF NOT EXISTS idx_mcp_renders_user_created ON mcp_renders(user_id, 
  */
 export function installIntegrationSchema(db) {
   db.exec(INTEGRATION_SCHEMA_SQL);
+  // Non-destructive render-cache policy migration: PNG blobs rendered before
+  // the current safety policy are blocked on read, never deleted.
+  ensurePolicyVersionColumn(db, 'mcp_renders');
   // Additive migration for databases created before tool-discovery evidence was
   // recorded. `last_used_at` only proves the token was validated; the MCP
   // `tools/list` success is what the UI reports as a fully connected client.

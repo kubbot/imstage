@@ -1,3 +1,4 @@
+import { hasReferenceLayer, REFERENCE_DISABLED_MESSAGE } from '../../../../packages/schema/policy.mjs';
 import { calendarToday } from '../../../../packages/schema/timeline.mjs';
 import { createScene, validateScene, type Scene } from '../studio/model.ts';
 import { createScenario, isSceneKind } from '../marketing/scenes.ts';
@@ -29,16 +30,17 @@ export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
   const base = createScene();
   let scene: Scene;
   if (isSceneKind(seed.scenario)) {
-    // Seeded scenario: real authored content, platform chosen by language.
+    // Seeded scenario: authored synthetic content on the generic IMStage skin.
     scene = { ...createScenario(seed.scenario, locale), id: crypto.randomUUID(), referenceDate: calendarToday() };
   } else if (locale === 'en') {
-    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'whatsapp', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
+    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'imstage', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
   } else {
     scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
   }
   return { scene, prompt: typeof seed.prompt === 'string' ? seed.prompt.slice(0, MAX_HANDOFF_PROMPT) : '', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false, intent:null };
 }
 export function recoverDraft(raw: Partial<SessionDraft> | null, fallback = emptyDraft()): SessionDraft {
+  if (hasReferenceLayer(raw?.scene)) throw new Error(REFERENCE_DISABLED_MESSAGE);
   const scene = validateScene(raw?.scene);
   return { ...fallback, scene:scene.ok && scene.scene ? scene.scene : fallback.scene,
     prompt:typeof raw?.prompt==='string'?raw.prompt.slice(0,4000):fallback.prompt, editPrompt:typeof raw?.editPrompt==='string'?raw.editPrompt.slice(0,4000):'',
@@ -69,7 +71,7 @@ export async function listSessions(owner:string):Promise<SessionMeta[]> {
 export async function readSession(owner:string,id:string):Promise<SessionRecord> {
   const db=await database();try{return await new Promise((resolve,reject)=>{
     const tx=db.transaction(['meta','drafts']);const meta=tx.objectStore('meta').get([owner,id]),draft=tx.objectStore('drafts').get([owner,id]);
-    tx.oncomplete=()=>{if(!meta.result||!draft.result)reject(new Error('会话已被删除，请重新打开会话列表。'));else if(!validateScene(draft.result.draft?.scene).ok)reject(new Error('会话数据不完整，已保留原始数据，请重试读取。'));else resolve({...meta.result,draft:recoverDraft(draft.result.draft)});};tx.onerror=()=>reject(tx.error);
+    tx.oncomplete=()=>{if(!meta.result||!draft.result)reject(new Error('会话已被删除，请重新打开会话列表。'));else if(hasReferenceLayer(draft.result.draft?.scene))reject(new Error(REFERENCE_DISABLED_MESSAGE));else if(!validateScene(draft.result.draft?.scene).ok)reject(new Error('会话数据不完整，已保留原始数据，请重试读取。'));else resolve({...meta.result,draft:recoverDraft(draft.result.draft)});};tx.onerror=()=>reject(tx.error);
   });}finally{db.close();}
 }
 /** Compare-and-swap both stores atomically; stale tabs cannot overwrite or resurrect a session. */

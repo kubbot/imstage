@@ -21,8 +21,6 @@ import {
 import {
   MESSAGE_TYPES,
   MESSAGE_TYPE_LABELS,
-  PLATFORMS,
-  PLATFORM_LABELS,
   TEMPLATE_IDS,
   TEMPLATE_LABELS,
   addMessage,
@@ -46,12 +44,12 @@ import {
   updateScene,
   type History,
   type MessageType,
-  type Platform,
   type Scene,
   type TemplateId,
 } from './model';
 import { SceneView, initials } from './SceneView';
 import { useAuth } from '../account/Auth';
+import { useLocale } from '../marketing/LocaleContext';
 import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import {
   DRAFT_KEY,
@@ -112,6 +110,7 @@ function messagePreview(scene: Scene, type: MessageType): string {
 }
 
 export default function Studio({ initialTemplate, initialScene, persistLocal = true, onSceneChange, accountAction }: StudioProps) {
+  const { locale } = useLocale();
   const { user } = useAuth();
   const accountId = user?.id;
   const [initialLoad] = useState(() => persistLocal ? loadDraft() : { status: 'empty' as const, scene: initialScene, raw: undefined, message: undefined });
@@ -910,23 +909,10 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
               <span className="studio-label">场景标题</span>
               <input className="studio-input" {...titleField} disabled={exporting} />
             </label>
-            <label className="studio-field">
-              <span className="studio-label">平台</span>
-              <select
-                className="studio-select"
-                value={scene.platform}
-                onChange={(event) =>
-                  mutate((s) => updateScene(s, { platform: event.target.value as Platform }))
-                }
-                disabled={exporting}
-              >
-                {PLATFORMS.map((platform) => (
-                  <option key={platform} value={platform}>
-                    {PLATFORM_LABELS[platform]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="studio-field">
+              <span className="studio-label">聊天界面</span>
+              <p className="studio-label">通用 IMStage 聊天界面；所有画面统一渲染，不提供平台皮肤选择。</p>
+            </div>
             <div className="studio-grid-2">
               <label className="studio-field">
                 <span className="studio-label">设备时间</span>
@@ -1098,7 +1084,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
           ) : null}
 
           <div className="studio-phone" data-mode={exportMode}>
-            <SceneView scene={scene} selectedId={selectedId} onSelect={exporting ? undefined : id => { setSelectedId(id); setView('edit'); }} />
+            <SceneView scene={scene} locale={locale} selectedId={selectedId} onSelect={exporting ? undefined : id => { setSelectedId(id); setView('edit'); }} />
           </div>
           <p className="studio-hint">
             点选画面中的消息，继续编辑。平台画面为风格预览。
@@ -1110,7 +1096,7 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
       <div className="studio-export-stage" aria-hidden="true">
         <div className="studio-export-frame" data-mode={exportMode} ref={standardFrameRef}>
           <div ref={stageRootRef}>
-            <SceneView scene={exportScene ?? scene} exportMode />
+            <SceneView scene={exportScene ?? scene} exportMode locale={locale} />
           </div>
         </div>
       </div>

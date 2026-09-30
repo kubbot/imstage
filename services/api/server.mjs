@@ -51,6 +51,13 @@ import {
   finishNdjsonResponse,
 } from '../agent/index.mjs';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  cleanupGenerationAudit,
+  installGenerationAuditSchema,
+  newRunId as newAuditRunId,
+  recordGenerationAudit,
+  scheduleAuditCleanup,
+} from '../audit/generation-audit.mjs';
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { installIntegrationSchema } from '../integrations/schema.mjs';
 import { IntegrationError } from '../integrations/errors.mjs';
@@ -464,6 +471,10 @@ function openDatabase(dbPath) {
   // Reusable templates are account-scoped and stored separately from scenes.
   // Additive table only: no scene/project migration or rewrite is performed.
   installTemplateSchema(db);
+
+  // Persistent generation audit for hosted generation flows (metadata only:
+  // run id/time/account/policy/status/scene hash — never prompts or images).
+  installGenerationAuditSchema(db);
 
   if (dbPath !== ':memory:') {
     for (const suffix of ['', '-wal', '-shm']) {
@@ -1313,6 +1324,14 @@ async function handlePortraitGenerate(ctx, req, res) {
     throw new HttpError(400, 'invalid_seed', 'seed 必须是 1-128 个字符');
   }
   const avatar = await preferences.generateFictionalPortrait(seed);
+  recordGenerationAudit(ctx.db, {
+    runId: newAuditRunId(),
+    accountId: session.user.id,
+    flow: 'portrait',
+    status: 'ok',
+    scene: null,
+    nowMs: ctx.nowMs(),
+  });
   recheckSession(ctx, req, session);
   sendJson(req, res, 200, { avatar, seed });
 }
@@ -2399,15 +2418,10 @@ async function route(ctx, req, res) {
 
   if (pathname === '/api/agent/render') {
     if(method!=='POST') throw new HttpError(405,'method_not_allowed','方法不被允许');
-    guardMutation(req,ctx.config);const session=requireSession(ctx,req);requireJsonContentType(req);
-    const body=await readJsonBody(req,AGENT_BODY_LIMIT,AGENT_READ_DEADLINE_MS);recheckSession(ctx,req,session);
-    const validation=validateAgentInput({prompt:'render',scene:body.scene});
-    if(!validation.ok||!validation.value.scene.reference) throw new HttpError(400,'invalid_scene','需要有效截图编辑文档');
-    const lease=ctx.agent.limiter.tryStart(session.user.id,ctx.nowMs());if(!lease.ok)throw rateLimitedError(lease.retryAfterMs);
-    const controller=new AbortController();const close=()=>controller.abort();res.on('close',close);const timer=setTimeout(close,40000);
-    try {const {renderReference}=await import('../agent/screenshot-tools.mjs');const output=await renderReference(validation.value.scene.reference,controller.signal);recheckSession(ctx,req,session);if(!controller.signal.aborted){res.writeHead(200,{'Content-Type':'image/png','Content-Length':output.buffer.length,'Cache-Control':'no-store'});res.end(output.buffer);}}
-    finally {clearTimeout(timer);res.off('close',close);lease.release();}
-    return;
+    // Real-screenshot reference rendering is disabled on every public surface
+    // (policy 2026-09-30). Internal offline evaluation keeps its own research
+    // code path and never reaches this endpoint.
+    throw new HttpError(400,'reference_disabled','真实截图参考编辑已停用：仅支持合成（虚构）对话场景 / Real-screenshot reference editing is disabled.');
   }
 
   if (pathname === '/api/agent/run') {
@@ -2602,9 +2616,57 @@ export function createApp(options = {}) {
     logger: config.logger,
   }),{db,nowMs:config.nowMs});
   const agentLimiter = createAgentLimiter(agentConfig.limits);
+  // Durable generation audit: every hosted Agent run and every batch task run
+  // records one metadata-only row (90-day retention, cleaned up below). A
+  // "running" row is written *before* the provider is used so an abrupt run
+  // still leaves evidence; it is finalized with the accurate status.
+  const finalizeStatus = (result) => {
+    if (result?.ok) return 'ok';
+    if (result?.aborted === true || result?.reason === 'aborted') return 'aborted';
+    return Number(result?.mutations ?? 0) > 0 ? 'partial' : 'error';
+  };
+  const auditedAgentRuntime = (flow) => ({
+    ...agentRuntime,
+    async run(args) {
+      const runId = newAuditRunId();
+      const accountId = typeof args?.userId === 'string' && args.userId ? args.userId : 'anonymous';
+      recordGenerationAudit(db, {
+        runId,
+        accountId,
+        flow,
+        status: 'running',
+        scene: null,
+        nowMs: config.nowMs(),
+      });
+      try {
+        const result = await agentRuntime.run(args);
+        recordGenerationAudit(db, {
+          runId,
+          accountId,
+          flow,
+          status: finalizeStatus(result),
+          scene: result?.scene ?? args?.scene,
+          errorCode: result?.ok ? null : String(result?.reason ?? 'error').slice(0, 80),
+          nowMs: config.nowMs(),
+        });
+        return result;
+      } catch (error) {
+        recordGenerationAudit(db, {
+          runId,
+          accountId,
+          flow,
+          status: error?.name === 'AbortError' || error?.code === 'aborted' ? 'aborted' : 'error',
+          scene: args?.scene,
+          errorCode: typeof error?.code === 'string' ? error.code.slice(0, 80) : 'error',
+          nowMs: config.nowMs(),
+        });
+        throw error;
+      }
+    },
+  });
   const batchQueue = projects.createBatchQueue({
     db,
-    agent: { runtime: agentRuntime, limiter: agentLimiter },
+    agent: { runtime: auditedAgentRuntime('batch'), limiter: agentLimiter },
     nowMs: config.nowMs,
     logger: config.logger,
     ...(options.projects ?? {}),
@@ -2614,6 +2676,14 @@ export function createApp(options = {}) {
   // silently resumed as if it had succeeded.
   projects.markInterruptedJobs(db, config.nowMs());
   batchQueue.start();
+
+  // Real 90-day audit retention: purge expired rows now and on an interval.
+  try {
+    cleanupGenerationAudit(db, { nowMs: config.nowMs() });
+  } catch (error) {
+    config.logger.warn?.(`[imstage-api] 审计清理失败：${error?.message ?? error}`);
+  }
+  const auditTimer = scheduleAuditCleanup(db, { onError: (error) => config.logger.warn?.(`[imstage-api] 审计清理失败：${error?.message ?? error}`) });
 
   // Renderer is created once per process. Tests inject a deterministic stub, so
   // ordinary test runs never launch Chromium.
@@ -2644,7 +2714,7 @@ export function createApp(options = {}) {
     limiters,
     nowMs: config.nowMs,
     logger: config.logger,
-    agent: { config: agentConfig, runtime: agentRuntime, limiter: agentLimiter },
+    agent: { config: agentConfig, runtime: auditedAgentRuntime('agent'), limiter: agentLimiter },
     projects: { queue: batchQueue },
     preferences: preferencesReader,
     oauth,
@@ -2705,6 +2775,7 @@ export function createApp(options = {}) {
     } catch {
       /* already closed */
     }
+    clearInterval(auditTimer);
   };
 
   return { server, close, db, config };

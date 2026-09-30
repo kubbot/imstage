@@ -50,7 +50,7 @@ test('guest Send survives registration and starts only after account ownership r
   await page.getByLabel('怎么称呼你').fill('Creator');
   await page.getByLabel('邮箱', { exact: true }).fill(`guest-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-intent-password-2026');
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].prompt).toBe('给新用户写一段友好的欢迎对话');
@@ -86,25 +86,20 @@ test('a failed provider run stays recoverable and never replays after refresh', 
   await page.waitForTimeout(1000); expect(calls).toBe(1);
 });
 
-test('photo failure blocks example export and recovery restores the actual photo', async ({ page }) => {
+test('the evaluation hero export does not depend on unused story photo assets', async ({ page }) => {
   await page.route('**/assets/stories/wukang-evening.webp', route => route.fulfill({ status: 500, body: 'no image' }));
   await page.goto('/?lang=zh');
-  await expect(page.getByRole('button', { name: '重新加载照片', exact: true })).toBeVisible();
-  await expect(page.getByTestId('hero-export')).toBeDisabled();
+  // The default sample is text-only synthetic content: the mandatory
+  // disclosure renders and export stays available regardless of photo assets.
+  await expect(phone(page).locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
   await expect(phone(page).locator('.scene-image img')).toHaveCount(0);
-  await page.unroute('**/assets/stories/wukang-evening.webp');
-  await page.getByRole('button', { name: '重新加载照片', exact: true }).click();
-  await expect(phone(page).locator('.scene-image img')).toHaveAttribute('src', /^data:image\/webp;base64,/);
   await expect(page.getByTestId('hero-export')).toBeEnabled();
 });
 
-test('photo lightbox is keyboard accessible and restores focus', async ({ page }) => {
+test('no photo-lightbox marketing on the evaluation hero', async ({ page }) => {
   await page.goto('/?lang=zh');
-  const trigger = page.getByRole('button', { name: '查看示例照片', exact: true });
-  await expect(trigger).toBeEnabled(); await trigger.focus(); await page.keyboard.press('Enter');
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0); await expect(trigger).toBeFocused();
+  await expect(page.getByRole('button', { name: '查看示例照片', exact: true })).toHaveCount(0);
+  await expect(phone(page).locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
 });
 
 test('unusable handoff storage retains the prompt without navigation or an AI call', async ({ page }) => {

@@ -3,14 +3,26 @@ import sharp from 'sharp';
 import fs from 'node:fs';
 test.use({locale:'zh-CN'});
 const fixture=JSON.parse(fs.readFileSync(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
+// Reuse the regression dates/device, but keep the synthetic fixture inside the
+// test harness. The retired financial example is not a public product entry.
+fixture.scene.title='跨年日程样本';fixture.scene.platform='imstage';
+const lines=['明年今天一起复查测试结果，可以吗？','可以，约好2026年9月21日复查。','好的，明年今天见。','今天是约定的复查日。','测试结果已经整理好了。','收到，复查已完成。'];
+fixture.scene.messages=fixture.scene.messages.map((message:any,index:number)=>({...message,text:lines[index]}));
+async function openFixture(page:Page) {
+  const token=crypto.randomUUID();
+  await page.evaluate(({token,scene})=>sessionStorage.setItem(`imstage.marketing.handoff.${token}`,JSON.stringify({scene})),{token,scene:fixture.scene});
+  await page.goto(`/#/create?new=1&handoff=${token}`);
+  await expect(page.locator('.agent-phone')).toContainText('复查已完成');
+}
+
 
 async function ready(page:Page, login=false) {
-  await page.goto('/#/create?case=loan-anniversary');
+  await page.goto('/#/create');
   if(login) {
     const r=await page.request.post('/api/auth/register',{headers:{Origin:new URL(page.url()).origin,'X-IMStage-Request':'1'},data:{email:`timeline-${crypto.randomUUID()}@example.test`,name:'合成测试',password:'synthetic-case-password-2026'}});
     expect(r.ok()).toBeTruthy();await page.reload();
   }
-  await expect(page.locator('.agent-phone')).toContainText('这笔借款结清了');
+  await openFixture(page);
 }
 async function drop(page:Page,count=1,invalid=false) {
   const data=await sharp({create:{width:24,height:24,channels:3,background:'#b33f28'}}).png().toBuffer();
@@ -22,23 +34,25 @@ async function drop(page:Page,count=1,invalid=false) {
   },{base64:data.toString('base64'),count,invalid});
 }
 
-test('iPhone timeline has two dates, editable historical dates and full PNG; sample preserves normal draft',async({page})=>{
+test('iPhone timeline has two dates, editable historical dates and full PNG; synthetic handoff preserves normal draft',async({page})=>{
   await page.goto('/#/create');
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('保留我的正常草稿');
   await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('已保存到本机');
-  await page.evaluate(()=>{location.hash='/create?case=loan-anniversary';});
+  await openFixture(page);
   const dates=page.locator('.agent-phone .scene-date');
   await expect(dates).toHaveText(['2025年9月21日','今天']);
   await page.getByRole('button',{name:`选择消息：${fixture.scene.messages[0].text}`,exact:true}).click();
   await expect(page.getByLabel('发送日期',{exact:true})).toHaveValue('2025-09-21');
   await page.reload();await expect(dates).toHaveText(['2025年9月21日','今天']);
   const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
-  const download=await downloaded;await download.saveAs(`${process.env.IMSTAGE_ARTIFACT_DIR}/loan-anniversary.png`);
+  const download=await downloaded;await download.saveAs(`${process.env.IMSTAGE_ARTIFACT_DIR}/timeline-evaluation.png`);
   const meta=await sharp((await download.path())!).metadata();expect(meta.width).toBe(1206);expect(meta.height).toBeGreaterThan(1500);
   await page.getByLabel('导出图片范围').selectOption('standard');
   const standard=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
   const standardMeta=await sharp((await(await standard).path())!).metadata();expect([standardMeta.width,standardMeta.height]).toEqual([1206,2622]);
-  await page.goto('/#/create');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('保留我的正常草稿');
+  await page.getByRole('button',{name:'管理创作会话'}).click();
+  await page.getByRole('button',{name:'打开会话：保留我的正常草稿',exact:true}).click();
+  await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('保留我的正常草稿');
 });
 
 test('drag reference: transfers to submitted turn immediately, targets selected message and clears on success',async({page})=>{
@@ -47,11 +61,11 @@ test('drag reference: transfers to submitted turn immediately, targets selected 
   await page.getByRole('button',{name:`选择消息：${fixture.scene.messages[0].text}`,exact:true}).click();
   await page.getByRole('button',{name:'当前范围 · 整个对话 切换'}).click();
   let release!:()=>void;const gate=new Promise<void>(r=>release=r);
-  await page.route('**/api/agent/run',async route=>{const {scene,targetId,attachments}=route.request().postDataJSON();expect(targetId).toBe('borrow');expect(attachments).toHaveLength(1);await gate;await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,messages:scene.messages.map((m:{id:string})=>m.id===targetId?{...m,text:'能借我500万元吗？明年今天还。'}:m)}},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'});});
+  await page.route('**/api/agent/run',async route=>{const {scene,targetId,attachments}=route.request().postDataJSON();expect(targetId).toBe('borrow');expect(attachments).toHaveLength(1);await gate;await route.fulfill({contentType:'application/x-ndjson',body:[{type:'scene',scene:{...scene,messages:scene.messages.map((m:{id:string})=>m.id===targetId?{...m,text:'请一起复查测试结果，明年今天见。'}:m)}},{type:'done'}].map(e=>JSON.stringify(e)).join('\n')+'\n'});});
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('参考图片，调整这句话');
   await page.getByRole('button',{name:'开始生成',exact:true}).click();
   await expect(page.locator('.agent-attachments img')).toHaveCount(0);await expect(page.locator('.agent-chat .agent-sent-attachments img')).toHaveCount(1);
-  release();await expect(page.locator('.agent-phone')).toContainText('明年今天还。');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('');
+  release();await expect(page.locator('.agent-phone')).toContainText('明年今天见。');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('');
 });
 
 for(const mode of ['error','cancel'])test(`attachment restored on ${mode} with original prompt`,async({page})=>{
@@ -88,5 +102,5 @@ for(const reason of ['unavailable','denied'])test(`copy ${reason} offers the ren
 test('iPhone viewport keeps canvas actions reachable',async({page})=>{
   await page.setViewportSize({width:402,height:874});await ready(page);
   await page.getByRole('button',{name:/渲染画面/}).click();await expect(page.getByRole('button',{name:'复制图片',exact:true})).toBeInViewport();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
-  await page.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR}/loan-mobile-editor.png`});
+  await page.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR}/timeline-mobile-editor.png`});
 });

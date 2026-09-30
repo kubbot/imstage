@@ -16,7 +16,7 @@ import { projectsError } from './errors.mjs';
 export const MAX_PROJECT_NAME_CHARS = 80;
 export const MAX_PROJECT_RULES_CHARS = 4000;
 export const MAX_PROJECTS_PER_USER = 50;
-export const DEFAULT_PROJECT_PLATFORM = 'wechat';
+export const DEFAULT_PROJECT_PLATFORM = 'imstage';
 
 export const MAX_BATCH_PROMPTS = 10;
 export const MAX_BATCH_VARIANTS = 10;

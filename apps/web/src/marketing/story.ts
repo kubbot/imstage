@@ -27,8 +27,8 @@ export interface StoryBeat {
 
 /** The authored process the visitor watches, one step per stage of the story. */
 export const PROCESS_STEPS: Record<Locale, readonly string[]> = {
-  zh: ['读懂指令', '写出对白', '生成照片', '交给你改'],
-  en: ['Reads the prompt', 'Writes the dialogue', 'Creates the photo', 'Hands it back to edit'],
+  zh: ['读懂指令', '写出对白', '保留差异', '交给你改'],
+  en: ['Reads the prompt', 'Writes the dialogue', 'Keeps the variants', 'Hands it back to edit'],
 };
 
 export const STORY_LEAD_IN_MS = 800;

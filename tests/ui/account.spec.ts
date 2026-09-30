@@ -11,7 +11,7 @@ async function register(page: Page) {
   const email = uniqueEmail();
   await page.getByLabel('邮箱', { exact: true }).fill(email);
   await page.getByLabel('密码', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
   return email;
@@ -63,7 +63,7 @@ test('autosave imports the signed-in studio scene and never writes the guest dra
   await page.getByLabel('怎么称呼你').fill('新账号');
   await page.getByLabel('邮箱', { exact: true }).fill(uniqueEmail());
   await page.getByLabel('密码', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page).toHaveURL(/#\/studio$/);
   await expect(page.locator('.studio-canvas .scene-view')).toContainText('原来的本机草稿');
@@ -155,7 +155,7 @@ test('English account surfaces are usable across login, workspace and the editor
   const email = uniqueEmail();
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: "Creator's workspace" })).toBeVisible();
   await expect(page.locator('.workspace-sidebar').getByRole('link', { name: 'My scenes' })).toBeVisible();

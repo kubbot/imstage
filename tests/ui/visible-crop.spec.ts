@@ -1,4 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
+import {assertDisclosureInPng} from './pngEvidence';
 import sharp from 'sharp';
 import fs from 'node:fs/promises';
 const out=process.env.IMSTAGE_ARTIFACT_DIR!;
@@ -6,13 +7,13 @@ const out=process.env.IMSTAGE_ARTIFACT_DIR!;
 function mismatchFraction(a:Buffer,b:Buffer){expect(a.length).toBe(b.length);let n=0;for(let i=0;i<a.length;i+=4)if(!a.subarray(i,i+4).equals(b.subarray(i,i+4)))n++;return n/(a.length/4);}
 async function ready(page:Page){
  const fixture=JSON.parse(await fs.readFile(new URL('../../tools/eval/fixtures/loan-anniversary.json',import.meta.url),'utf8'));
- const scene={...fixture.scene,messages:Array.from({length:22},(_,i)=>({id:`line-${i}`,participantId:i%2?'me':'achuan',type:'text',text:`合成消息 ${i+1}：这是一段用于验证可见窗口截取位置的对话。`,date:i<11?'2025-09-21':'2026-09-21',time:`10:${String(i).padStart(2,'0')}`}))};
- await page.addInitScript(scene=>sessionStorage.setItem('imstage.agent.guest.case-loan-anniversary',JSON.stringify({scene})),scene);
- await page.setViewportSize({width:1800,height:1400});await page.goto('/?lang=zh#/create?case=loan-anniversary');
+ const scene={...fixture.scene,platform:'imstage',title:'合成截取测试',messages:Array.from({length:22},(_,i)=>({id:`line-${i}`,participantId:i%2?'me':'achuan',type:'text',text:`合成消息 ${i+1}：这是一段用于验证可见窗口截取位置的对话。`,date:i<11?'2025-09-21':'2026-09-21',time:`10:${String(i).padStart(2,'0')}`}))};
+ await page.addInitScript(scene=>sessionStorage.setItem('imstage.agent.guest.draft',JSON.stringify({scene})),scene);
+ await page.setViewportSize({width:1800,height:1400});await page.goto('/?lang=zh#/create');
  await page.getByLabel('导出图片范围').selectOption('standard');
  await expect(page.locator('.agent-phone .scene-row')).toHaveCount(22);
 }
-async function png(page:Page,name:string){const event=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const download=await event;const file=`${out}/${name}.png`;await download.saveAs(file);return fs.readFile(file);}
+async function png(page:Page,name:string){const event=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const download=await event;const file=`${out}/${name}.png`;await download.saveAs(file);await assertDisclosureInPng(file);return fs.readFile(file);}
 
 test('drag at scaled zoom scrolls content, preserves chrome, suppresses selection and allows a subsequent click',async({page})=>{
  await ready(page);await page.getByRole('button',{name:'缩小画布'}).click();await page.getByRole('button',{name:'缩小画布'}).click();

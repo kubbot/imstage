@@ -24,7 +24,6 @@ import { writeHandoffScene } from '../marketing/handoff';
 import { discoverTemplateVariables } from '../../../../packages/schema/templates.ts';
 import { createScene, type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
-import { TEMPLATE_SCREENSHOT_KEY } from './screenshotSeed';
 import './templates.css';
 
 const MAX_VARIABLES = 50;
@@ -76,9 +75,6 @@ export default function TemplatesPage({ sceneId }: { sceneId?: string }) {
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
 
-  const [screenshot, setScreenshot] = useState('');
-  const [screenshotMode, setScreenshotMode] = useState<'reconstruct' | 'preserve'>('reconstruct');
-  const screenshotInput = useRef<HTMLInputElement>(null);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   const renameDialog = useRef<HTMLDialogElement>(null);
 
@@ -230,27 +226,6 @@ export default function TemplatesPage({ sceneId }: { sceneId?: string }) {
     }
   }
 
-  async function readScreenshot(file: File | undefined) {
-    if (!file) return;
-    const token = capture();
-    const result = await readImageFile(file);
-    if (stale(token)) return;
-    if (!result.ok) { setError(t.screenshotReadFailed); return; }
-    setScreenshot(result.dataUrl);
-    setError('');
-  }
-
-  function openScreenshotCreator() {
-    if (!screenshot) return;
-    try {
-      sessionStorage.setItem(TEMPLATE_SCREENSHOT_KEY, JSON.stringify({ source: screenshot, mode: screenshotMode }));
-    } catch {
-      setError(t.useFailed);
-      return;
-    }
-    location.hash = `/create?new=1&lang=${locale}&templateFlow=${screenshotMode}`;
-  }
-
   /** Examples open a real creator session with a concrete, bounded intent. */
   function openExample(prompt: string) {
     const token = writeHandoffScene(createScene('weekend'), prompt);
@@ -337,22 +312,6 @@ export default function TemplatesPage({ sceneId }: { sceneId?: string }) {
           </>}
         </section>
 
-        <section className="template-panel" aria-label={t.screenshotTitle}>
-          <h2><IconPhoto size={18} /> {t.screenshotTitle}</h2>
-          <p className="template-muted">{t.screenshotBody}</p>
-          {screenshot ? <img className="template-shot" src={screenshot} alt={t.screenshotTitle} /> : null}
-          <input hidden ref={screenshotInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={event => { void readScreenshot(event.target.files?.[0]); event.target.value = ''; }} />
-          <button type="button" className="agent-button" onClick={() => screenshotInput.current?.click()}><IconUpload size={15} /> {screenshot ? t.screenshotChange : t.screenshotUpload}</button>
-          <fieldset className="template-modes">
-            <legend>{t.screenshotTitle}</legend>
-            <label className="template-check"><input type="radio" name="template-screenshot-mode" checked={screenshotMode === 'reconstruct'} onChange={() => setScreenshotMode('reconstruct')} /> {t.reconstruct}</label>
-            <p className="template-muted">{t.reconstructHint}</p>
-            <label className="template-check"><input type="radio" name="template-screenshot-mode" checked={screenshotMode === 'preserve'} onChange={() => setScreenshotMode('preserve')} /> {t.preserve}</label>
-            <p className="template-muted">{t.preserveHint}</p>
-          </fieldset>
-          <button className="btn btn-secondary" disabled={!screenshot} onClick={openScreenshotCreator}><IconDeviceDesktop size={15} /> {t.openCreator}</button>
-          <p className="template-muted">{t.referenceNote}</p>
-        </section>
 
         <section className="template-panel" aria-label={t.examplesTitle}>
           <h2><IconMessageCircle size={18} /> {t.examplesTitle}</h2>

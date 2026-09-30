@@ -24,6 +24,7 @@ import { applySceneDefaults, sceneDefaultsSummary, recordEvent } from '../prefer
 import { fail } from '../mcp/errors.mjs';
 import { integerField, rejectUnknownKeys } from '../mcp/args.mjs';
 import { MAX_STORED_RENDERS } from '../mcp/limits.mjs';
+import { newRunId as newAuditRunId, recordGenerationAudit, isCurrentPolicyVersion, POLICY_VERSION } from '../audit/generation-audit.mjs';
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { SUPPORTED_SCOPES } from './scopes.mjs';
 import { isUniqueConstraintError, withTransaction } from './util.mjs';
@@ -73,6 +74,19 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
     ).run(userId, key, operation, requestHash, JSON.stringify(response), new Date(nowMs).toISOString());
   }
 
+  /** Durable generation audit (metadata only) for AI-supplied scene content.
+   *  Runs inside the caller's transaction: a failed audit fails the write. */
+  function auditGeneration(scene, sceneHash = null) {
+    recordGenerationAudit(db, {
+      runId: newAuditRunId(),
+      accountId: userId,
+      flow: 'account_mcp',
+      status: 'ok',
+      scene,
+      sceneHash,
+    });
+  }
+
   return {
     get userId() {
       return userId;
@@ -93,7 +107,7 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
     },
 
     createScene({ scene, requestHash, idempotencyKey = null, nowMs = Date.now() }) {
-      return withTransaction(db, () => {
+      const result = withTransaction(db, () => {
         const existing = readIdempotent(idempotencyKey, 'create_scene', requestHash);
         if (existing) return { ...existing, deduplicated: true };
         const count = db.prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?').get(userId);
@@ -114,12 +128,15 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
         }
         const response = { sceneId: scene.id, revision: 1, updatedAt };
         writeIdempotent(idempotencyKey, 'create_scene', requestHash, response, nowMs);
+        // Mandatory audit row, atomically with the scene write.
+        auditGeneration(scene);
         return { ...response, deduplicated: false };
       });
+      return result;
     },
 
     updateScene({ sceneId, expectedRevision, scene, requestHash, idempotencyKey = null, nowMs = Date.now() }) {
-      return withTransaction(db, () => {
+      const result = withTransaction(db, () => {
         const existing = readIdempotent(idempotencyKey, 'update_scene', requestHash);
         if (existing) return { ...existing, deduplicated: true };
         const row = db
@@ -162,8 +179,10 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
         }
         const response = { sceneId, revision: expectedRevision + 1, updatedAt };
         writeIdempotent(idempotencyKey, 'update_scene', requestHash, response, nowMs);
+        auditGeneration(scene);
         return { ...response, deduplicated: false };
       });
+      return result;
     },
 
     /**
@@ -216,45 +235,59 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
 
     saveRender(record) {
       const createdAt = new Date().toISOString();
-      db.prepare(
-        `INSERT INTO mcp_renders
-           (user_id, render_id, scene_id, revision, png_base64, sha256, bytes, width, height, title, output_kind, surface, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, render_id) DO UPDATE SET
-           scene_id = excluded.scene_id,
-           revision = excluded.revision,
-           png_base64 = excluded.png_base64,
-           sha256 = excluded.sha256,
-           bytes = excluded.bytes,
-           width = excluded.width,
-           height = excluded.height,
-           title = excluded.title,
-           output_kind = excluded.output_kind,
-           surface = excluded.surface,
-           created_at = excluded.created_at`,
-      ).run(
-        userId,
-        record.renderId,
-        record.sceneId ?? null,
-        Number.isInteger(record.revision) ? record.revision : null,
-        record.pngBase64,
-        record.sha256,
-        record.bytes,
-        record.width,
-        record.height,
-        record.title,
-        record.outputKind,
-        record.surface,
-        createdAt,
-      );
-      db.prepare(
-        `DELETE FROM mcp_renders
-         WHERE user_id = ? AND render_id NOT IN (
-           SELECT render_id FROM mcp_renders WHERE user_id = ?
-           ORDER BY created_at DESC, render_id DESC LIMIT ?
-         )`,
-      ).run(userId, userId, maxStoredRenders);
-      return { ...record, createdAt };
+      return withTransaction(db, () => {
+        db.prepare(
+          `INSERT INTO mcp_renders
+             (user_id, render_id, scene_id, revision, png_base64, sha256, bytes, width, height, title, output_kind, surface, created_at, policy_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, render_id) DO UPDATE SET
+             scene_id = excluded.scene_id,
+             revision = excluded.revision,
+             png_base64 = excluded.png_base64,
+             sha256 = excluded.sha256,
+             bytes = excluded.bytes,
+             width = excluded.width,
+             height = excluded.height,
+             title = excluded.title,
+             output_kind = excluded.output_kind,
+             surface = excluded.surface,
+             created_at = excluded.created_at,
+             policy_version = excluded.policy_version`,
+        ).run(
+          userId,
+          record.renderId,
+          record.sceneId ?? null,
+          Number.isInteger(record.revision) ? record.revision : null,
+          record.pngBase64,
+          record.sha256,
+          record.bytes,
+          record.width,
+          record.height,
+          record.title,
+          record.outputKind,
+          record.surface,
+          createdAt,
+          POLICY_VERSION,
+        );
+        db.prepare(
+          `DELETE FROM mcp_renders
+           WHERE user_id = ? AND render_id NOT IN (
+             SELECT render_id FROM mcp_renders WHERE user_id = ?
+             ORDER BY created_at DESC, render_id DESC LIMIT ?
+           )`,
+        ).run(userId, userId, maxStoredRenders);
+        // Hosted deterministic render output — audited like other hosted
+        // generation (metadata only, same transaction).
+        recordGenerationAudit(db, {
+          runId: newAuditRunId(),
+          accountId: userId,
+          flow: 'render',
+          status: 'ok',
+          scene: null,
+          sceneHash: record.sha256,
+        });
+        return { ...record, createdAt };
+      });
     },
 
     getRender(renderId) {
@@ -262,6 +295,9 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
         .prepare('SELECT * FROM mcp_renders WHERE user_id = ? AND render_id = ?')
         .get(userId, renderId);
       if (!row) return null;
+      // Pre-policy blobs are blocked (non-destructively): rows and scene data
+      // stay stored, they are simply never served again.
+      if (!isCurrentPolicyVersion(row.policy_version)) return null;
       return {
         renderId: row.render_id,
         sceneId: row.scene_id,

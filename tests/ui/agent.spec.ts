@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import sharp from 'sharp';
+import { assertDisclosureInPng } from './pngEvidence';
 import { completeOnboarding, markOnboarded } from './prefs';
 // Header navigation is localised; this suite asserts the Chinese labels.
 test.use({ locale: 'zh-CN' });
@@ -106,7 +107,7 @@ test('guest login preserves the request and returns to Agent creation',async({pa
   await page.getByRole('link',{name:'登录创作 →',exact:true}).click();
   await page.getByRole('link',{name:'创建账号',exact:true}).click();
   await page.getByLabel('怎么称呼你').fill('创作者');await page.getByLabel('邮箱',{exact:true}).fill(`guest-${crypto.randomUUID()}@example.test`);await page.getByLabel('密码',{exact:true}).fill('synthetic-agent-password-2026');
-  await page.getByRole('button',{name:'创建账号',exact:true}).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button',{name:'创建账号',exact:true}).click();
   await completeOnboarding(page);
   await expect(page).toHaveURL(/#\/create$/);await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('和朋友约周六看展');
 });
@@ -120,19 +121,18 @@ test('unsaved Agent request in an account scene is protected when recovery stora
   await expect.poll(()=>dialogs).toBe(1);await expect(page).toHaveURL(before);await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('这条创作需求还没有提交');
 });
 
-test('one conversation uses platform-owned chrome and survives platform switching and export',async({page})=>{
+test('one conversation renders the generic IMStage skin and exports with the disclosure',async({page})=>{
   await ready(page);await generate(page);
   const phone=page.locator('.agent-phone');
-  for(const platform of ['wechat','whatsapp','instagram']){
-    await page.getByLabel('目标聊天平台',{exact:true}).selectOption(platform);
-    await expect(phone.locator('.scene-view')).toHaveAttribute('data-platform',platform);
-    await expect(phone).toContainText('周末一起去看展吗？');await expect(phone).toContainText('好呀，上海见！');
-    expect(await phone.locator('.scene-row').count()).toBe(2);
-    expect(await phone.locator('.scene-message-meta').count()).toBe(platform==='whatsapp'?2:0);
-    expect(await phone.locator('.scene-line .scene-avatar').count()).toBe(platform==='wechat'?2:platform==='instagram'?1:0);
-    await page.getByLabel('导出图片范围').selectOption('standard');
-    const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
-    const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([1206,2622]);
-    await phone.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR||'.local'}/template-${platform}.png`});
-  }
+  // Safety behavior: no brand/platform selector exists in the public editor.
+  await expect(page.getByLabel('目标聊天平台',{exact:true})).toHaveCount(0);
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-generic');
+  await expect(phone).toContainText('周末一起去看展吗？');await expect(phone).toContainText('好呀，上海见！');
+  expect(await phone.locator('.scene-row').count()).toBe(2);
+  await expect(phone.locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
+  await page.getByLabel('导出图片范围').selectOption('standard');
+  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+  const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([1206,2622]);
+  // Real exported PNG evidence: the mandatory label is visible in the file.
+  await assertDisclosureInPng(file!);
 });

@@ -13,14 +13,14 @@ test('first Agent story keeps chosen role avatars when actor IDs and names chang
  const changed=await executeTool('create_scene',{scene:rewritten(existing)},{scene:existing});
  assert.equal(changed.ok,true);assert.ok(changed.scene.participants.every(p=>!p.avatar),'existing actor avatars must not be assigned to unrelated new actors');
 });
-test('Agent content reconstruction cannot reset mark, while an explicit targeted edit can',async()=>{
+test('Agent rebuilds never reset the custom watermark and the AI cannot edit marks at all',async()=>{
  for(const currentMark of ['', '虚构对话','自定义水印']){
   const current={...seed(),watermark:currentMark};
-  const wrong=currentMark?'':'虚构对话';
-  const result=await executeTool('create_scene',{scene:{...rewritten(current),watermark:wrong}},{scene:current});
+  const result=await executeTool('create_scene',{scene:{...rewritten(current),watermark:'伪造水印'}},{scene:current});
   assert.equal(result.ok,true);assert.equal(result.scene.watermark,currentMark);
   assert.equal(result.scene.title,current.title,'label must not be appended to title');
-  const explicit=await executeTool('update_element',{targetId:'@scene',patch:{watermark:wrong}},{scene:result.scene});
-  assert.equal(explicit.ok,true);assert.equal(explicit.scene.watermark,wrong);
+  const explicit=await executeTool('update_element',{targetId:'@scene',patch:{watermark:'伪造水印'}},{scene:result.scene});
+  assert.equal(explicit.ok,false,'the AI cannot change marks or watermarks');
+  assert.equal(result.scene.watermark,currentMark);
  }
 });

@@ -8,7 +8,7 @@ test('project membership recovers, detaches and keeps element editing usable on 
  await page.getByLabel('怎么称呼你').fill('项目验收');
  await page.getByLabel('邮箱',{exact:true}).fill(`project-${crypto.randomUUID()}@example.test`);
  await page.getByLabel('密码',{exact:true}).fill('synthetic-project-password-2026');
- await page.getByRole('button',{name:'创建账号',exact:true}).click();
+ await page.getByTestId('terms-consent').check();await page.getByRole('button',{name:'创建账号',exact:true}).click();
  await completeOnboarding(page);
  await expect(page.getByRole('heading',{name:'项目验收的创作空间'})).toBeVisible();
  await page.goto('/#/projects');await page.getByLabel('项目名称',{exact:true}).fill('周末旅行');
@@ -43,31 +43,26 @@ test('project membership recovers, detaches and keeps element editing usable on 
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
 
-test('reference preview and authenticated PNG export use the evaluation rendering path',async({page})=>{
+test('real-screenshot reference editing is blocked on every public endpoint',async({page})=>{
  const {default:sharp}=await import('sharp');
  await page.goto('/#/create');const origin=new URL(page.url()).origin;
  const headers={Origin:origin,'X-IMStage-Request':'1'};
  expect((await page.request.post('/api/auth/register',{headers,data:{email:`reference-${crypto.randomUUID()}@example.test`,name:'截图验收',password:'synthetic-reference-password-2026'}})).status()).toBe(200);
  await page.reload();
  const source=await sharp({create:{width:360,height:640,channels:3,background:'#ededed'}}).png().toBuffer();
- const scene={...createScene(),id:crypto.randomUUID(),messages:[],reference:{source:'data:image/png;base64,'+source.toString('base64'),plan:{schemaVersion:1 as const,im:'wechat' as const,surface:'ios' as const,width:360,height:640,edits:[{id:'text',kind:'text' as const,box:[100,100,800,300] as [number,number,number,number],text:'Shared rendering · 同一画面',background:'#ffffff',color:'#111111',fontSize:26,fontWeight:400 as const,align:'left' as const}],warnings:[]},assets:[]}};
- expect((await page.request.put('/api/scenes/'+scene.id,{headers,data:{scene,revision:0}})).status()).toBe(200);
- await page.goto('/#/workspace?scene='+scene.id);
- const frame=page.frameLocator('iframe[title="原截图精确编辑画面"]');
- await expect(frame.locator('[data-edit-id="text"]')).toContainText('同一画面');
- const response=await page.request.post('/api/agent/render',{headers,data:{scene}});expect(response.status()).toBe(200);
- const exported=await response.body();
- // Rasterize the actual preview DOM at its native origin, excluding editor
- // framing and fractional CSS placement that otherwise add a screenshot row.
- const previewPage=await page.context().newPage();await previewPage.setViewportSize({width:360,height:640});
- await previewPage.setContent(await frame.locator('html').evaluate(el=>el.outerHTML));
- await previewPage.evaluate(()=>document.fonts.ready);
- const preview=await previewPage.screenshot();await previewPage.close();
- const expected=await sharp(exported).removeAlpha().raw().toBuffer();
- const actual=await sharp(preview).removeAlpha().raw().toBuffer();
- expect(actual.equals(expected)).toBe(true);
- await page.getByRole('button',{name:'选择编辑层：Shared rendering · 同一画面',exact:true}).click();
- await expect(page.getByRole('complementary',{name:'Vibe Edit'})).toBeVisible();
+ const scene={...createScene(),id:crypto.randomUUID(),messages:[],reference:{source:'data:image/png;base64,'+source.toString('base64'),plan:{schemaVersion:1 as const,im:'wechat' as const,surface:'ios' as const,width:360,height:640,edits:[{id:'text',kind:'text' as const,box:[100,100,800,300] as [number,number,number,number],text:'原图文字',background:'#ffffff',color:'#111111',fontSize:26,fontWeight:400 as const,align:'left' as const}],warnings:[]},assets:[]}};
+ // Direct scene writes cannot smuggle the reference layer in.
+ const put=await page.request.put('/api/scenes/'+scene.id,{headers,data:{scene,revision:0}});
+ expect(put.status()).toBe(400);
+ expect(JSON.stringify(await put.json())).toMatch(/已停用|disabled/);
+ // The old server-side reference renderer endpoint is disabled outright.
+ const rendered=await page.request.post('/api/agent/render',{headers,data:{scene}});
+ expect(rendered.status()).toBe(400);
+ expect((await rendered.json()).error.code).toBe('reference_disabled');
+ // No reference editor iframe exists anywhere in the public workspace.
+ await page.goto('/#/workspace');
+ await expect(page.locator('iframe[title="原截图精确编辑画面"]')).toHaveCount(0);
+ await expect(page.getByRole('complementary',{name:'Vibe Edit'})).toHaveCount(0);
 });
 
 test('structured variants reuse a frozen template and validate per-item values', async ({ page }) => {
@@ -75,7 +70,7 @@ test('structured variants reuse a frozen template and validate per-item values',
   await page.getByLabel('怎么称呼你').fill('变体验收');
   await page.getByLabel('邮箱', { exact: true }).fill(`variants-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-variants-password-2026');
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '变体验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
@@ -123,7 +118,7 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await page.getByLabel('怎么称呼你').fill('布局验收');
   await page.getByLabel('邮箱', { exact: true }).fill(`layout-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-layout-password-2026');
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '布局验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
@@ -138,7 +133,7 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await page.goto(`/#/workspace?scene=${scene.id}`);
   await expect(page.locator('.scene-view')).toBeVisible();
   await expect(page.locator('.scene-header-name')).toHaveText(otherName);
-  await page.getByRole('button', { name: 'Edit device status' }).click();
+  await page.getByRole('button', { name: '编辑设备状态' }).click();
   await page.locator('.property-advanced > summary', { hasText: '自定义布局' }).click();
   await page.getByRole('button', { name: '创建中性自定义布局', exact: true }).click();
   await expect(page.locator('.scene-view[data-layout="custom"]')).toBeVisible();
@@ -154,17 +149,15 @@ test('custom declarative layout can be created, edited and survives reload', asy
   // set an attribute: assert the computed chat background.
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-messages')).toHaveCSS('background-color', 'rgb(238, 242, 247)');
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-header')).toHaveCSS('background-color', 'rgb(16, 20, 24)');
-  for (const platform of ['wechat', 'instagram', 'imessage', 'slack', 'xiaohongshu', 'whatsapp']) {
-    await page.getByLabel('目标聊天平台', { exact: true }).selectOption(platform);
-    await expect(page.locator('.scene-header-custom')).toHaveCSS('background-color', 'rgb(16, 20, 24)');
-    await expect(page.locator('.scene-row.is-self .scene-bubble').first()).toHaveCSS('background-color', 'rgb(221, 232, 220)');
-    await expect(page.locator('.scene-row.is-self .scene-bubble-wrap').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-  }
+  // Safety behavior: the brand/platform selector is gone; the custom layout
+  // keeps applying on the single generic IMStage skin.
+  await expect(page.getByLabel('目标聊天平台', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
 
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-message-meta').first()).toHaveCSS('font-size', '10px');
   await page.reload();
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-messages')).toHaveCSS('background-color', 'rgb(238, 242, 247)');
-  await page.getByRole('button', { name: 'Edit device status' }).click();
+  await page.getByRole('button', { name: '编辑设备状态' }).click();
   await page.locator('.property-advanced > summary', { hasText: '自定义布局' }).click();
   await expect(page.getByLabel('布局名称')).toHaveValue('中性格');
   // Reset returns to the platform skin.
@@ -172,44 +165,28 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await expect(page.locator('.scene-view[data-layout="custom"]')).toHaveCount(0);
 });
 
-test('screenshot templates pin the source platform and reject a switch with clear feedback', async ({ page }) => {
+test('screenshot reference templates cannot be created at all (policy)', async ({ page }) => {
   const { default: sharp } = await import('sharp');
   await page.goto('/#/register');
   await page.getByLabel('怎么称呼你').fill('截图平台验收');
   await page.getByLabel('邮箱', { exact: true }).fill(`refplatform-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('密码', { exact: true }).fill('synthetic-reference-password-2026');
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '截图平台验收的创作空间' })).toBeVisible();
   const origin = new URL(page.url()).origin;
   const headers = { Origin: origin, 'X-IMStage-Request': '1' };
-
-  const projectResponse = await page.request.post('/api/projects', { headers, data: { name: '截图项目', platform: 'wechat' } });
-  expect(projectResponse.status()).toBe(200);
-  const project = (await projectResponse.json()).item;
-
   const png = await sharp({ create: { width: 600, height: 900, channels: 3, background: '#ededed' } }).png().toBuffer();
   const image = `data:image/png;base64,${png.toString('base64')}`;
   const referenceScene = {
     ...createScene('weekend'),
     id: crypto.randomUUID(),
-    platform: 'wechat',
     reference: {
       source: image, assets: [],
       plan: { schemaVersion: 1, im: 'wechat', surface: 'ios', width: 600, height: 900, warnings: [], edits: [{ id: 'words', kind: 'text', text: '原图文字', box: [100, 400, 600, 100], fontSize: 16, background: '#ffffff', color: '#000000' }] },
     },
   };
   const templateResponse = await page.request.post('/api/templates', { headers, data: { name: '截图模板', description: '', scene: referenceScene, variables: [] } });
-  expect(templateResponse.status()).toBe(200);
-
-  await page.goto(`/#/projects?project=${project.id}`);
-  await page.getByLabel('复用模板').selectOption({ index: 1 });
-  await expect(page.getByText(/保留原截图的模板/)).toBeVisible();
-  // The source platform is pinned; switching away is rejected, not converted.
-  await expect(page.getByRole('checkbox', { name: '微信' })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Slack' })).not.toBeChecked();
-  await page.getByRole('checkbox', { name: 'Slack' }).check();
-  await page.getByLabel('提示词', { exact: true }).fill('生成一段对话');
-  await page.getByRole('button', { name: /开始批量生成/ }).click();
-  await expect(page.locator('.project-batch [role="alert"]')).toContainText('源平台');
+  expect(templateResponse.status()).toBe(400);
+  expect(JSON.stringify(await templateResponse.json())).toMatch(/已停用|disabled/);
 });

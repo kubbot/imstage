@@ -104,10 +104,12 @@ export function normalizePreferencesUpdate(body) {
   }
 
   if (body.showFictionalMark !== undefined) {
-    if (typeof body.showFictionalMark !== 'boolean') {
-      throw preferencesError(400, 'invalid_mark', 'showFictionalMark 必须是布尔值');
+    if (body.showFictionalMark !== true) {
+      // The AI生成 / 虚构 disclosure is mandatory and rendered unconditionally;
+      // no API, UI, import or AI request can switch it off.
+      throw preferencesError(400, 'invalid_mark', 'AI生成/虚构标识为强制显示，不能通过 API 关闭');
     }
-    patch.showFictionalMark = body.showFictionalMark;
+    patch.showFictionalMark = true;
   }
 
   if (body.onboardingStatus !== undefined) {

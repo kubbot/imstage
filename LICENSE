@@ -1,21 +1,60 @@
-MIT License
+IMStage Source-Available Non-Commercial License
+================================================
 
 Copyright (c) 2026 IMStage contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available, NON-COMMERCIAL license. It is NOT an OSI-approved
+open-source license. Earlier releases of this project were distributed under
+the MIT License and keep those terms; see LICENSE-MIT-LEGACY. Nothing in this
+file retroactively revokes the license of earlier releases.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Grant
+--------
+Subject to the conditions below, the copyright holders grant you a worldwide,
+royalty-free, non-exclusive, non-transferable license to read, study, copy,
+modify, merge and distribute unmodified or modified copies of this software
+and its documentation for **testing, learning, personal and research purposes
+only** (together, the "Permitted Use").
 
+Attribution: any copy of the software or a substantial part of it must
+retain this license text, the original copyright notice and attribution to
+the IMStage contributors.
+
+2. Non-commercial restriction
+-----------------------------
+You may not use the software for any Commercial Purpose without a separate
+written license from the copyright holders. "Commercial Purpose" includes,
+without limitation: selling or licensing the software or outputs derived from
+it; offering paid products or services that use it (including paid screenshot,
+image or dataset tooling); using it in revenue-generating operations; and
+commercialising synthetic datasets, evaluation services or annotations
+produced with it. Closed-source commercial dataset and evaluation services
+require a separate written agreement.
+
+3. Acceptable use
+-----------------
+You may not use the software to fabricate evidence, commit fraud, defame any
+person, impersonate any real person or organisation, or mislead any person
+about the authenticity of generated content. The mandatory
+"AI生成 / 虚构" (AI-generated / Fictional) disclosure must not be removed,
+obscured or disabled in any rendered output or export.
+
+4. Patent and trademark
+-----------------------
+No patent or trademark licence is granted. This software is independent of
+and not endorsed by any messaging platform whose interface style may be
+discussed in historical material.
+
+5. Warranty disclaimer
+----------------------
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+6. Termination
+--------------
+This license terminates automatically if you breach its terms. On
+termination you must stop using and delete all copies of the software.

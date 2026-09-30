@@ -13,13 +13,12 @@ test('replacement type, image bounds and fresh ID are enforced',()=>{for(const v
 test('discovery produces reusable typed variables without interpreting user text as code',()=>{const raw=fixture();raw.scene.messages[1].text='${constructor} <script>alert(1)</script>';const vars=discoverTemplateVariables(raw.scene);assert.ok(vars.some(v=>v.type==='image'&&v.target.entity==='message'));const template={...raw,variables:vars};const result=validateTemplateDefinition(template);assert.equal(result.ok,true);const textVar=vars.find(v=>v.target.entity==='message'&&v.target.field==='text');assert.equal(variableValue(raw.scene,textVar),raw.scene.messages[1].text);assert.equal(instantiateTemplate(template,{},'next').value.messages[1].text,raw.scene.messages[1].text);});
 test('snapshot normalization is detached and rejects unsupported template fields',()=>{const raw=fixture();const result=validateTemplateDefinition(raw);assert.equal(result.ok,true);result.value.scene.participants[0].name='Changed';assert.notEqual(raw.scene.participants[0].name,'Changed');assert.equal(validateTemplateDefinition({...raw,html:'<script/>'}).ok,false);assert.equal(validateTemplateDefinition({...raw,schemaVersion:2}).ok,false);});
 
-test('reference templates replace explicit regions without changing shared image assets',()=>{
- const raw=fixture();raw.scene.reference={source:imageA,assets:[{id:'shared',dataUrl:imageA,description:'Source image'}],plan:{schemaVersion:1,im:'wechat',surface:'ios',width:600,height:900,warnings:[],edits:[{id:'first',kind:'image',assetId:'shared',box:[100,100,200,200],background:'#ffffff',color:'#000000'},{id:'second',kind:'image',assetId:'shared',box:[500,100,200,200],background:'#ffffff',color:'#000000'},{id:'words',kind:'text',text:'Original',box:[100,400,600,100],fontSize:16,background:'#ffffff',color:'#000000'}]}};
- raw.variables=[{key:'portrait',label:'Portrait',type:'image',target:{entity:'reference',id:'first',field:'image'}},{key:'words',label:'Words',type:'text',target:{entity:'reference',id:'words',field:'text'}}];
- const before=JSON.stringify(raw),result=instantiateTemplate(raw,{portrait:imageB,words:'Replaced'},'reference-copy');
- assert.equal(result.ok,true);const doc=result.value.reference;
- assert.notEqual(doc.plan.edits[0].assetId,doc.plan.edits[1].assetId);
- assert.equal(doc.assets.find(a=>a.id===doc.plan.edits[0].assetId).dataUrl,imageB);
- assert.equal(doc.assets.find(a=>a.id===doc.plan.edits[1].assetId).dataUrl,imageA);
- assert.equal(doc.plan.edits[2].text,'Replaced');assert.equal(doc.source,imageA);assert.equal(JSON.stringify(raw),before);
+test('real-screenshot reference templates are rejected (policy: synthetic scenes only)',()=>{
+ const raw=fixture();raw.scene.reference={source:imageA,assets:[{id:'shared',dataUrl:imageA,description:'Source image'}],plan:{schemaVersion:1,im:'wechat',surface:'ios',width:600,height:900,warnings:[],edits:[{id:'first',kind:'image',assetId:'shared',box:[100,100,200,200],background:'#ffffff',color:'#000000'}]}};
+ raw.variables=[{key:'portrait',label:'Portrait',type:'image',target:{entity:'reference',id:'first',field:'image'}}];
+ const result=validateTemplateDefinition(raw);
+ assert.equal(result.ok,false,'a reference scene can never become a template');
+ assert.match(JSON.stringify(result.errors),/已停用|disabled|无效|Invalid/);
+ // An instance of a stored legacy definition cannot revive the edit layer.
+ assert.equal(instantiateTemplate(raw,{portrait:imageB},'reference-copy').ok,false);
 });

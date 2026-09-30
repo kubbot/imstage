@@ -29,7 +29,7 @@ import { openStore } from '../services/mcp/store.mjs';
 import { computeRenderId, resolveRenderConfig } from '../services/mcp/render.mjs';
 import { prepareCreateScene } from '../services/mcp/scene.mjs';
 import { createScene, validateScene } from '../apps/web/src/studio/model.ts';
-import { applyFictionalMark, newSceneWatermark } from '../packages/schema/fictional-mark.mjs';
+import { applyFictionalMark, fictionalMarkOn, newSceneWatermark, FICTIONAL_MARK_LABEL } from '../packages/schema/fictional-mark.mjs';
 import { applySceneDefaults, sceneDefaultsSummary } from '../services/preferences/defaults.mjs';
 import { createPreferencesReader } from '../services/preferences/index.mjs';
 import { processAvatar, generateFictionalPortrait } from '../services/preferences/image.mjs';
@@ -139,13 +139,18 @@ async function patternedPngDataUri(width, height) {
 /* Shared mark + default helpers                                       */
 /* ------------------------------------------------------------------ */
 
-test('fictional mark keeps custom watermarks and only clears its own label', () => {
-  assert.equal(applyFictionalMark('', true), '虚构对话');
-  assert.equal(applyFictionalMark('虚构对话', false), '');
+test('the AI生成/虚构 disclosure is mandatory; custom watermarks are untouched and cannot hide it', () => {
+  // The mark is rendered unconditionally by every renderer/export; the old
+  // watermark toggle semantics are gone and the intent is ignored.
+  assert.equal(applyFictionalMark('', true), '');
+  assert.equal(applyFictionalMark('', false), '', 'an off-intent can never remove anything');
   assert.equal(applyFictionalMark('我的品牌', false), '我的品牌');
   assert.equal(applyFictionalMark('我的品牌', true), '我的品牌');
-  assert.equal(newSceneWatermark(true), '虚构对话');
+  assert.equal(newSceneWatermark(true), '');
   assert.equal(newSceneWatermark(false), '');
+  assert.equal(fictionalMarkOn(''), true, 'the switch state is permanently on');
+  assert.match(FICTIONAL_MARK_LABEL, /AI生成/);
+  assert.match(FICTIONAL_MARK_LABEL, /虚构/);
 });
 
 test('shared defaults fill only missing keys and never overwrite explicit intent', () => {
@@ -154,17 +159,17 @@ test('shared defaults fill only missing keys and never overwrite explicit intent
   const filled = applySceneDefaults(raw, defaults);
   assert.equal(filled.participants[0].avatar, defaults.myAvatar);
   assert.equal(filled.participants[1].avatar, defaults.otherAvatar);
-  assert.equal(filled.watermark, '虚构对话');
+  assert.equal(filled.watermark, undefined, 'the mark is rendered by the renderer, never injected into watermark');
   // The original value is never mutated.
   assert.equal(raw.participants[0].avatar, undefined);
   assert.equal(raw.watermark, undefined);
 
   const explicit = applySceneDefaults({ selfId: 'me', watermark: '', participants: [{ id: 'me', name: '我', avatar: '' }] }, defaults);
-  assert.equal(explicit.watermark, '', 'explicit empty watermark survives');
+  assert.equal(explicit.watermark, '', 'explicit watermark survives');
   assert.equal(explicit.participants[0].avatar, '', 'explicit empty avatar survives');
 
   const off = applySceneDefaults({ selfId: 'me', participants: [{ id: 'x', name: 'X' }] }, { ...defaults, showFictionalMark: false });
-  assert.equal(off.watermark, '');
+  assert.equal(off.watermark, undefined, 'a disabled mark preference changes nothing');
   assert.equal(off.participants[0].avatar, defaults.otherAvatar);
 
   const summary = sceneDefaultsSummary({ myAvatar: 'data:image/png;base64,AAAA', otherAvatar: null, showFictionalMark: true, markLabel: '虚构对话' });
@@ -173,20 +178,20 @@ test('shared defaults fill only missing keys and never overwrite explicit intent
   assert.equal(JSON.stringify(summary).includes('AAAA'), false, 'summary never leaks avatar bytes');
 });
 
-test('agent reconstruction keeps the prior mark; targeted updates can change it', async () => {
+test('agent rebuilds keep the custom watermark; the AI can never edit marks', async () => {
   const { executeTool } = await import('../services/agent/tools.mjs');
   const original = { ...createScene(), watermark: '虚构对话' };
   const rewritten = { ...structuredClone(original), title: '新的标题' };
   delete rewritten.watermark;
   const kept = await executeTool('create_scene', { scene: rewritten }, { scene: original });
   assert.equal(kept.ok, true);
-  assert.equal(kept.scene.watermark, '虚构对话');
+  assert.equal(kept.scene.watermark, '虚构对话', 'a rebuild never silently drops the custom watermark');
 
-  const rebuilt = await executeTool('create_scene', { scene: { ...rewritten, watermark: '' } }, { scene: original });
-  assert.equal(rebuilt.scene.watermark, '虚构对话');
+  // The mandatory disclosure is rendered separately and cannot be toggled:
+  // watermark patches are not an allowed AI edit at all.
   const cleared = await executeTool('update_element', { targetId: '@scene', patch: { watermark: '' } }, { scene: original });
-  assert.equal(cleared.ok, true);
-  assert.equal(cleared.scene.watermark, '');
+  assert.equal(cleared.ok, false, 'the AI cannot clear or set the mark');
+  assert.equal(original.watermark, '虚构对话', 'the scene is never mutated');
 });
 
 test('mark on/off changes the shared renderer content fingerprint (no stale cache)', () => {
@@ -287,25 +292,29 @@ test('a skipped/unconfigured account has a stable built-in other avatar in Web a
   assert.equal(fill.participants.find((p) => p.id === 'other').avatar, derived);
 });
 
-test('save and skip both complete onboarding and store avatars + mark', async () => {
+test('save and skip both complete onboarding and store avatars; the mandatory mark cannot be disabled', async () => {
   const { base } = await makeApp();
   const { cookie } = await register(base);
   const my = await pngDataUri({ width: 300, height: 180 });
   const other = await generateFictionalPortrait('other-1');
-  const saved = await putPreferences(base, cookie, { revision: 1, myAvatar: my, otherAvatar: other, showFictionalMark: false, onboardingStatus: 'completed' });
+  const saved = await putPreferences(base, cookie, { revision: 1, myAvatar: my, otherAvatar: other, onboardingStatus: 'completed' });
   assert.equal(saved.res.status, 200);
   assert.equal(saved.body.item.revision, 2);
   assert.equal(saved.body.item.onboardingStatus, 'completed');
-  assert.equal(saved.body.item.showFictionalMark, false);
+  assert.equal(saved.body.item.showFictionalMark, true, 'the disclosure flag is permanently on');
   assert.match(saved.body.item.myAvatar, /^data:image\/(png|webp);base64,/);
-  assert.equal(saved.body.item.myAvatar, saved.body.item.myAvatar);
   const meta = await sharp(Buffer.from(saved.body.item.myAvatar.split(',')[1], 'base64')).metadata();
   assert.equal(meta.width, 256);
   assert.equal(meta.height, 256);
 
+  // The API refuses any attempt to switch the mandatory disclosure off.
+  const off = await putPreferences(base, cookie, { revision: 2, showFictionalMark: false });
+  assert.equal(off.res.status, 400);
+  assert.equal(off.body.error.code, 'invalid_mark');
+
   const reread = await getPreferences(base, cookie);
   assert.equal(reread.body.item.revision, 2);
-  assert.equal(reread.body.item.showFictionalMark, false);
+  assert.equal(reread.body.item.showFictionalMark, true);
 });
 
 test('saved preferences never rewrite existing scenes', async () => {
@@ -328,19 +337,19 @@ test('per-account isolation and concurrent revision conflicts', async () => {
   const { base } = await makeApp();
   const a = await register(base);
   const b = await register(base);
-  const first = await putPreferences(base, a.cookie, { revision: 1, showFictionalMark: false, onboardingStatus: 'completed' });
+  const first = await putPreferences(base, a.cookie, { revision: 1, myAvatar: await pngDataUri({ width: 20, height: 20 }), onboardingStatus: 'completed' });
   assert.equal(first.res.status, 200);
 
   const bPrefs = await getPreferences(base, b.cookie);
-  assert.equal(bPrefs.body.item.showFictionalMark, true, 'account B keeps its own defaults');
+  assert.equal(bPrefs.body.item.myAvatar, null, 'account B keeps its own defaults');
   assert.equal(bPrefs.body.item.revision, 1);
 
   // A stale write for account A is rejected; account B is unaffected.
-  const conflict = await putPreferences(base, a.cookie, { revision: 1, showFictionalMark: true });
+  const conflict = await putPreferences(base, a.cookie, { revision: 1, myAvatar: null });
   assert.equal(conflict.res.status, 409);
   assert.equal(conflict.body.error.code, 'revision_conflict');
   const afterConflict = await getPreferences(base, a.cookie);
-  assert.equal(afterConflict.body.item.showFictionalMark, false);
+  assert.notEqual(afterConflict.body.item.myAvatar, null);
   assert.equal(afterConflict.body.item.revision, 2);
 });
 
@@ -463,7 +472,7 @@ test('MCP new scenes receive account defaults while explicit overrides survive',
     const payload = created.structuredContent;
     assert.equal(payload.scene.participants.find((p) => p.id === 'me').avatar, defaults.myAvatar);
     assert.equal(payload.scene.participants.find((p) => p.id === 'other').avatar, defaults.otherAvatar);
-    assert.equal(payload.scene.watermark, '虚构对话');
+    assert.equal(payload.scene.watermark, '', 'the disclosure is rendered unconditionally, never injected as watermark');
 
     const explicit = await client.callTool({
       name: 'imstage_create_scene',

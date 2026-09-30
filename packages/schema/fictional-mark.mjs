@@ -1,46 +1,45 @@
 /**
- * IMStage shared "fictional conversation" mark helpers.
+ * IMStage shared mandatory "AI生成 / 虚构" disclosure helpers.
  *
- * The image mark is represented by the existing `Scene.watermark` string. These
- * helpers are deliberately tiny and framework-free so the Web editor, the
- * onboarding preview, the MCP default fill and the tests all agree on exactly
- * one definition of "the mark is on/off".
+ * The disclosure is *unconditional* since the 2026-09-30 safety policy:
+ * every rendered preview and every PNG export (including crops and MCP
+ * renders) shows the mark, and it cannot be turned off through the UI, the
+ * Agent, an import or the API. The rendering layer draws it from
+ * `packages/schema/policy.mjs`; this module only keeps the historical helper
+ * names working with the new "always on" semantics.
  *
- * Semantics that the UI and API rely on:
- *   - Turning the mark ON sets the fictional label only when nothing is shown.
- *     A custom (unrelated) watermark is never overwritten.
- *   - Turning the mark OFF clears only the exact fictional label. A custom
- *     watermark is preserved unless the user explicitly edits the watermark.
+ * `Scene.watermark` remains an optional *custom* note. It is never used to
+ * carry (or hide) the mandatory disclosure any more.
  */
 
-/** Default image label. Kept in one place so the preview and export agree. */
-export const FICTIONAL_MARK_LABEL = '虚构对话';
+import { DISCLOSURE_SHORT, DISCLOSURE_TEXT } from './policy.mjs';
 
-/** True when the string is exactly the fictional label (never a custom mark). */
+/** Historical name kept for stored data / callers; now the mandatory mark. */
+export const FICTIONAL_MARK_LABEL = DISCLOSURE_SHORT;
+
+/** Full bilingual disclosure text used on rendered frames and exports. */
+export const MANDATORY_DISCLOSURE = DISCLOSURE_TEXT;
+
+/** Legacy detection: a stored watermark equal to the old or new label. */
 export function isFictionalMark(value, label = FICTIONAL_MARK_LABEL) {
-  return typeof value === 'string' && value === label;
+  return typeof value === 'string' && (value === label || value === '虚构对话');
 }
 
 /**
- * Apply an on/off intent to an existing watermark.
- *
- * @param {unknown} watermark current `Scene.watermark`
- * @param {boolean} enabled desired switch state
- * @param {string} label fictional label
- * @returns {string} the next watermark string
+ * Historical "apply an on/off intent" helper. The intent is ignored: the
+ * disclosure cannot be disabled anywhere. The custom watermark is preserved
+ * exactly as supplied.
  */
-export function applyFictionalMark(watermark, enabled, label = FICTIONAL_MARK_LABEL) {
-  const current = typeof watermark === 'string' ? watermark : '';
-  if (enabled) return current === '' ? label : current;
-  return current === label ? '' : current;
+export function applyFictionalMark(watermark, _enabledIgnored, _label = FICTIONAL_MARK_LABEL) {
+  return typeof watermark === 'string' ? watermark : '';
 }
 
-/** Switch state: only the exact fictional label reads as "on". */
-export function fictionalMarkOn(watermark, label = FICTIONAL_MARK_LABEL) {
-  return isFictionalMark(watermark, label);
+/** Switch state: the mark is always on. */
+export function fictionalMarkOn(_watermark, _label = FICTIONAL_MARK_LABEL) {
+  return true;
 }
 
-/** Watermark applied to a brand new scene that has no prior custom value. */
-export function newSceneWatermark(enabled, label = FICTIONAL_MARK_LABEL) {
-  return enabled ? label : '';
+/** New scenes no longer store the mark in `watermark`; rendering adds it. */
+export function newSceneWatermark(_enabled = true, _label = FICTIONAL_MARK_LABEL) {
+  return '';
 }

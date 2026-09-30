@@ -8,7 +8,6 @@
  */
 
 import { api } from '../account/api';
-import { applyFictionalMark } from '../../../../packages/schema/fictional-mark.mjs';
 import type { Scene } from '../studio/model';
 
 export type OnboardingStatus = 'pending' | 'completed' | 'legacy';
@@ -76,7 +75,6 @@ export type PreferencesUpdate = {
   revision: number;
   myAvatar?: string | null;
   otherAvatar?: string | null;
-  showFictionalMark?: boolean;
   onboardingStatus?: 'completed';
   onboardingVersion?: number;
   crop?: AvatarCrop | null;
@@ -104,7 +102,8 @@ export async function generatePortrait(seed: string): Promise<string> {
 /**
  * Apply the account defaults to a *brand new* scene. Existing scenes must never
  * be passed here: the returned scene is a new object and stored scenes are
- * never rewritten by a preferences change.
+ * never rewritten by a preferences change. The mandatory AI生成 / 虚构
+ * disclosure is rendered unconditionally, so no preference touches it.
  */
 export function applyNewSceneDefaults(scene: Scene, userId?: string | null): Scene {
   const prefs = cachedPreferences(userId);
@@ -119,9 +118,7 @@ export function applyNewSceneDefaults(scene: Scene, userId?: string | null): Sce
     changed = true;
     return { ...participant, avatar: fallback };
   });
-  const watermark = applyFictionalMark(scene.watermark, prefs.showFictionalMark, prefs.markLabel);
-  if (watermark !== scene.watermark) changed = true;
-  return changed ? { ...scene, participants, watermark } : scene;
+  return changed ? { ...scene, participants } : scene;
 }
 
 /* ------------------------------------------------------------------ */

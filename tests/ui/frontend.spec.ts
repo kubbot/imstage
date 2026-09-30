@@ -21,10 +21,10 @@ test('system appearance follows changes; manual preference survives reload', asy
 
 test('landing instruction composer follows the language and keeps a typed instruction', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/武康路/);
+  await expect(page.getByLabel('你的指令', { exact: true })).toHaveValue(/合成评测对话/);
   await page.locator('.mark-toggle').getByRole('button', { name: 'EN', exact: true }).click();
-  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-platform','whatsapp');
-  await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/Wukang Road/);
+  await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
+  await expect(page.getByLabel('Your instruction', { exact: true })).toHaveValue(/synthetic evaluation conversation/);
   // A written instruction is never discarded by a language switch.
   await page.getByLabel('Your instruction', { exact: true }).fill('my own instruction');
   await page.locator('.mark-toggle').getByRole('button', { name: '中文', exact: true }).click();

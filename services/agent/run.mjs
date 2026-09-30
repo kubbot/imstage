@@ -111,6 +111,7 @@ export async function runAgent({
   signal,
   onEvent,
   toolset = null,
+  internalReferenceResearch = false,
 }) {
   if (!provider) throw new Error('runAgent 需要 provider');
   if (typeof onEvent !== 'function') throw new Error('runAgent 需要 onEvent');
@@ -255,6 +256,7 @@ export async function runAgent({
               attachments,
               signal: combined,
               maxAttachmentChars,
+              internalReferenceResearch,
               generatedAssetIds: [...generatedAssets],
               imageFrameBindings,
               textFrameBindings,

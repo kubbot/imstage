@@ -15,6 +15,8 @@ import { EventEmitter } from 'node:events';
 import { createScene, validateScene } from '../apps/web/src/studio/model.ts';
 import {
   AGENT_TOOL_SCHEMAS,
+  INTERNAL_REFERENCE_TOOL_NAMES,
+  INTERNAL_REFERENCE_TOOL_SCHEMAS,
   TOOL_NAMES,
   ProviderError,
   createAgentLimiter,
@@ -201,7 +203,7 @@ test('runAgent performs a genuine multi-round tool sequence and feeds results ba
   assert.equal(JSON.parse(toolResult.content).ok, true);
 
   // The initial turn carries the tool schemas and no base64 asset from the scene.
-  assert.equal(provider.calls[0].toolNames.length, 6);
+  assert.equal(provider.calls[0].toolNames.length, 5);
 });
 
 test('runAgent recovers from invalid tool arguments via truthful error feedback', async () => {
@@ -858,7 +860,7 @@ test('attachments are forwarded as bounded multimodal image parts', async () => 
   assert.ok(Array.isArray(userMessage.content));
   const imagePart = userMessage.content.find((part) => part.type === 'image_url');
   assert.equal(imagePart.image_url.url, ATTACHMENT);
-  assert.match(userMessage.content[0].text, /不可信素材/);
+  assert.match(userMessage.content[0].text, /不可信/);
 });
 
 /* ------------------------------------------------------------------ */
@@ -1403,13 +1405,22 @@ test('serializeAgentEvent emits exactly the documented union', () => {
 test('AGENT_TOOL_SCHEMAS exposes the scene tools with JSON schemas', () => {
   assert.deepEqual(
     AGENT_TOOL_SCHEMAS.map((tool) => tool.function.name),
-    ['update_element', 'create_scene', 'upsert_message', 'delete_message', 'generate_image', 'extract_image'],
+    ['update_element', 'create_scene', 'upsert_message', 'delete_message', 'generate_image'],
   );
   for (const tool of AGENT_TOOL_SCHEMAS) {
     assert.equal(tool.type, 'function');
     assert.equal(tool.function.parameters.type, 'object');
     assert.equal(typeof tool.function.description, 'string');
+    assert.equal(tool.function.name.includes('extract_image'), false, 'screenshot tools stay internal-only');
+    assert.equal(/transfer/.test(JSON.stringify(tool)), false, 'payment types are not offered');
   }
+  // Screenshot-research tools exist only for the internal offline evaluation
+  // runtime and are never part of the public tool set.
+  assert.deepEqual([...INTERNAL_REFERENCE_TOOL_NAMES], ['extract_image']);
+  assert.equal(
+    INTERNAL_REFERENCE_TOOL_SCHEMAS.every((tool) => tool.function.name === 'extract_image'),
+    true,
+  );
 });
 
 /* ------------------------------------------------------------------ */

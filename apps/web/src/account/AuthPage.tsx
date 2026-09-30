@@ -4,10 +4,12 @@ import { useAuth } from './Auth';
 import { api, ApiError, errorText, safeNext, type User } from './api';
 import { cachedPreferences, ensurePreferences } from '../preferences/api';
 import { useCopy } from '../i18n';
+import { useLocale } from '../marketing/LocaleContext';
 const remembered = { email: '', name: '' };
 export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; next: string }) {
   const { user, accept, refresh } = useAuth();
   const a = useCopy().account;
+  const { locale } = useLocale();
   const [email, setEmail] = useState(remembered.email);
   const [name, setName] = useState(remembered.name);
   const [password, setPassword] = useState('');
@@ -15,6 +17,7 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [help, setHelp] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const register = mode === 'register';
@@ -60,9 +63,10 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
           <label>{a.emailLabel}<input name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254} value={email} onChange={e => { remembered.email = e.target.value; setEmail(e.target.value); }} placeholder="you@example.com" /></label>
           <label>{a.passwordLabel}<span className="password-field"><input name="password" type={visible ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} required minLength={register ? 12 : undefined} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} aria-describedby={register ? 'password-hint' : undefined} /><button type="button" aria-label={visible ? a.hidePassword : a.showPassword} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <IconEyeOff size={19} /> : <IconEye size={19} />}</button></span></label>
           {register && <p id="password-hint" className="field-hint">{a.passwordHint}</p>}
+          {register && <label className="auth-terms"><input type="checkbox" data-testid="terms-consent" required checked={agreed} onChange={e => setAgreed(e.target.checked)} /> <span>{locale === 'zh' ? <>我已阅读并同意 <a href="#/terms">使用条款</a> 与 <a href="#/privacy">隐私与留存</a>：仅限测试与学习用途；禁止伪造证据、欺诈、诽谤、冒充或误导性使用；所有输出固定带「AI生成 / 虚构」标识，不得移除。</> : <>I have read and accept the <a href="#/terms">terms of use</a> and <a href="#/privacy">privacy &amp; retention</a> notices: testing and learning only; no fabricated evidence, fraud, defamation, impersonation or misleading use; every output carries a fixed “AI-generated / fictional” label that must not be removed.</>}</span></label>}
         </fieldset>
         {error && <p className="account-error" role="alert">{error}</p>}
-        <button className="btn btn-primary auth-submit" disabled={busy} type="submit">{busy ? (register ? a.registerBusy : a.loginBusy) : (register ? a.createAccount : a.login)} {!busy && <IconArrowRight size={18} />}</button>
+        <button className="btn btn-primary auth-submit" disabled={busy || (register && !agreed)} type="submit">{busy ? (register ? a.registerBusy : a.loginBusy) : (register ? a.createAccount : a.login)} {!busy && <IconArrowRight size={18} />}</button>
         <p className="auth-switch">{register ? a.haveAccount : a.firstTime} <a aria-disabled={busy} onClick={e => { if (busy) e.preventDefault(); }} href={`#/${register ? 'login' : 'register'}?next=${encodeURIComponent(safeNext(next))}`}>{register ? a.goLogin : a.goRegister}</a></p>
       </form>
       <div className="auth-help"><button type="button" onClick={() => setHelp(!help)} aria-expanded={help}>{a.cannotLogin}</button><a href="#/studio">{a.tryEditor} <IconArrowRight size={14} /></a></div>

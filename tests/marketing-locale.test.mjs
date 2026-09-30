@@ -56,16 +56,16 @@ test('creation handoff is explicit, scoped to a new session and carries the scen
 });
 
 test('locale decides the platform and the authored conversation', () => {
-  assert.equal(platformFor('zh'), 'wechat');
-  assert.equal(platformFor('en'), 'whatsapp');
+  assert.equal(platformFor('zh'), 'imstage');
+  assert.equal(platformFor('en'), 'imstage');
   assert.equal(documentLang('zh'), 'zh-CN');
   assert.equal(documentLang('en'), 'en');
 
   for (const scenario of SCENARIOS) {
     const zh = createScenario(scenario.kind, 'zh');
     const en = createScenario(scenario.kind, 'en');
-    assert.equal(zh.platform, 'wechat', scenario.kind);
-    assert.equal(en.platform, 'whatsapp', scenario.kind);
+    assert.equal(zh.platform, 'imstage', scenario.kind);
+    assert.equal(en.platform, 'imstage', scenario.kind);
     assert.equal(zh.deviceProfileId, 'iphone-17-pro');
     assert.equal(en.deviceProfileId, 'iphone-17-pro');
     assert.ok(zh.messages.some((message) => message.id === EDITABLE_REPLY_ID));
@@ -161,8 +161,8 @@ test('an explicit scenario query selects a scene and defaults are preserved', ()
 test('the Wukang scenario is one authored story in both languages', () => {
   const zh = createScenario('wukang', 'zh');
   const en = createScenario('wukang', 'en');
-  assert.equal(zh.platform, 'wechat');
-  assert.equal(en.platform, 'whatsapp');
+  assert.equal(zh.platform, 'imstage');
+  assert.equal(en.platform, 'imstage');
   assert.equal(zh.messages[0].text, '你到哪里了？');
   assert.equal(en.messages[0].text, 'Where are you?');
   // The same fictional woman and place, in the same order, in both languages.
@@ -175,7 +175,8 @@ test('the Wukang scenario is one authored story in both languages', () => {
   assert.equal(zhPhoto.asset, undefined);
   assert.equal(enPhoto.asset, undefined);
   assert.ok(en.messages.every((message) => !/[\u3400-\u9fff]/.test(message.text)));
-  assert.ok(WUKANG_PROMPT.zh.includes('武康路'));
+  assert.ok(WUKANG_PROMPT.zh.includes('评测'));
+  assert.match(WUKANG_PROMPT.en, /evaluation/i);
   assert.ok(!/[\u3400-\u9fff]/.test(WUKANG_PROMPT.en));
   assert.equal(validateScene(zh).ok, true);
   assert.equal(validateScene(en).ok, true);

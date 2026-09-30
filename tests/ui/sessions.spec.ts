@@ -69,12 +69,12 @@ test('account sessions are isolated and an active AI run must stop before starti
   await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('');await expect(page.getByRole('region',{name:'AI 创作记录',exact:true})).not.toContainText('本次 AI 需求');await expect(page.getByRole('region',{name:'AI 创作记录',exact:true})).not.toContainText('不应进入新会话');
 });
 
-test('switching preserves the visible screenshot crop and normal draft is separate from built-in case',async({page})=>{
+test('switching preserves the visible crop and retired built-in case links cannot replace the draft',async({page})=>{
   await seed(page,true);const region=page.getByRole('region',{name:'聊天内容，可滚动调整截取范围'});
   await region.evaluate(el=>{el.scrollTop=440;});await expect.poll(()=>region.evaluate(el=>el.scrollTop)).toBe(440);
   await page.getByRole('button',{name:'新建会话',exact:true}).click();await open(page);await page.getByRole('button',{name:'打开会话：周末计划',exact:true}).click();await expect.poll(()=>region.evaluate(el=>el.scrollTop)).toBe(440);
   await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('已保存到本机');await open(page);await page.screenshot({path:`${process.env.IMSTAGE_ARTIFACT_DIR}/sessions-desktop.png`});await page.getByRole('button',{name:'关闭会话列表'}).click();
-  await page.goto('/#/create?case=loan-anniversary');await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('去年借款，今天归还');await page.goto('/#/create');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('尚未发送的 A 草稿');
+  await page.goto('/#/create?case=loan-anniversary');await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('周末计划');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('尚未发送的 A 草稿');await page.goto('/#/create');await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('尚未发送的 A 草稿');
 });
 
 test('account sessions autosave into one work and never overwrite a newer remote revision',async({page})=>{
@@ -127,4 +127,13 @@ test('login handoff creates a separate session even when that account already ha
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('账号已有会话');await expect(page.getByRole('button',{name:'管理创作会话'})).toContainText('已保存到本机');
   await page.evaluate(({scene,image})=>sessionStorage.setItem('imstage.agent.login-handoff',JSON.stringify({scene,prompt:'访客登录前的输入',attachments:[image],turns:[{role:'user',id:'guest-u',content:'访客创作记录'}]})),{scene:fixture.scene,image});
   await page.reload();await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('访客登录前的输入');await expect(page.locator('.agent-attachments img')).toHaveCount(1);await open(page);await expect(page.getByRole('button',{name:'打开会话：账号已有会话',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'打开会话：访客创作记录',exact:true})).toBeVisible();
+});
+
+test('retired reference drafts stay intact and show an explicit policy error', async ({ page }) => {
+  const source = JSON.stringify({ scene: { ...fixture.scene, reference: { image: 'synthetic-legacy-marker' } }, prompt: 'preserve this draft' });
+  await page.addInitScript(source => sessionStorage.setItem('imstage.agent.guest.draft', source), source);
+  await page.goto('/#/create');
+  await expect(page.getByRole('status')).toContainText('真实截图参考编辑已停用');
+  expect(await page.evaluate(() => sessionStorage.getItem('imstage.agent.guest.draft'))).toBe(source);
+  await expect(page.locator('.scene-root')).toHaveCount(0);
 });

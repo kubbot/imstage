@@ -236,7 +236,7 @@ test('text generation creates a fresh unreviewed case with AI provenance', async
   assert.equal(c.candidate.provenance.kind, 'ai-generated');
   assert.equal(c.candidate.provenance.model, 'fake-vision-1');
   assert.equal(c.candidate.provenance.promptVersion, 'v1');
-  assert.equal(c.candidate.provenance.rendererVersion, 'v1');
+  assert.equal(c.candidate.provenance.rendererVersion, 'v2');
   assert.equal(typeof c.candidate.provenance.generatedAt, 'string');
   assert.equal(c.generation.requestId, 'req-text-0001');
   assert.equal(c.generation.scene.platform, 'wechat');
@@ -1079,7 +1079,7 @@ test('P2: renderSceneHtml never emits a hostile platform value as a class', () =
   const html = renderSceneHtml(hostile, { surface: 'ios', width: 390, outputKind: 'screenshot', assets: [] });
   assert.equal(html.includes('<script>'), false);
   assert.equal(html.includes('x">'), false);
-  assert.match(html, /platform-wechat/);
+  assert.match(html, /platform-imstage/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1164,7 +1164,7 @@ test('parseSceneResponse overrides platform and surfaces warnings', () => {
   assert.ok(warnings.includes('文字模糊'));
 });
 
-test('renderSceneHtml is deterministic, escaped and platform-specific with no remote loads', () => {
+test('renderSceneHtml is deterministic, escaped and generic (no brand themes) with no remote loads', () => {
   const scene = validateConversationScene(
     {
       ...validScene().scene,
@@ -1180,28 +1180,28 @@ test('renderSceneHtml is deterministic, escaped and platform-specific with no re
   scene.messages[0].text = 'a <b>bold</b> c';
   const assets = [{ mime: 'image/png', dataBase64: IMAGE_BASE64 }];
 
-  const wechat = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets });
+  const first = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets });
   const again = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets });
-  assert.equal(wechat, again, 'renderer must be deterministic');
-  assert.match(wechat, /platform-wechat/);
-  assert.match(wechat, /surface-ios/);
-  assert.match(wechat, /kind-screenshot/);
-  assert.equal(wechat.includes('<b>bold</b>'), false, 'raw HTML from text must not survive');
-  assert.match(wechat, /&lt;b&gt;bold&lt;\/b&gt;/);
-  assert.match(wechat, /data:image\/png;base64,/);
-  assert.equal(wechat.includes('http://'), false);
-  assert.equal(wechat.includes('https://'), false);
-  assert.match(wechat, /95ec69/, 'wechat green bubble');
+  assert.equal(first, again, 'renderer must be deterministic');
+  assert.match(first, /platform-imstage/, 'every platform id renders the generic IMStage skin');
+  assert.match(first, /surface-ios/);
+  assert.match(first, /kind-screenshot/);
+  assert.ok(first.includes('data-imstage-disclosure="true"'), 'mandatory disclosure on every frame');
+  assert.equal(first.includes('<b>bold</b>'), false, 'raw HTML from text must not survive');
+  assert.match(first, /&lt;b&gt;bold&lt;\/b&gt;/);
+  assert.match(first, /data:image\/png;base64,/);
+  assert.equal(first.includes('http://'), false);
+  assert.equal(first.includes('https://'), false);
+  assert.equal(/95ec69|517da2|075e54|ededed/.test(first), false, 'no brand theme colors');
 
-  const telegram = renderSceneHtml({ ...scene, platform: 'telegram' }, { surface: 'android', width: 390, outputKind: 'screenshot', assets });
-  assert.match(telegram, /platform-telegram/);
-  assert.match(telegram, /517da2/, 'telegram blue header');
+  const android = renderSceneHtml({ ...scene, platform: 'telegram' }, { surface: 'android', width: 390, outputKind: 'screenshot', assets });
+  assert.match(android, /platform-imstage/);
+  assert.match(android, /surface-android/);
 
-  const whatsapp = renderSceneHtml({ ...scene, platform: 'whatsapp' }, { surface: 'desktop', width: 720, outputKind: 'long-screenshot', assets });
-  assert.match(whatsapp, /platform-whatsapp/);
-  assert.match(whatsapp, /075e54/, 'whatsapp green header');
-  assert.match(whatsapp, /kind-long-screenshot/);
-  assert.match(whatsapp, /windowbar/);
+  const desktop = renderSceneHtml({ ...scene, platform: 'whatsapp' }, { surface: 'desktop', width: 720, outputKind: 'long-screenshot', assets });
+  assert.match(desktop, /platform-imstage/);
+  assert.match(desktop, /kind-long-screenshot/);
+  assert.match(desktop, /windowbar/);
 
   // Missing asset degrades to an escaped placeholder instead of a broken URL.
   const noAsset = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets: [] });

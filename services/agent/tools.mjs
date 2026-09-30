@@ -27,8 +27,14 @@ export const TOOL_NAMES = Object.freeze([
   'upsert_message',
   'delete_message',
   'generate_image',
-  'extract_image',
 ]);
+
+/**
+ * Screenshot-research tools. Only the internal offline evaluation runtime
+ * (tools/eval) enables them; the public API and MCP surfaces can never reach
+ * them (see `createAgentRuntime` and `services/agent/index.mjs`).
+ */
+export const INTERNAL_REFERENCE_TOOL_NAMES = Object.freeze(['extract_image']);
 
 export const RUNNING_DETAILS = Object.freeze({
   update_element: '正在调整元素…',
@@ -40,20 +46,20 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
-  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout,watermark（仅用户明确要求更改标记时）；参与者支持name,subtitle。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout；参与者支持name,subtitle。标记（AI生成/虚构）由系统强制显示，不能修改、关闭或移除，watermark 不可更改。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
       name: 'create_scene',
       description:
-        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；此工具始终保留当前图片内标记，用户明确要求更改时另调用 update_element(@scene, {watermark: ...})；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
+        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；图片内 AI生成/虚构标识由系统强制显示，不接受 watermark 字段；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
       parameters: {
         type: 'object',
         properties: {
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 wechat/xiaohongshu/imessage/whatsapp/slack/instagram；message.type 只能是 text/image/location/system/contact/transfer/voice/video/link/album。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用平台皮肤。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 imstage（推荐）或兼容旧值 wechat/xiaohongshu/imessage/whatsapp/slack/instagram，所有平台都渲染通用 IMStage 聊天界面；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用通用 IMStage 皮肤。',
           },
         },
         required: ['scene'],
@@ -106,7 +112,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           targetId: { type: 'string', description: '消息 id 或参与者 id' },
           kind: { type: 'string', enum: ['message', 'avatar', 'background'], description: '生成目标类型' },
           prompt: { type: 'string', description: '用于图片生成的中文描述' },
-          newImage: {type:'boolean',description:'仅当用户明确要求不同的新图片时为 true；截图重建默认 false，必须先复用原图'},
+          newImage:{type:'boolean',description:'仅当用户明确要求不同的新图片时为 true；否则复用已有图片'},
           edit: {type:'boolean',description:'true 表示将现有图片作为参考调用图片编辑 API，而非重新生成'},
           itemId:{type:'string',description:'相册子图片 id；目标为 album 时必填'},
         },
@@ -115,6 +121,14 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
       },
     },
   },
+]);
+
+/**
+ * Internal-only screenshot-research tool schemas. Never merged into the public
+ * `AGENT_TOOL_SCHEMAS`; only the internal offline evaluation runtime enables
+ * them (see `INTERNAL_REFERENCE_TOOL_NAMES`).
+ */
+export const INTERNAL_REFERENCE_TOOL_SCHEMAS = Object.freeze([
   {type:'function',function:{name:'extract_image',description:'从本次截图裁取原头像或消息图片并直接复用，最准确地保留原图；不调用生图服务。先创建人物/消息，再调用；头像边界会按原图像素校准。返回裁切预览，检查只包含目标图片，没有气泡或别人的头像。',parameters:{type:'object',properties:{targetId:{type:'string'},kind:{type:'string',enum:['avatar','message','background']},itemId:{type:'string'},attachmentIndex:{type:'integer',minimum:0,description:'本次附件序号，从 0 开始'},box:{type:'array',items:{type:'number'},minItems:4,maxItems:4,description:'[x,y,width,height] 归一化到0..1000，参考直立显示的原截图'}},required:['targetId','kind','attachmentIndex','box'],additionalProperties:false}}},
 ]);
 
@@ -175,8 +189,9 @@ function applyCreateScene(args, context) {
   const stripped = stripSceneAssets(args.scene);
   // A model-generated scene must not silently discard the selected output device.
   if(context.scene.deviceProfileId) { stripped.deviceProfileId=context.scene.deviceProfileId;stripped.surface=context.scene.surface; }
-  // Rebuilding content cannot implicitly reset a user's image-label choice.
-  // Explicit label edits use update_element(@scene, { watermark }).
+  // The image label / watermark belongs to the user: a rebuilt scene must not
+  // silently change it, and no tool lets the model edit it (the mandatory
+  // AI生成/虚构 disclosure is rendered unconditionally on top).
   stripped.watermark = context.scene.watermark;
   const validation = validateScene(stripped);
   if (!validation.ok || !validation.scene) {
@@ -345,13 +360,16 @@ export async function executeTool(name, args, context) {
     attachments: context.attachments ?? [],
     signal: context.signal,
     maxAttachmentChars: context.maxAttachmentChars,
+    // Screenshot-research tools are reachable only from the internal offline
+    // evaluation runtime; the public API/MCP paths never set this flag.
+    internalReferenceResearch: context.internalReferenceResearch === true,
   };
   switch (name) {
     case 'update_element': {
       const target = resolveTarget(ctx.scene,args.targetId);
       if (!target || target.kind === 'message' || !isPlainObject(args.patch)) return fail(ctx,'元素或 patch 无效');
       if (ctx.targetId && ctx.targetId !== args.targetId) return fail(ctx,'只能调整所选元素');
-      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','referenceDate','watermark','surface','deviceProfileId','background','appearance','headerText','composerText','battery','layout'] : ['name','subtitle'];
+      const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','referenceDate','surface','deviceProfileId','background','appearance','headerText','composerText','battery','layout'] : ['name','subtitle'];
       if (Object.keys(args.patch).some(k => !allowed.includes(k))) return fail(ctx,'patch 包含不允许的字段');
       return buildCandidate(ctx,target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)},'元素已更新');
     }
@@ -362,6 +380,9 @@ export async function executeTool(name, args, context) {
     case 'delete_message':
       return applyDeleteMessage(args, ctx);
     case 'extract_image': {
+      if (!ctx.internalReferenceResearch) {
+        return fail(ctx, '真实截图参考编辑已停用：仅支持合成（虚构）对话场景');
+      }
       let crop;
       const outcome = await applyGenerateImage({...args,prompt:'复用截图原图',edit:false}, {...ctx,sourceReuse:true,imageProvider:{generate:async()=>{
         crop=await cropAttachment(ctx.attachments,args.attachmentIndex,args.box,ctx.signal,ctx.maxAttachmentChars,{avatar:args.kind==='avatar'});
