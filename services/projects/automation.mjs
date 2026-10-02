@@ -17,10 +17,13 @@
  *     capacity checks, request hashes, idempotent receipts, duplicate key and
  *     duplicate dialogue rejection
  *   - bounded summaries / resume context and truthful content status
- *     (`collecting` / `ready` / `awaiting_delivery` — never file completion)
+ *     (`collecting` / `ready`; delivery state comes from the injected export
+ *     service — completed is only reported when a current file package really
+ *     matches the live content)
  *
- * File delivery (deterministic export queue, PNG/ZIP downloads) is the next
- * batch and is deliberately not faked here.
+ * File delivery (deterministic export queue, PNG/ZIP downloads) lives in
+ * `services/projects/exports/`; the shared export service is injected here so
+ * auto-export, status and delivery summaries stay consistent across HTTP/MCP.
  */
 
 import crypto from 'node:crypto';
@@ -42,6 +45,7 @@ import {
 import { newRunId as newAuditRunId, recordGenerationAudit } from '../audit/generation-audit.mjs';
 import { TemplateError, getTemplate } from '../templates/store.mjs';
 import { applyScenePatch, enforceSceneBounds, prepareCreateScene } from '../mcp/scene.mjs';
+import { applySceneDefaults } from '../preferences/defaults.mjs';
 import { McpToolError } from '../mcp/errors.mjs';
 import { sha256Hex, stableStringify } from '../mcp/util.mjs';
 import { projectsError } from './errors.mjs';
@@ -212,9 +216,18 @@ export { dialogueSignature };
 /**
  * Build the account automation service.
  *
- * @param {{db: object, nowMs?: () => number, sceneIdFactory?: () => string}} options
+ * @param {{db: object, nowMs?: () => number, sceneIdFactory?: () => string,
+ *          readPreferences?: (userId: string) => Promise<object|null>|object|null,
+ *          exportService?: object, onScenarioContentReady?: (args) => Promise<object>}} options
  */
-export function createProjectAutomation({ db, nowMs = Date.now, sceneIdFactory = () => crypto.randomUUID() }) {
+export function createProjectAutomation({
+  db,
+  nowMs = Date.now,
+  sceneIdFactory = () => crypto.randomUUID(),
+  readPreferences = null,
+  exportService = null,
+  onScenarioContentReady = null,
+}) {
   if (!db) throw new Error('createProjectAutomation 需要数据库句柄');
 
   /* ---------------- project types ---------------- */
@@ -549,8 +562,8 @@ function pickPlatform(input, defaults) {
       resume: {
         nextAction:
           progress.missing === 0
-            ? '全部案例内容已提交；文件交付（导出/下载）将在后续批次提供，当前不会报告文件完成。'
-            : `继续提交缺少的 ${progress.missing} 个案例（建议下一批：${progress.suggestedNextRange?.fromKey ?? '-'} 起，最多 ${SCENARIO_LIMITS.batchItemsMax} 条/批）。`,
+            ? '全部案例内容已提交。接下来：imstage_export_project 导出（或等待 autoExport）→ 轮询 imstage_get_project_status 至 completed/partial → 用 imstage_get_project_export 获取可用 ZIP 下载链接。'
+            : `继续提交缺少的 ${progress.missing} 个案例（建议下一批：${progress.suggestedNextRange?.fromKey ?? '-'} 起，最多 ${SCENARIO_LIMITS.batchItemsMax} 条/批），全部提交后导出。`,
       },
     };
   }
@@ -593,7 +606,7 @@ function pickPlatform(input, defaults) {
     return raw;
   }
 
-  function normalizeBatchItem(raw, index, { planByKey, template, frozenWatermark, defaultPlatform }) {
+  function normalizeBatchItem(raw, index, { planByKey, template, frozenWatermark, defaultPlatform, accountDefaults }) {
     const label = `第 ${index + 1} 条`;
     if (!isPlainObject(raw)) throw projectsError(400, 'invalid_items', `${label} 必须是对象`);
     for (const key of Object.keys(raw)) {
@@ -640,7 +653,14 @@ function pickPlatform(input, defaults) {
       if (!isPlainObject(rawScene)) throw projectsError(400, 'invalid_items', `${label} 的 scene 必须是对象`);
       // Defaults fill only missing fields: an explicit `watermarkEnabled: false`
       // survives project/scenario default application untouched.
-      const candidate = { ...rawScene };
+      // Server-owned default fill: missing participant avatars come from the
+      // account preferences (same semantics as ordinary create_scene — an
+      // explicit blank/null avatar always wins). Resolved avatars are persisted
+      // in the Scene snapshot; status/summaries never return default bytes.
+      const candidate = applySceneDefaults({ ...rawScene }, {
+        myAvatar: accountDefaults?.myAvatar ?? null,
+        otherAvatar: accountDefaults?.otherAvatar ?? null,
+      });
       if (candidate.watermarkEnabled === undefined && typeof frozenWatermark === 'boolean') {
         candidate.watermarkEnabled = frozenWatermark;
       }
@@ -667,6 +687,10 @@ function pickPlatform(input, defaults) {
       if (built.watermarkEnabled === undefined && typeof frozenWatermark === 'boolean') {
         built = { ...built, watermarkEnabled: frozenWatermark };
       }
+      built = applySceneDefaults(built, {
+        myAvatar: accountDefaults?.myAvatar ?? null,
+        otherAvatar: accountDefaults?.otherAvatar ?? null,
+      });
       guarded(() => enforceSceneBounds(built, { label: `${label}.scene` }));
       scene = built;
     }
@@ -721,7 +745,7 @@ function pickPlatform(input, defaults) {
     };
   }
 
-  function createContentBatch({ userId, projectId, input = {}, idempotencyKey = null, origin = '', grantRef = null }) {
+  async function createContentBatch({ userId, projectId, input = {}, idempotencyKey = null, origin = '', grantRef = null, principal = null, authorizeCheck = null }) {
     // Ownership check first: a foreign project is never readable or writable.
     const { id, project } = requireProject(userId, projectId);
     const scenarioId = input.scenarioId === undefined || input.scenarioId === null || input.scenarioId === '' ? null : input.scenarioId;
@@ -754,6 +778,25 @@ function pickPlatform(input, defaults) {
       }
       return batchReceipt(priorRow, { deduplicated: true });
     }
+    // Server-owned account defaults (avatars) are read AFTER idempotent replay
+    // and never enter the request hash: mutable preferences must not break a
+    // replay of the exact normalized caller input.
+    const accountDefaults = typeof readPreferences === 'function' ? await readPreferences(userId) : null;
+    // Authorization recheck AFTER the async gates (defaults read) and BEFORE
+    // the transactional write: a session expiry/revocation that lands while the
+    // await is in flight must never commit a batch. No async IO happens inside
+    // the transaction below.
+    if (typeof authorizeCheck === 'function') await authorizeCheck();
+    // Concurrent same-key submits serialize on the async gates above: re-read
+    // the SAME key here (before any mutable/case validation) so the loser gets
+    // the frozen receipt instead of a spurious duplicate_item_key error.
+    const racedRow = autoStore.findContentBatchByClientKey(db, userId, id, clientKey);
+    if (racedRow) {
+      if (racedRow.request_hash !== requestHash) {
+        throw projectsError(409, 'idempotency_conflict', '该 clientIdempotencyKey 已用于不同的请求内容');
+      }
+      return batchReceipt(racedRow, { deduplicated: true });
+    }
 
     const scenarioContext = scenarioId ? requireScenario(userId, id, scenarioId) : null;
     const template = resolveTemplate(userId, rawTemplateId, rawTemplateRevision);
@@ -778,8 +821,10 @@ function pickPlatform(input, defaults) {
       }
     }
 
-    const items = rawItems.map((raw, index) => {
-      const item = normalizeBatchItem(raw, index, { planByKey, template, frozenWatermark, defaultPlatform });
+    const items = [];
+    try {
+      for (const [index, raw] of rawItems.entries()) {
+        const item = normalizeBatchItem(raw, index, { planByKey, template, frozenWatermark, defaultPlatform, accountDefaults });
       const recipeType = scenarioContext ? scenarioContext.scenario.recipeType : project.type;
       if (recipeType === 'evaluation_dataset' && Object.keys(item.annotations.labels ?? {}).length === 0) {
         throw projectsError(422, 'missing_annotations', `评测案例 ${item.itemKey} 需要调用方提供至少一个标注`);
@@ -813,8 +858,21 @@ function pickPlatform(input, defaults) {
         }
         seenDialogues.set(item.dialogueHash, item.itemKey);
       }
-      return item;
-    });
+      items.push(item);
+    }
+    } catch (error) {
+      // A concurrent identical submit may have won the race while we validated:
+      // the same key now resolves to its frozen receipt instead of surfacing a
+      // spurious duplicate error.
+      const raced = autoStore.findContentBatchByClientKey(db, userId, id, clientKey);
+      if (raced) {
+        if (raced.request_hash !== requestHash) {
+          throw projectsError(409, 'idempotency_conflict', '该 clientIdempotencyKey 已用于不同的请求内容');
+        }
+        return batchReceipt(raced, { deduplicated: true });
+      }
+      throw error;
+    }
 
     // True capacity validation: the account scene limit is checked before the
     // transaction and re-checked inside it, so a concurrent batch can never
@@ -823,7 +881,17 @@ function pickPlatform(input, defaults) {
       throw projectsError(409, 'scene_limit_reached', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`);
     }
 
-    return autoStore.withTransaction(db, () => {
+    const receipt = autoStore.withTransaction(db, () => {
+      // The transaction is the serialization point: resolve the exact key once
+      // more before any write so two concurrent identical submits can never
+      // both create scenes.
+      const racedInside = autoStore.findContentBatchByClientKey(db, userId, id, clientKey);
+      if (racedInside) {
+        if (racedInside.request_hash !== requestHash) {
+          throw projectsError(409, 'idempotency_conflict', '该 clientIdempotencyKey 已用于不同的请求内容');
+        }
+        return batchReceipt(racedInside, { deduplicated: true });
+      }
       if (autoStore.countAccountScenes(db, userId) + items.length > MAX_SCENES_PER_USER) {
         throw projectsError(409, 'scene_limit_reached', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`);
       }
@@ -900,12 +968,34 @@ function pickPlatform(input, defaults) {
         nowMs: nowMs(),
       });
       const row = autoStore.getContentBatchRow(db, userId, batchId);
-      const receipt = batchReceipt(row, { deduplicated: false });
-      if (scenarioContext) {
-        receipt.scenarioProgress = scenarioProgress(userId, autoStore.getScenarioRow(db, userId, scenarioId));
-      }
-      return receipt;
+      return batchReceipt(row, { deduplicated: false });
     });
+    if (scenarioContext) {
+      receipt.scenarioProgress = scenarioProgress(userId, autoStore.getScenarioRow(db, userId, scenarioId));
+      if (!receipt.deduplicated) {
+        receipt.autoExport = await maybeAutoExport({
+          userId,
+          projectId: id,
+          scenarioId,
+          principal,
+          progress: receipt.scenarioProgress,
+          autoExportEnabled: scenarioContext.scenario.autoExport,
+        });
+      }
+    }
+    return receipt;
+  }
+
+  /**
+   * AutoExport: the final content batch of a ready scenario queues exactly one
+   * deduped scenario export (fingerprint-deduped by the export service). Never
+   * runs for incomplete/unannotated content and never blocks the saved batch.
+   */
+  async function maybeAutoExport({ userId, projectId, scenarioId, principal, progress, autoExportEnabled }) {
+    if (!autoExportEnabled) return { queued: false, reason: 'auto_export_disabled' };
+    if (progress.missing > 0) return { queued: false, reason: 'missing_items', missing: progress.missing };
+    if (typeof onScenarioContentReady !== 'function') return { queued: false, reason: 'export_not_configured' };
+    return await onScenarioContentReady({ userId, projectId, scenarioId, principal });
   }
 
   function validateIdempotencyKey(raw) {
@@ -993,32 +1083,63 @@ function pickPlatform(input, defaults) {
         latest: listContentBatches({ userId, projectId: id, limit: 5 }).items,
       },
       totals: { expectedCases, submittedCases, missingCases: expectedCases - submittedCases },
-      status: contentStatusFor(scenarios),
-      delivery: deliveryNotice(),
+      status: projectStatusFor(userId, id, scenarios),
+      delivery: deliverySummary(userId, id),
       resume: {
         nextAction: scenarios.some((item) => item.contentStatus !== 'ready')
-          ? `继续提交缺少的案例：${scenarios.find((item) => item.contentStatus !== 'ready')?.suggestedNextRange?.fromKey ?? '-'} 起（每批 ≤ ${SCENARIO_LIMITS.batchItemsMax} 条）。`
+          ? `继续提交缺少的案例：${scenarios.find((item) => item.contentStatus !== 'ready')?.suggestedNextRange?.fromKey ?? '-'} 起（每批 ≤ ${SCENARIO_LIMITS.batchItemsMax} 条），全部提交后导出。`
           : scenarios.length === 0
             ? '尚未创建场景计划。'
-            : '内容已齐备（awaiting_delivery）；文件交付将在后续批次提供。',
+            : '内容已齐备（ready）：调用 imstage_export_project 导出（或等待 autoExport），轮询 imstage_get_project_status 至 completed 后用 imstage_get_project_export 获取 ZIP。',
       },
     };
   }
 
-  function deliveryNotice() {
+  /** Delivery summary from the injected export service (bounded, blob-free). */
+  function deliverySummary(userId, projectId) {
+    if (exportService && typeof exportService.projectDeliverySummary === 'function') {
+      return exportService.projectDeliverySummary({ userId, projectId });
+    }
     return {
       export: 'not_started',
-      note: '内容保存完成只代表 ready/awaiting_delivery；PNG/ZIP 文件交付将在后续批次实现，当前不报告文件完成。',
+      active: 0,
+      latest: null,
+      current: null,
+      historical: [],
+      downloadsExpireAt: null,
+      note: '导出服务未接入。',
     };
   }
 
-  function contentStatusFor(scenarios) {
+  /**
+   * Truthful aggregate status: `completed` only when current file packages'
+   * mandatory files cover the LIVE content; partial/failed/interrupted and
+   * historical packages are reported as such, never as success.
+   */
+  function projectStatusFor(userId, projectId, scenarios) {
     if (scenarios.length === 0) return 'collecting';
-    return scenarios.every((item) => item.contentStatus === 'ready') ? 'awaiting_delivery' : 'collecting';
+    if (scenarios.some((item) => item.contentStatus !== 'ready')) return 'collecting';
+    const delivery = deliverySummary(userId, projectId);
+    if (delivery.active > 0) return 'exporting';
+    if (delivery.coverage?.complete === true) return 'completed';
+    const current = delivery.current ?? null;
+    if (
+      current &&
+      current.status === 'completed' &&
+      (current.counts?.failed ?? 0) === 0 &&
+      (current.missingItemKeys?.length ?? 0) === 0
+    ) {
+      return 'completed';
+    }
+    const latest = delivery.latest ?? null;
+    if (latest && latest.contentState !== 'historical' && ['partial', 'failed', 'interrupted', 'cancelled'].includes(latest.status)) {
+      return latest.status;
+    }
+    return 'ready';
   }
 
   /** Truthful aggregate status for one project (content only in this batch). */
-  function getProjectStatus({ userId, projectId }) {
+  function getProjectStatus({ userId, projectId, exportId = null }) {
     const { id, project } = requireProject(userId, projectId);
     const scenarioRows = autoStore.listScenarioRows(db, userId, id);
     const scenarios = scenarioRows.map((row) => {
@@ -1039,7 +1160,7 @@ function pickPlatform(input, defaults) {
     });
     const expectedCases = scenarios.reduce((sum, item) => sum + item.caseCount, 0);
     const submittedCases = scenarios.reduce((sum, item) => sum + item.submitted, 0);
-    const status = contentStatusFor(scenarios);
+    const status = projectStatusFor(userId, id, scenarios);
     return {
       project: {
         id,
@@ -1064,15 +1185,23 @@ function pickPlatform(input, defaults) {
         latest: listContentBatches({ userId, projectId: id, limit: 5 }).items,
       },
       status,
-      delivery: deliveryNotice(),
+      delivery: deliverySummary(userId, id),
+      // Optional single-export detail (bounded item summaries, never scene blobs).
+      ...(exportId && exportService && typeof exportService.get === 'function'
+        ? { export: exportService.get({ userId, projectId: id, exportId }).export }
+        : {}),
       resume: {
         nextAction:
-          status === 'ready' || status === 'awaiting_delivery'
-            ? '内容已齐备（awaiting_delivery）；文件交付将在后续批次提供。'
-            : scenarios
-                .filter((item) => item.contentStatus !== 'ready')
-                .map((item) => `${item.name}：缺少 ${item.missing} 个案例，从 ${item.suggestedNextRange?.fromKey ?? '-'} 继续`)
-                .join('；') || '尚未创建场景计划。',
+          status === 'completed'
+            ? '当前文件包已覆盖全部内容：按 delivery.currentExports 用 imstage_get_project_export 获取各包下载链接（注意 expiresAt）；也可导出整个项目为一个总包。'
+            : status === 'exporting'
+              ? '导出进行中：继续轮询 imstage_get_project_status 至 completed/partial。'
+              : scenarios.some((item) => item.contentStatus !== 'ready')
+                ? scenarios
+                    .filter((item) => item.contentStatus !== 'ready')
+                    .map((item) => `${item.name}：缺少 ${item.missing} 个案例，从 ${item.suggestedNextRange?.fromKey ?? '-'} 继续提交`)
+                    .join('；')
+                : '内容已齐备（ready）：调用 imstage_export_project 导出（或等待 autoExport），完成后用 imstage_get_project_export 获取 ZIP。',
       },
     };
   }

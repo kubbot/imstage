@@ -364,7 +364,7 @@ export function accountToolsForScopes(grantedScopes) {
 }
 
 export const ACCOUNT_INSTRUCTIONS =
-  'IMStage 账号 MCP：只操作当前已授权账号自己的数据，不调用模型，内容由你生成。作品流程：imstage_list_scenes 找到 sceneId → imstage_get_scene 读取 → imstage_create_scene / imstage_update_scene(expectedRevision) 确定性保存 → imstage_render_scene 渲染 PNG。项目自动化流程：imstage_list_project_types 读配方 → imstage_create_project → imstage_create_scenario 生成 case-001… 计划 → 按计划用 imstage_create_batch 分批提交完整内容（每批 ≤20 条，可带 clientIdempotencyKey 幂等重试）→ imstage_get_project_status 查询缺项并续作。计划不是已完成内容；内容完成只报告 ready/awaiting_delivery，文件交付以后续实现为准。场景 id 为服务端生成的 UUID，与网页 #/workspace?scene=ID 相同；返回值中的 webUrl 可直接打开。不要传远程图片 URL，只接受内嵌 data:image/...;base64。';
+  'IMStage 账号 MCP：只操作当前已授权账号自己的数据，不调用模型，内容由你生成。作品流程：imstage_list_scenes 找到 sceneId → imstage_get_scene 读取 → imstage_create_scene / imstage_update_scene(expectedRevision) 确定性保存 → imstage_render_scene 渲染 PNG。项目交付流程：imstage_list_project_types 读配方 → imstage_create_project → imstage_create_scenario 生成 case-001… 计划 → 按计划用 imstage_create_batch 分批提交完整内容（每批 ≤20 条，可带 clientIdempotencyKey 幂等重试）→ 用 imstage_get_project_status 查看剩余稳定 itemKey 并继续提交 → 内容齐备后用 imstage_export_project 导出（autoExport 开启时最后一个批次会自动排队）→ 轮询 imstage_get_project_status 至 completed/partial → 用 imstage_get_project_export 获取下载链接并向用户报告可用 ZIP。未轮询到导出完成前不得声称文件已交付；部分导出（partial）必须如实报告缺项。计划不是已完成内容。场景 id 为服务端生成的 UUID，与网页 #/workspace?scene=ID 相同；返回值中的 webUrl 可直接打开。不要传远程图片 URL，只接受内嵌 data:image/...;base64。';
 
 function textOk(text, structuredContent) {
   return { content: [{ type: 'text', text }], structuredContent };
@@ -400,7 +400,7 @@ function accountCapabilities(defaults = null, includeProjects = false) {
       accountScope:
         '只读写当前账号的数据；已保存作品与网页“我的作品”共用同一张表，网页修改会被 MCP 读到，MCP 修改也会出现在网页。',
       projectAutomation: includeProjects
-        ? '项目/场景/案例与内容批次经共享应用服务保存，与网页 /api/projects 数据一致；每批 ≤20 条，内容完成只报告 ready/awaiting_delivery。'
+        ? '项目/场景/案例与内容批次经共享应用服务保存，与网页 /api/projects 数据一致；每批 ≤20 条。内容齐备后用 imstage_export_project 导出（或 autoExport 自动排队），轮询 completed 后用 imstage_get_project_export 获取 ZIP。'
         : null,
     },
     auth: {
@@ -424,6 +424,11 @@ function accountCapabilities(defaults = null, includeProjects = false) {
   maxStoredRenders = MAX_STORED_RENDERS,
   authorizeCheck = null,
   readPreferences = null,
+  // One shared automation service + one shared export service (created once in
+  // the API server): HTTP and MCP therefore share the export queue, auto-export
+  // hooks and preferences default fill.
+  automation = null,
+  exportService = null,
   // Granted scopes + grant reference from the verified credential. tools/list
   // and every handler guard against scopes the credential does not carry; the
   // grant reference is recorded as batch provenance, never a raw token.
@@ -499,10 +504,22 @@ function accountCapabilities(defaults = null, includeProjects = false) {
       const items = store.listScenes({ limit }).map((item) => ({ ...item, webUrl: webUrlFor(item.sceneId) }));
       return textOk(`找到 ${items.length} 个作品。`, { items });
     },
-    // Account project/scenario/template/content-batch tools share one
-    // application service with the HTTP routes and guard the project scope on
+    // Account project/scenario/template/content-batch/export tools share the
+    // application services with the HTTP routes and guard the project scope on
     // every call (also when invoked directly).
-    ...createAccountProjectHandlers({ db, userId, appOrigin, grantedScopes, grantRef: grantId }),
+    ...createAccountProjectHandlers({
+      db,
+      userId,
+      appOrigin,
+      grantedScopes,
+      grantRef: grantId,
+      automation,
+      exportService,
+      principal: grantId ? { kind: 'grant', id: grantId } : null,
+      // Re-checked after async gates (preferences read) and before the batch
+      // transaction commits: a mid-await revocation never commits content.
+      authorizeCheck: guardedAuthorizeCheck,
+    }),
   };
   return createImstageMcpServer({
     store,

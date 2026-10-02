@@ -45,6 +45,7 @@ and the API must share one origin. `dist/` is produced by `npm run build`.
 | App origin | `IMSTAGE_APP_ORIGIN` | `http://127.0.0.1:4417` | Exact browser origin allowed on mutations. |
 | Trusted proxy | `IMSTAGE_TRUST_LOOPBACK_PROXY` | unset | Set `1` only behind a local proxy that overwrites `X-Real-IP`; used for auth throttling. |
 | Static dir | `IMSTAGE_DIST_DIR` | `dist` | Built web app; missing directory → static 404s. |
+| Project export dir | `IMSTAGE_PROJECT_EXPORT_DIR` | `<db dir>/project-exports` | Deterministic export files (ZIP + per-item PNGs). A memory database without an explicit dir uses its own temporary directory, removed on close. |
 | Node env | `NODE_ENV` | `development` | In `production`, a non-loopback origin must be `https://` or startup fails. |
 
 Unsafe production setups fail fast: `NODE_ENV=production` with a non-HTTPS,
@@ -170,6 +171,35 @@ scene autosave does not modify the original template. Project `batch-jobs`
 accept structured variants and freeze template values and common rules before
 the sequential Agent worker starts. See [the complete contracts and limits](../../docs/templates-and-projects.md).
 
+## Deterministic project exports
+
+Owner-scoped delivery of frozen project content (no model calls; PNGs come from
+the real deterministic renderer):
+
+- `POST /api/projects/:id/exports` — freeze the current snapshot and queue an
+  export (`expectedRevision`, `scenarioId`/`sceneIds`, `renderOptions`,
+  `allowPartial`, `idempotencyKey`); missing planned cases → `422
+  missing_items` unless `allowPartial` (which always ends `partial`).
+- `GET /api/projects/:id/exports` / `GET .../exports/:exportId` — bounded
+  status: run state (`queued/running/completed/partial/failed/cancelled/
+  interrupted`), phase (`validating/rendering/packaging`), per-item summaries,
+  `contentState: current|historical` and download expiry. Never scene blobs.
+- `POST .../exports/:exportId/retry|cancel` — explicit retry re-runs only
+  failed/interrupted items of the SAME frozen snapshot under the caller's
+  current authorization; cancel keeps already-committed output.
+- `GET .../exports/:exportId/download` — the validated ZIP (`no-store` +
+  `attachment`, server-generated filename). Owner session cookie **or** a
+  Bearer token carrying both `imstage.scenes` + `imstage.projects`.
+- `POST .../exports/:exportId/download-ticket` — 10-minute opaque ticket URL
+  bound to one ZIP + the caller's principal; only its hash is stored. The
+  ticket download is anonymously usable as a specific bounded capability and
+  denied once expired/revoked.
+
+Retention is 7 days (enforced at read/mint and by startup + hourly sweeps;
+expired snapshots also drop their frozen Scene blobs). Project deletion cancels
+and purges every export, ticket and file of that project. See
+[docs/project-automation.md](../../docs/project-automation.md).
+
 ## Limits and resource bounds
 
 - Request bodies: auth routes and scene `DELETE` → **16 KiB**; scene `PUT` →
@@ -184,6 +214,10 @@ the sequential Agent worker starts. See [the complete contracts and limits](../.
   Counters are bounded and pruned.
 - scrypt work is limited by a concurrency semaphore (default 4).
 - Credentials and request bodies are never logged.
+- Project exports: ≤ 100 items per export, frozen Scene JSON ≤ 64 MiB, ZIP ≤
+  100 MiB, ≤ 500 MiB retained per account, ≤ 3 active exports per account,
+  worker concurrency 1. Public error/status payloads never contain filesystem
+  paths (sanitized; full detail stays in server logs).
 
 ## Password hashing
 

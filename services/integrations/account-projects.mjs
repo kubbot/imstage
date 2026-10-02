@@ -41,6 +41,22 @@ function serviceCall(fn) {
   }
 }
 
+/**
+ * Awaited variant for async service calls (content batches with default fill,
+ * export lifecycle): a rejected Promise is mapped to a stable tool error too,
+ * never surfaced as an opaque internal error.
+ */
+async function asyncServiceCall(fn) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof ProjectsError || error instanceof TemplateError) {
+      fail(error.code, error.message, { status: error.status });
+    }
+    throw error;
+  }
+}
+
 const readOnly = Object.freeze({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 const writeOnce = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
 const outputSchema = Object.freeze({ type: 'object', additionalProperties: true });
@@ -143,6 +159,18 @@ const CREATE_BATCH_SCHEMA = {
     items: { type: 'array', minItems: 1, maxItems: BATCH_ITEMS_MAX, items: BATCH_ITEM_SCHEMA },
   },
   required: ['projectId', 'items'],
+  additionalProperties: false,
+};
+
+const RENDER_OPTIONS_SCHEMA = {
+  type: 'object',
+  description: '确定性渲染配置，默认 {surface:"ios",width:390,height:844,outputKind:"long-screenshot"}。',
+  properties: {
+    surface: { type: 'string', enum: ['ios', 'android', 'desktop'] },
+    width: { type: 'integer', minimum: 200, maximum: 1200 },
+    height: { type: 'integer', minimum: 200, maximum: 20000 },
+    outputKind: { type: 'string', enum: ['screenshot', 'long-screenshot'] },
+  },
   additionalProperties: false,
 };
 
@@ -329,9 +357,87 @@ export const ACCOUNT_PROJECT_TOOLS = Object.freeze(
       name: 'imstage_get_project_status',
       title: '读取 IMStage 项目状态',
       description:
-        '聚合真实内容进度：预期/已提交案例、缺项 itemKey、建议下一批与恢复动作。内容完成只报告 ready/awaiting_delivery，从不声称文件交付完成。',
-      inputSchema: { type: 'object', properties: { projectId: { type: 'string' } }, required: ['projectId'], additionalProperties: false },
+        '聚合真实进度：预期/已提交案例、缺项 itemKey、阶段、导出摘要（当前/历史/下载过期）与恢复动作。内容完成只报告 ready；只有当前文件包与实时内容一致时才报告 completed。可传 exportId 查看单个导出的有界条目摘要。',
+      inputSchema: {
+        type: 'object',
+        properties: { projectId: { type: 'string' }, exportId: { type: 'string', description: '可选：附带单个导出的详细摘要。' } },
+        required: ['projectId'],
+        additionalProperties: false,
+      },
       annotations: readOnly,
+    },
+    {
+      name: 'imstage_export_project',
+      title: '导出 IMStage 项目文件包',
+      description:
+        '冻结当前项目/场景/案例/Scene 快照并启动确定性导出：真实渲染 PNG + Scene JSON + cases.jsonl + README + manifest + validation 的 ZIP（不调用模型）。可导出整个项目、单场景（scenarioId）或指定作品（sceneIds）；缺项默认 422 missing_items，可传 allowPartial 导出已有内容（状态永远为 partial）。立即返回 exportId，之后用 imstage_get_project_status 轮询，完成后用 imstage_get_project_export 获取下载。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          expectedRevision: { type: 'integer', minimum: 1, description: '请求时的项目 revision，冲突返回 409。' },
+          idempotencyKey: { type: 'string', maxLength: SCENE_LIMITS.idempotencyKeyMax },
+          scenarioId: { type: 'string' },
+          sceneIds: { type: 'array', maxItems: 100, items: { type: 'string' } },
+          renderOptions: RENDER_OPTIONS_SCHEMA,
+          allowPartial: { type: 'boolean' },
+        },
+        required: ['projectId', 'expectedRevision', 'idempotencyKey'],
+        additionalProperties: false,
+      },
+      annotations: writeOnce,
+    },
+    {
+      name: 'imstage_retry_project_export',
+      title: '重试 IMStage 项目导出',
+      description:
+        '显式重试同一冻结快照中失败/中断的条目（成功条目不会重新执行，PNG 可复用）。重试由当前有效授权重新授权；已过期的导出需重新发起。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          exportId: { type: 'string' },
+          idempotencyKey: { type: 'string', maxLength: SCENE_LIMITS.idempotencyKeyMax },
+        },
+        required: ['projectId', 'exportId', 'idempotencyKey'],
+        additionalProperties: false,
+      },
+      annotations: writeOnce,
+    },
+    {
+      name: 'imstage_cancel_project_export',
+      title: '取消 IMStage 项目导出',
+      description: '取消未完成的确定性导出；已提交的输出保留并如实标记为 cancelled。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          exportId: { type: 'string' },
+          idempotencyKey: { type: 'string', maxLength: SCENE_LIMITS.idempotencyKeyMax },
+        },
+        required: ['projectId', 'exportId'],
+        additionalProperties: false,
+      },
+      annotations: writeOnce,
+    },
+    {
+      name: 'imstage_get_project_export',
+      title: '读取 IMStage 项目导出结果',
+      description:
+        '返回文件清单、SHA-256、字节数、当前/历史标记与过期时间。downloadTicket:true 会签发 10 分钟下载票据 URL（绑定本 ZIP 与授权引用，可撤销；不是只读操作）。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          exportId: { type: 'string' },
+          downloadTicket: { type: 'boolean', description: 'true：签发 10 分钟一次性下载票据 URL。' },
+        },
+        required: ['projectId', 'exportId'],
+        additionalProperties: false,
+      },
+      // Minting a ticket is a write side effect (ticket row), so this tool is
+      // intentionally NOT advertised as read-only.
+      annotations: writeOnce,
     },
   ].map((tool) => ({ ...tool, outputSchema, securitySchemes: [{ type: 'oauth2', scopes: [...PROJECT_TOOL_SCOPES] }] })),
 );
@@ -344,12 +450,23 @@ export const ACCOUNT_PROJECT_TOOL_NAMES = Object.freeze(ACCOUNT_PROJECT_TOOLS.ma
  *
  * @param {{db: object, userId: string, appOrigin: string, grantedScopes: string[], automation?: object}} options
  */
-export function createAccountProjectHandlers({ db, userId, appOrigin, grantedScopes, grantRef = null, automation = null }) {
+export function createAccountProjectHandlers({ db, userId, appOrigin, grantedScopes, grantRef = null, automation = null, exportService = null, principal = null, authorizeCheck = null }) {
   const service = automation ?? createProjectAutomation({ db });
+  const resolvedPrincipal = principal ?? (grantRef ? { kind: 'grant', id: grantRef } : null);
   const granted = new Set(Array.isArray(grantedScopes) ? grantedScopes : []);
   const webUrlBase = `${new URL(appOrigin).origin}/#/projects?project=`;
   const projectWebUrl = (projectId) => `${webUrlBase}${encodeURIComponent(projectId)}`;
   const sceneWebUrlBase = `${new URL(appOrigin).origin}/#/workspace?scene=`;
+
+  function requireExportService() {
+    if (!exportService || typeof exportService.enqueue !== 'function') {
+      fail('export_unavailable', '导出服务未接入，无法执行文件交付', {
+        recovery: '稍后重试；如果持续出现请联系服务运维。',
+        status: 503,
+      });
+    }
+    return exportService;
+  }
 
   function guardProjectScopes() {
     for (const scope of PROJECT_TOOL_SCOPES) {
@@ -513,7 +630,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       return textOk(`模板 ${templateId} 已删除。`, { templateId, deleted: true });
     },
 
-    imstage_create_batch: (args) => {
+    imstage_create_batch: async (args) => {
       guardProjectScopes();
       rejectUnknownKeys(
         args,
@@ -528,7 +645,11 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
         clientIdempotencyKey: args.clientIdempotencyKey,
         items: args.items,
       };
-      const receipt = serviceCall(() =>
+      // Awaited so async failures (default fill, auto-export hook) map to
+      // stable tool errors like the synchronous ones. authorizeCheck is
+      // re-run after the async defaults gate and before the transactional
+      // write, so a revoked credential can never commit a batch.
+      const receipt = await asyncServiceCall(() =>
         service.createContentBatch({
           userId,
           projectId,
@@ -536,16 +657,21 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
           idempotencyKey: typeof args.clientIdempotencyKey === 'string' ? args.clientIdempotencyKey : null,
           origin: 'mcp',
           grantRef,
+          principal: resolvedPrincipal,
+          authorizeCheck,
         }),
       );
+      const auto = receipt.autoExport ?? null;
       return textOk(
-        `批次 ${receipt.batchId}：${receipt.total} 个案例${receipt.deduplicated ? '（幂等重试，未重复创建）' : ''}。`,
+        `批次 ${receipt.batchId}：${receipt.total} 个案例${receipt.deduplicated ? '（幂等重试，未重复创建）' : ''}${auto?.queued ? `；已自动排队导出 ${auto.exportId}` : ''}。`,
         {
           ...receipt,
           webUrl: projectWebUrl(projectId),
           next: receipt.scenarioProgress?.missing
             ? `继续提交缺少的 ${receipt.scenarioProgress.missing} 个案例：${receipt.scenarioProgress.suggestedNextRange?.fromKey ?? '-'} 起。`
-            : '场景内容已齐备（ready/awaiting_delivery）；文件交付将在后续批次提供。',
+            : auto?.queued || auto?.reason === 'already_exported'
+              ? '场景内容已齐备；导出进行中，用 imstage_get_project_status 轮询至 completed/partial 后用 imstage_get_project_export 获取 ZIP。'
+              : '场景内容已齐备（ready）：用 imstage_export_project 发起导出（或启用 autoExport），完成后用 imstage_get_project_export 获取 ZIP。',
         },
       );
     },
@@ -570,12 +696,100 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
 
     imstage_get_project_status: (args) => {
       guardProjectScopes();
-      rejectUnknownKeys(args, new Set(['projectId']), 'arguments');
+      rejectUnknownKeys(args, new Set(['projectId', 'exportId']), 'arguments');
       const projectId = stringField(args, 'projectId', { required: true });
-      const status = serviceCall(() => service.getProjectStatus({ userId, projectId }));
+      const exportId = stringField(args, 'exportId', { min: 1 });
+      const status = serviceCall(() => service.getProjectStatus({ userId, projectId, exportId: exportId ?? null }));
       return textOk(
         `项目状态：${status.status}（已提交 ${status.totals.submittedCases}/${status.totals.expectedCases}，缺少 ${status.totals.missingCases}）。${status.resume.nextAction}`,
         { ...status, webUrl: projectWebUrl(projectId) },
+      );
+    },
+
+    imstage_export_project: async (args) => {
+      guardProjectScopes();
+      rejectUnknownKeys(args, new Set(['projectId', 'expectedRevision', 'idempotencyKey', 'scenarioId', 'sceneIds', 'renderOptions', 'allowPartial']), 'arguments');
+      const projectId = stringField(args, 'projectId', { required: true });
+      const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
+      const idempotencyKey = optionalIdempotencyKey(args);
+      const service_ = requireExportService();
+      const result = await asyncServiceCall(() =>
+        service_.enqueue({
+          userId,
+          projectId,
+          principal: resolvedPrincipal,
+          origin: 'mcp',
+          input: {
+            expectedRevision,
+            idempotencyKey,
+            scenarioId: stringField(args, 'scenarioId', { min: 1 }),
+            sceneIds: Array.isArray(args.sceneIds) ? args.sceneIds : undefined,
+            renderOptions: args.renderOptions,
+            allowPartial: args.allowPartial === true,
+          },
+        }),
+      );
+      return textOk(
+        `导出 ${result.export.exportId} 已排队（${result.export.counts.items} 个作品，状态 ${result.export.status}）${result.deduplicated ? '（幂等重试，未重复创建）' : ''}。`,
+        {
+          ...result,
+          webUrl: projectWebUrl(projectId),
+          next: '用 imstage_get_project_status（可带 exportId）轮询；completed/partial 后用 imstage_get_project_export 获取下载。',
+        },
+      );
+    },
+
+    imstage_retry_project_export: async (args) => {
+      guardProjectScopes();
+      rejectUnknownKeys(args, new Set(['projectId', 'exportId', 'idempotencyKey']), 'arguments');
+      const projectId = stringField(args, 'projectId', { required: true });
+      const exportId = stringField(args, 'exportId', { required: true });
+      const idempotencyKey = optionalIdempotencyKey(args);
+      const service_ = requireExportService();
+      const result = await asyncServiceCall(() =>
+        service_.retry({ userId, projectId, exportId, principal: resolvedPrincipal, idempotencyKey }),
+      );
+      return textOk(
+        `导出 ${exportId} 已重新排队（重试失败/中断条目，成功条目不重新执行）${result.deduplicated ? '（幂等重试）' : ''}。`,
+        { ...result, webUrl: projectWebUrl(projectId) },
+      );
+    },
+
+    imstage_cancel_project_export: async (args) => {
+      guardProjectScopes();
+      rejectUnknownKeys(args, new Set(['projectId', 'exportId', 'idempotencyKey']), 'arguments');
+      const projectId = stringField(args, 'projectId', { required: true });
+      const exportId = stringField(args, 'exportId', { required: true });
+      const idempotencyKey = optionalIdempotencyKey(args);
+      const service_ = requireExportService();
+      const result = await asyncServiceCall(() => service_.cancel({ userId, projectId, exportId, idempotencyKey }));
+      return textOk(
+        result.cancelled ? `导出 ${exportId} 已取消（已保留的输出不会删除）。` : `导出 ${exportId} 已是终态，无需取消。`,
+        { ...result, webUrl: projectWebUrl(projectId) },
+      );
+    },
+
+    imstage_get_project_export: async (args) => {
+      guardProjectScopes();
+      rejectUnknownKeys(args, new Set(['projectId', 'exportId', 'downloadTicket']), 'arguments');
+      const projectId = stringField(args, 'projectId', { required: true });
+      const exportId = stringField(args, 'exportId', { required: true });
+      const service_ = requireExportService();
+      const detail = await asyncServiceCall(() => service_.get({ userId, projectId, exportId }));
+      let ticket = null;
+      if (args.downloadTicket === true) {
+        // Ticket minting is a bounded write (ticket row, 10-minute TTL).
+        ticket = await asyncServiceCall(() =>
+          service_.issueDownloadTicket({ userId, projectId, exportId, principal: resolvedPrincipal }),
+        );
+      }
+      return textOk(
+        `导出 ${exportId}：${detail.export.status}（${detail.export.contentState === 'current' ? '与当前内容一致' : '历史版本'}），ZIP ${detail.export.delivery.zipBytes ?? 0} 字节。`,
+        {
+          ...detail,
+          webUrl: projectWebUrl(projectId),
+          downloadTicket: ticket ? { ticketUrl: ticket.ticketUrl, expiresAt: ticket.expiresAt } : null,
+        },
       );
     },
   };

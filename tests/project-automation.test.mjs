@@ -22,9 +22,11 @@
 
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import sharp from 'sharp';
 
 import { start } from '../services/api/server.mjs';
 import { createScene } from '../apps/web/src/studio/model.ts';
@@ -56,10 +58,40 @@ async function makeApp() {
     logger: { log() {}, error() {} },
     env: {},
     agent: {},
+    // Content-only fixture: scenarios explicitly disable autoExport and a
+    // valid-PNG stub render service guarantees ordinary runs never launch real
+    // browser renders. Export delivery itself is covered by
+    // tests/project-exports*.test.mjs.
+    renderService: stubRenderService(),
     projects: { pollMs: 20, sessionCheckMs: 30, maxLeaseWaitMs: 3_000 },
   });
   activeApps.add(app);
   return { app, base: `http://127.0.0.1:${app.port}` };
+}
+
+// A valid 1x1 PNG buffer so export/render stubs stay byte-real without Chromium.
+const PNG_1X1 = await sharp({ create: { width: 1, height: 1, channels: 4, background: '#23b579' } }).png().toBuffer();
+const fixturePixels = await sharp(PNG_1X1).raw().toBuffer({ resolveWithObject: true });
+assert.equal(fixturePixels.info.width, 1);
+assert.equal(fixturePixels.info.height, 1);
+assert.equal(fixturePixels.data.length, 4);
+
+function stubRenderService() {
+  const calls = [];
+  return {
+    calls,
+    async render(options) {
+      calls.push(options);
+      return {
+        buffer: PNG_1X1,
+        width: 1,
+        height: 1,
+        bytes: PNG_1X1.length,
+        sha256: crypto.createHash('sha256').update(PNG_1X1).digest('hex'),
+        pngBase64: PNG_1X1.toString('base64'),
+      };
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -284,6 +316,8 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
           caseCount: 50,
           platform: 'whatsapp',
           locale: 'zh-CN',
+          // Content-only fixture: delivery is exercised in project-exports tests.
+          autoExport: false,
         },
       },
     });
@@ -386,9 +420,9 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     assert.equal(status.data.totals.expectedCases, 50);
     assert.equal(status.data.totals.submittedCases, 50);
     assert.equal(status.data.totals.missingCases, 0);
-    assert.equal(status.data.status, 'awaiting_delivery', 'content complete is ready/awaiting_delivery');
-    assert.equal(status.data.delivery.export, 'not_started', 'no file delivery is claimed in this batch');
-    assert.match(status.data.delivery.note, /后续批次/);
+    assert.equal(status.data.status, 'ready', 'content complete is ready until a file package matches current content');
+    assert.equal(status.data.delivery.export, 'not_started', 'no file delivery is claimed without an export');
+    assert.match(status.data.delivery.note, /导出|autoExport/);
     assert.ok(!/completed/.test(status.data.status), 'content status never claims file completion');
 
     const secondClient = await createToken(base, alice.cookie, { name: '第二个 MCP 客户端' });
@@ -397,7 +431,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
       'status via second client',
     );
     assert.equal(crossStatus.totals.submittedCases, 50);
-    assert.equal(crossStatus.status, 'awaiting_delivery');
+    assert.equal(crossStatus.status, 'ready');
     const crossScenario = toolOk(
       await mcpTool(base, secondClient.token, 'imstage_get_scenario', { projectId, scenarioId }),
       'scenario via second client',
@@ -495,7 +529,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     const edgeScenario = toolOk(
       await mcpTool(base, token, 'imstage_create_scenario', {
         projectId: edgeProjectId,
-        scenario: { name: '水印场景', preset: 'custom', caseCount: 3, platform: 'whatsapp' },
+        scenario: { name: '水印场景', preset: 'custom', caseCount: 3, platform: 'whatsapp', autoExport: false },
       }),
       'edge scenario',
     );
@@ -563,7 +597,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     const created = await jsonFetch(base, `/api/projects/${edgeProjectId}/scenarios`, {
       method: 'POST',
       cookie: alice.cookie,
-      body: { scenario: { name: '去重场景', preset: 'custom', caseCount: 6, platform: 'whatsapp' } },
+      body: { scenario: { name: '去重场景', preset: 'custom', caseCount: 6, platform: 'whatsapp', autoExport: false } },
     });
     assert.equal(created.res.status, 200);
     const dedupeScenarioId = created.data.scenario.scenarioId;
@@ -803,7 +837,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     const consistency = toolOk(
       await mcpTool(base, token, 'imstage_create_scenario', {
         projectId: edgeProjectId,
-        scenario: { name: '一致性场景', preset: 'custom', caseCount: 4, platform: 'whatsapp' },
+        scenario: { name: '一致性场景', preset: 'custom', caseCount: 4, platform: 'whatsapp', autoExport: false },
       }),
       'consistency scenario',
     );
@@ -1006,7 +1040,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     const bobScenario = toolOk(
       await mcpTool(base, bobToken, 'imstage_create_scenario', {
         projectId: bobProject.id,
-        scenario: { name: 'Bob 场景', preset: 'custom', caseCount: 100, platform: 'whatsapp' },
+        scenario: { name: 'Bob 场景', preset: 'custom', caseCount: 100, platform: 'whatsapp', autoExport: false },
       }),
       'bob scenario',
     );
@@ -1036,7 +1070,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     );
     assert.equal(bobStatus.totals.submittedCases, 100);
     assert.equal(bobStatus.totals.accountScenes, 100);
-    assert.equal(bobStatus.status, 'awaiting_delivery');
+    assert.equal(bobStatus.status, 'ready');
 
     // One more scene must not push the account past the cap.
     const overflow = toolErr(
@@ -1144,8 +1178,8 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     assert.equal(accountToolsForScopes(['imstage.scenes']).length, 6);
     assert.equal(
       accountToolsForScopes(['imstage.scenes', 'imstage.projects']).length,
-      23,
-      'full grants see the six scene tools plus the 17 project tools',
+      27,
+      'full grants see the six scene tools plus the 21 project/delivery tools',
     );
   });
 });

@@ -10,6 +10,13 @@ export { ProjectsError, projectsError, isTerminalJobStatus, isRetryableTaskStatu
 export { createProjectAutomation } from './automation.mjs';
 export { AUTOMATION_SCHEMA_SQL, installAutomationSchema } from './automation-store.mjs';
 export {
+  DEFAULT_RENDER_OPTIONS,
+  EXPORT_LIMITS,
+  EXPORT_SCHEMA_SQL,
+  createProjectExportService,
+  installExportSchema,
+} from './exports/index.mjs';
+export {
   PROJECT_RECIPE_VERSION,
   PROJECT_TYPES,
   SCENARIO_PRESETS,

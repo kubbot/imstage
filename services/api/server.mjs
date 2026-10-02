@@ -20,6 +20,7 @@ import http from 'node:http';
 import { isIP } from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -1413,6 +1414,8 @@ async function handleProjectDelete(ctx, req, res, projectId) {
     nowMs: ctx.nowMs(),
   });
   for (const job of activeJobs) ctx.projects.queue.cancel(job.id);
+  // Project deletion cancels and purges every own export, ticket and file.
+  await ctx.exports.purgeProject({ userId: session.user.id, projectId });
   sendJson(req, res, 200, { ok: true, detachedScenes: result.detachedScenes });
 }
 
@@ -1654,12 +1657,16 @@ async function handleContentBatchCreate(ctx, req, res, projectId) {
   requireJsonContentType(req);
   const body = await readJsonBody(req, BATCH_BODY_LIMIT, AUTH_DEADLINE_MS);
   recheckSession(ctx, req, session);
-  const receipt = ctx.automation.createContentBatch({
+  const receipt = await ctx.automation.createContentBatch({
     userId: session.user.id,
     projectId,
     input: body,
     idempotencyKey: body.clientIdempotencyKey ?? body.idempotencyKey ?? null,
     origin: 'http',
+    principal: { kind: 'session', id: session.sessionId },
+    // Re-checked after the async defaults gate and immediately before the
+    // transactional write: a session that expired mid-await never commits.
+    authorizeCheck: () => recheckSession(ctx, req, session),
   });
   sendJson(req, res, 200, { item: receipt, deduplicated: receipt.deduplicated === true });
 }
@@ -1673,6 +1680,157 @@ function handleContentBatchGet(ctx, req, res, projectId, batchId) {
 function handleProjectStatus(ctx, req, res, projectId) {
   const session = requireSession(ctx, req);
   sendJson(req, res, 200, ctx.automation.getProjectStatus({ userId: session.user.id, projectId }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Project export delivery routes                                      */
+/* ------------------------------------------------------------------ */
+
+const EXPORT_BODY_KEYS = new Set(['expectedRevision', 'idempotencyKey', 'scenarioId', 'sceneIds', 'renderOptions', 'allowPartial']);
+
+function handleExportList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.exports.list({ userId: session.user.id, projectId }));
+}
+
+async function handleExportCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  for (const key of Object.keys(body)) {
+    if (!EXPORT_BODY_KEYS.has(key)) throw new HttpError(400, 'invalid_request', `未知字段：${key}`);
+  }
+  recheckSession(ctx, req, session);
+  const result = ctx.exports.enqueue({
+    userId: session.user.id,
+    projectId,
+    principal: { kind: 'session', id: session.sessionId },
+    origin: 'http',
+    input: {
+      expectedRevision: body.expectedRevision,
+      idempotencyKey: body.idempotencyKey ?? null,
+      scenarioId: body.scenarioId,
+      sceneIds: body.sceneIds,
+      renderOptions: body.renderOptions,
+      allowPartial: body.allowPartial === true,
+    },
+  });
+  sendJson(req, res, 200, { item: result.export, deduplicated: result.deduplicated === true });
+}
+
+function handleExportGet(ctx, req, res, projectId, exportId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { item: ctx.exports.get({ userId: session.user.id, projectId, exportId }).export });
+}
+
+async function handleExportAction(ctx, req, res, projectId, exportId, action) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const result =
+    action === 'retry'
+      ? ctx.exports.retry({
+          userId: session.user.id,
+          projectId,
+          exportId,
+          principal: { kind: 'session', id: session.sessionId },
+          idempotencyKey: body.idempotencyKey ?? null,
+        })
+      : ctx.exports.cancel({
+          userId: session.user.id,
+          projectId,
+          exportId,
+          idempotencyKey: body.idempotencyKey ?? null,
+        });
+  sendJson(req, res, 200, {
+    item: result.export,
+    ...(action === 'cancel' ? { cancelled: result.cancelled === true } : {}),
+    deduplicated: result.deduplicated === true,
+  });
+}
+
+/** Owner download auth: Cookie session OR Bearer token carrying both scopes. */
+async function exportOwnerAuth(ctx, req) {
+  const session = loadSession(ctx, req);
+  if (session) return { userId: session.user.id };
+  const header = req.headers.authorization;
+  const match = typeof header === 'string' ? /^Bearer\s+(.+)$/i.exec(header.trim()) : null;
+  if (match) {
+    try {
+      const auth = await ctx.oauth.provider.verifyAccessToken(match[1]);
+      const scopes = Array.isArray(auth?.scopes) ? auth.scopes : [];
+      if (typeof auth?.extra?.userId === 'string' && scopes.includes('imstage.scenes') && scopes.includes('imstage.projects')) {
+        return { userId: auth.extra.userId };
+      }
+    } catch {
+      /* fall through to 401 */
+    }
+  }
+  throw new HttpError(401, 'unauthorized', '请先登录或提供有效 Bearer 授权');
+}
+
+function sendExportZip(req, res, target) {
+  let stat;
+  try {
+    stat = fs.statSync(target.filePath);
+  } catch {
+    // The file may have been purged between check and open — never leak the
+    // private path, just report the bounded expiry error.
+    throw new HttpError(410, 'download_expired', '导出文件已过期或不存在，请重新导出');
+  }
+  res.writeHead(200, {
+    ...API_SECURITY_HEADERS,
+    'Content-Type': 'application/zip',
+    'Content-Length': stat.size,
+    // Server-generated filename only; never user input or filesystem paths.
+    'Content-Disposition': `attachment; filename="${target.fileName}"`,
+    'Cache-Control': 'no-store',
+  });
+  const stream = fs.createReadStream(target.filePath);
+  stream.on('error', () => {
+    // Mid-stream failure (cleanup/delete race): destroy the response instead of
+    // throwing an unhandled ENOENT or writing a second response.
+    res.destroy();
+  });
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
+
+async function handleExportDownload(ctx, req, res, projectId, exportId) {
+  const url = new URL(req.url, 'http://internal');
+  // Ticket is a query secret: never logged, never echoed back.
+  const ticket = url.searchParams.get('ticket');
+  if (typeof ticket === 'string' && ticket !== '') {
+    // Anonymous bounded capability: one ZIP, revocable, expiring.
+    sendExportZip(req, res, ctx.exports.resolveDownloadTicket({ ticket, projectId, exportId }));
+    return;
+  }
+  const auth = await exportOwnerAuth(ctx, req);
+  sendExportZip(req, res, ctx.exports.openDownload({ userId: auth.userId, projectId, exportId }));
+}
+
+async function handleExportTicket(ctx, req, res, projectId, exportId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const ticket = ctx.exports.issueDownloadTicket({
+    userId: session.user.id,
+    projectId,
+    exportId,
+    principal: { kind: 'session', id: session.sessionId },
+  });
+  // The plaintext ticket exists only in this response; only its hash is stored.
+  sendJson(req, res, 200, {
+    ticket: ticket.ticket,
+    ticketUrl: ticket.ticketUrl,
+    exportId: ticket.exportId,
+    expiresAt: ticket.expiresAt,
+  }, { 'Cache-Control': 'no-store' });
 }
 
 /* ------------------------------------------------------------------ */
@@ -2408,6 +2566,43 @@ async function route(ctx, req, res) {
     return;
   }
 
+  const projectExportsMatch = /^\/api\/projects\/([^/]+)\/exports(?:\/([^/]+)(?:\/(retry|cancel|download|download-ticket))?)?$/.exec(pathname);
+  if (projectExportsMatch) {
+    const projectId = projects.validateProjectId(projectExportsMatch[1]);
+    const exportId = projectExportsMatch[2];
+    const action = projectExportsMatch[3];
+    if (exportId === undefined) {
+      if (method === 'GET') {
+        handleExportList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleExportCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(exportId)) throw new HttpError(404, 'not_found', '导出不存在');
+    if (action === 'retry' || action === 'cancel') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportAction(ctx, req, res, projectId, exportId, action);
+      return;
+    }
+    if (action === 'download') {
+      if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportDownload(ctx, req, res, projectId, exportId);
+      return;
+    }
+    if (action === 'download-ticket') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportTicket(ctx, req, res, projectId, exportId);
+      return;
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleExportGet(ctx, req, res, projectId, exportId);
+    return;
+  }
+
   const projectScenesMatch = /^\/api\/projects\/([^/]+)\/scenes(?:\/([^/]+))?$/.exec(pathname);
   if (projectScenesMatch) {
     const projectId = projects.validateProjectId(projectScenesMatch[1]);
@@ -2834,9 +3029,43 @@ export function createApp(options = {}) {
   const renderService =
     options.renderService ?? createRenderService({ executablePath, maxConcurrent: 1 });
   const preferencesReader = preferences.createPreferencesReader(db);
+  // Deterministic project file delivery: one shared export service per process.
+  // Dedicated dir: IMSTAGE_PROJECT_EXPORT_DIR, default <db dir>/project-exports.
+  // A memory database requires an explicit dir or uses its own temporary dir
+  // that is removed on close() — never a permanent orphan location.
+  let resolvedExportDir = options.exportDir ?? (options.env ?? process.env).IMSTAGE_PROJECT_EXPORT_DIR ?? null;
+  let ownsExportDir = false;
+  if (!resolvedExportDir) {
+    if (config.dbPath === ':memory:') {
+      resolvedExportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imstage-project-exports-'));
+      ownsExportDir = true;
+    } else {
+      resolvedExportDir = path.join(path.dirname(config.dbPath), 'project-exports');
+    }
+  }
+  const projectExports = projects.createProjectExportService({
+    db,
+    renderService,
+    exportDir: resolvedExportDir,
+    nowMs: config.nowMs,
+    logger: config.logger,
+    appOrigin: config.appOrigin,
+    // Test seam for the slow FS boundary (publish-race tests); production uses
+    // the real fs.promises operations.
+    ...(options.exportFileOps ? { fileOps: options.exportFileOps } : {}),
+  });
+  // Truthful restart recovery + real retention sweep run before serving.
+  projectExports.start();
   // One account automation application service shared by the HTTP routes and
-  // the account MCP tools, so both surfaces enforce the same rules.
-  const projectAutomation = projects.createProjectAutomation({ db, nowMs: config.nowMs });
+  // the account MCP tools, so both surfaces enforce the same rules. The export
+  // service hooks in here so auto-export/status stay consistent across both.
+  const projectAutomation = projects.createProjectAutomation({
+    db,
+    nowMs: config.nowMs,
+    readPreferences: (userId) => preferencesReader.get(userId),
+    exportService: projectExports,
+    onScenarioContentReady: (args) => projectExports.enqueueAutoScenario(args),
+  });
   const oauth = createOAuthIntegration({
     db,
     appOrigin: config.appOrigin,
@@ -2855,6 +3084,7 @@ export function createApp(options = {}) {
     agent: { config: agentConfig, runtime: auditedAgentRuntime('agent'), limiter: agentLimiter },
     projects: { queue: batchQueue },
     automation: projectAutomation,
+    exports: projectExports,
     preferences: preferencesReader,
     oauth,
     mcp: {
@@ -2872,6 +3102,10 @@ export function createApp(options = {}) {
           // grant as provenance. No ephemeral token is ever created or stored.
           scopes,
           grantId,
+          // Same shared services as the HTTP routes: one export queue, one set
+          // of hooks and preferences for both surfaces.
+          automation: projectAutomation,
+          exportService: projectExports,
           // Default fill resolves account avatars/mark on the server, so the
           // model never has to send them and only sees a small summary. Note:
           // scene-bearing tool results still return the stored scene verbatim
@@ -2901,6 +3135,7 @@ export function createApp(options = {}) {
   const close = async () => {
     if (closed) return;
     closed = true;
+    await projectExports.stop();
     await batchQueue.stop();
     await new Promise((resolve) => {
       if (!server.listening) {
@@ -2920,6 +3155,9 @@ export function createApp(options = {}) {
       /* already closed */
     }
     clearInterval(auditTimer);
+    if (ownsExportDir) {
+      await fs.promises.rm(resolvedExportDir, { recursive: true, force: true }).catch(() => {});
+    }
   };
 
   return { server, close, db, config };
