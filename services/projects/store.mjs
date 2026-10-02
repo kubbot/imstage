@@ -23,6 +23,9 @@ export const PROJECT_SCHEMA_SQL = `
     rules      TEXT NOT NULL DEFAULT '',
     platform   TEXT NOT NULL DEFAULT 'wechat',
     watermark_enabled INTEGER NOT NULL DEFAULT 1,
+    type       TEXT NOT NULL DEFAULT 'custom',
+    recipe_version INTEGER NOT NULL DEFAULT 1,
+    brief_json TEXT NOT NULL DEFAULT '{}',
     revision   INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -90,13 +93,20 @@ export const PROJECT_SCHEMA_SQL = `
  * Install the project/batch tables and apply additive column migrations.
  * Existing rows and scenes are never rewritten or deleted; a legacy database
  * simply gains NULL template/variant columns and a watermark column defaulting
- * to on (1), so every legacy project keeps its watermark.
+ * to on (1), so every legacy project keeps its watermark. Legacy projects also
+ * gain `type='custom'`, `recipe_version=1` and an empty brief — the custom
+ * recipe v1 migration — without touching name/rules/revision.
  */
 export function installProjectSchema(db) {
   db.exec(PROJECT_SCHEMA_SQL);
   const columns = (table) => new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name));
   const projectColumns = columns('projects');
-  for (const [name, ddl] of [['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1']]) {
+  for (const [name, ddl] of [
+    ['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1'],
+    ['type', "TEXT NOT NULL DEFAULT 'custom'"],
+    ['recipe_version', 'INTEGER NOT NULL DEFAULT 1'],
+    ['brief_json', "TEXT NOT NULL DEFAULT '{}'"],
+  ]) {
     if (!projectColumns.has(name)) db.exec(`ALTER TABLE projects ADD COLUMN ${name} ${ddl}`);
   }
   const jobColumns = columns('batch_jobs');
@@ -129,6 +139,16 @@ export function nowIso(ms) {
   return new Date(ms).toISOString();
 }
 
+function parseBrief(value) {
+  if (typeof value !== 'string' || value === '') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function projectItem(row, sceneCount = 0) {
   return {
     id: row.id,
@@ -137,6 +157,10 @@ function projectItem(row, sceneCount = 0) {
     platform: row.platform,
     // Legacy rows migrate to 1 (on); only an explicit 0 turns the watermark off.
     watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1,
+    // Legacy rows migrate to the custom recipe v1 with an empty brief.
+    type: row.type ?? 'custom',
+    recipeVersion: Number(row.recipe_version ?? 1),
+    brief: parseBrief(row.brief_json),
     revision: Number(row.revision),
     updatedAt: row.updated_at,
     sceneCount: Number(sceneCount),
@@ -150,7 +174,7 @@ function projectItem(row, sceneCount = 0) {
 export function listProjects(db, userId) {
   const rows = db
     .prepare(
-      `SELECT p.id, p.name, p.rules, p.platform, p.watermark_enabled, p.revision, p.updated_at,
+      `SELECT p.id, p.name, p.rules, p.platform, p.watermark_enabled, p.type, p.recipe_version, p.brief_json, p.revision, p.updated_at,
               (SELECT COUNT(*) FROM scene_projects sp
                 WHERE sp.user_id = p.user_id AND sp.project_id = p.id) AS scene_count
        FROM projects p
@@ -164,7 +188,7 @@ export function listProjects(db, userId) {
 export function getProjectRow(db, userId, projectId) {
   return (
     db
-      .prepare('SELECT id, name, rules, platform, watermark_enabled, revision, updated_at FROM projects WHERE user_id = ? AND id = ?')
+      .prepare('SELECT id, name, rules, platform, watermark_enabled, type, recipe_version, brief_json, revision, updated_at FROM projects WHERE user_id = ? AND id = ?')
       .get(userId, projectId) ?? null
   );
 }
@@ -186,7 +210,16 @@ export function getProjectItem(db, userId, projectId) {
 export function getProjectContext(db, userId, projectId) {
   const row = getProjectRow(db, userId, projectId);
   if (!row) return null;
-  return { id: row.id, name: row.name, rules: row.rules, platform: row.platform, watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1 };
+  return {
+    id: row.id,
+    name: row.name,
+    rules: row.rules,
+    platform: row.platform,
+    watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1,
+    type: row.type ?? 'custom',
+    recipeVersion: Number(row.recipe_version ?? 1),
+    brief: parseBrief(row.brief_json),
+  };
 }
 
 export function countProjects(db, userId) {
@@ -194,52 +227,65 @@ export function countProjects(db, userId) {
   return Number(row?.total ?? 0);
 }
 
-export function createProject(db, { userId, projectId, name, rules, platform, watermarkEnabled = true, nowMs }) {
+export function createProject(db, { userId, projectId, name, rules, platform, watermarkEnabled = true, type = 'custom', recipeVersion = 1, brief = {}, nowMs }) {
+  return withTransaction(db, () => createProjectRow(db, { userId, projectId, name, rules, platform, watermarkEnabled, type, recipeVersion, brief, nowMs }));
+}
+
+/**
+ * Non-transactional insert so the account automation service can run several
+ * writes inside one enclosing transaction (see `services/projects/automation.mjs`).
+ */
+export function createProjectRow(db, { userId, projectId, name, rules, platform, watermarkEnabled = true, type = 'custom', recipeVersion = 1, brief = {}, nowMs }) {
   const stamp = nowIso(nowMs);
-  return withTransaction(db, () => {
-    if (countProjects(db, userId) >= MAX_PROJECTS_PER_USER) {
-      throw projectsError(409, 'project_limit_reached', `每个账号最多保存 ${MAX_PROJECTS_PER_USER} 个项目`);
-    }
-    db.prepare(
-      `INSERT INTO projects (user_id, id, name, rules, platform, watermark_enabled, revision, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).run(userId, projectId, name, rules, platform, watermarkEnabled ? 1 : 0, stamp, stamp);
-    return projectItem(
-      { id: projectId, name, rules, platform, watermark_enabled: watermarkEnabled ? 1 : 0, revision: 1, updated_at: stamp },
-      0,
-    );
-  });
+  if (countProjects(db, userId) >= MAX_PROJECTS_PER_USER) {
+    throw projectsError(409, 'project_limit_reached', `每个账号最多保存 ${MAX_PROJECTS_PER_USER} 个项目`);
+  }
+  db.prepare(
+    `INSERT INTO projects (user_id, id, name, rules, platform, watermark_enabled, type, recipe_version, brief_json, revision, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+  ).run(userId, projectId, name, rules, platform, watermarkEnabled ? 1 : 0, type, recipeVersion, JSON.stringify(brief ?? {}), stamp, stamp);
+  return projectItem(
+    { id: projectId, name, rules, platform, watermark_enabled: watermarkEnabled ? 1 : 0, type, recipe_version: recipeVersion, brief_json: JSON.stringify(brief ?? {}), revision: 1, updated_at: stamp },
+    0,
+  );
 }
 
 /**
  * Update a project. An omitted `watermarkEnabled` preserves the stored switch
  * (only an explicit boolean changes it), so a partial update can never quietly
- * turn a legacy project's watermark back on.
+ * turn a legacy project's watermark back on. Omitted `type`/`brief` keep the
+ * stored recipe and brief the same way.
  */
-export function updateProject(db, { userId, projectId, name, rules, platform, watermarkEnabled, revision, nowMs }) {
+export function updateProject(db, args) {
+  return withTransaction(db, () => updateProjectRow(db, args));
+}
+
+/** Non-transactional update for the enclosing automation transaction. */
+export function updateProjectRow(db, { userId, projectId, name, rules, platform, watermarkEnabled, type, brief, revision, nowMs }) {
   const stamp = nowIso(nowMs);
-  return withTransaction(db, () => {
-    const row = getProjectRow(db, userId, projectId);
-    if (!row) throw projectsError(404, 'not_found', '项目不存在');
-    if (Number(row.revision) !== revision) {
-      throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
-    }
-    const storedWatermark = watermarkEnabled === undefined ? Number(row.watermark_enabled ?? 1) === 1 : watermarkEnabled === true;
-    const result = db
-      .prepare(
-        `UPDATE projects
-         SET name = ?, rules = ?, platform = ?, watermark_enabled = ?, revision = revision + 1, updated_at = ?
-         WHERE user_id = ? AND id = ? AND revision = ?`,
-      )
-      .run(name, rules, platform, storedWatermark ? 1 : 0, stamp, userId, projectId, revision);
-    if (result.changes !== 1) {
-      throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
-    }
-    return projectItem(
-      { id: projectId, name, rules, platform, watermark_enabled: storedWatermark ? 1 : 0, revision: revision + 1, updated_at: stamp },
-      countProjectScenes(db, userId, projectId),
-    );
-  });
+  const row = getProjectRow(db, userId, projectId);
+  if (!row) throw projectsError(404, 'not_found', '项目不存在');
+  if (Number(row.revision) !== revision) {
+    throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
+  }
+  const storedWatermark = watermarkEnabled === undefined ? Number(row.watermark_enabled ?? 1) === 1 : watermarkEnabled === true;
+  const storedType = type === undefined ? (row.type ?? 'custom') : type;
+  const storedBrief = brief === undefined ? parseBrief(row.brief_json) : brief;
+  const storedRecipeVersion = type === undefined ? Number(row.recipe_version ?? 1) : 1;
+  const result = db
+    .prepare(
+      `UPDATE projects
+       SET name = ?, rules = ?, platform = ?, watermark_enabled = ?, type = ?, recipe_version = ?, brief_json = ?, revision = revision + 1, updated_at = ?
+       WHERE user_id = ? AND id = ? AND revision = ?`,
+    )
+    .run(name, rules, platform, storedWatermark ? 1 : 0, storedType, storedRecipeVersion, JSON.stringify(storedBrief ?? {}), stamp, userId, projectId, revision);
+  if (result.changes !== 1) {
+    throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
+  }
+  return projectItem(
+    { id: projectId, name, rules, platform, watermark_enabled: storedWatermark ? 1 : 0, type: storedType, recipe_version: storedRecipeVersion, brief_json: JSON.stringify(storedBrief ?? {}), revision: revision + 1, updated_at: stamp },
+    countProjectScenes(db, userId, projectId),
+  );
 }
 
 export function countProjectScenes(db, userId, projectId) {

@@ -41,6 +41,27 @@ export function validateTokenName(raw) {
 }
 
 /**
+ * Explicit personal-token scope selection. `undefined`/`null` adopts the full
+ * supported scope set (the Web UI asks for both scene and project permissions);
+ * callers that only want the legacy scene surface pass `['imstage.scenes']`
+ * explicitly. Unsupported scopes are rejected, never silently dropped.
+ */
+export function validateTokenScopes(raw) {
+  if (raw === undefined || raw === null) return [...SUPPORTED_SCOPES];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw integrationError(400, 'invalid_scope', 'scopes 必须是非空数组');
+  }
+  const scopes = [];
+  for (const scope of raw) {
+    if (typeof scope !== 'string' || !SUPPORTED_SCOPES.includes(scope)) {
+      throw integrationError(400, 'invalid_scope', `scope 不受支持：${String(scope)}`);
+    }
+    if (!scopes.includes(scope)) scopes.push(scope);
+  }
+  return scopes;
+}
+
+/**
  * Connection lifecycle status shown to the account owner.
  *
  * `awaiting_auth`  the grant exists but no token has ever been validated
@@ -131,7 +152,8 @@ export function countActiveConnections(db, userId) {
  * Create a personal access token connection. Returns the plaintext token once;
  * only its hash is stored.
  */
-export function createPersonalToken(db, { userId, name, resource, nowMs, ttlMs = PERSONAL_TOKEN_TTL_MS }) {
+export function createPersonalToken(db, { userId, name, resource, scopes = SUPPORTED_SCOPES, nowMs, ttlMs = PERSONAL_TOKEN_TTL_MS }) {
+  const grantedScopes = validateTokenScopes(scopes);
   if (countActiveConnections(db, userId) >= MAX_CONNECTIONS_PER_USER) {
     throw integrationError(429, 'connection_limit_reached', `最多允许 ${MAX_CONNECTIONS_PER_USER} 个连接`);
   }
@@ -147,7 +169,7 @@ export function createPersonalToken(db, { userId, name, resource, nowMs, ttlMs =
       clientId: null,
       clientName: name,
       resource,
-      scopes: SUPPORTED_SCOPES,
+      scopes: grantedScopes,
       nowMs,
     });
     insertToken(db, {

@@ -11,6 +11,8 @@
 //   - two-user isolation (scenes, idempotency, render cache)
 //   - MCP create -> Web read -> Web write -> MCP read -> MCP update -> render
 //   - tool metadata (securitySchemes, annotations) and no instance tools
+//   - per-scope tool surface: full grants see project tools, legacy
+//     scenes-only credentials keep exactly the six scene tools
 //   - standalone /mcp instance server still behaves unchanged
 //
 // All storage is temporary; the renderer is an injected deterministic stub, so
@@ -398,7 +400,7 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     for (const prm of prms) {
       assert.equal(prm.resource, RESOURCE);
       assert.deepEqual(prm.authorization_servers, [`${APP_ORIGIN}/api/oauth`]);
-      assert.deepEqual(prm.scopes_supported, ['imstage.scenes']);
+      assert.deepEqual(prm.scopes_supported, ['imstage.scenes', 'imstage.projects']);
     }
 
     const metadataDocs = [];
@@ -627,7 +629,9 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal(consent.body.requestId, requestId);
     assert.equal(consent.body.clientName, 'Test Client');
     assert.equal(consent.body.redirectHost, '127.0.0.1:4555');
-    assert.deepEqual(consent.body.scopes, ['imstage.scenes']);
+    // No explicit scope requested: the consent defaults to the full scope set
+    // (scenes + projects) and the UI must explain both permissions.
+    assert.deepEqual(consent.body.scopes, ['imstage.scenes', 'imstage.projects']);
 
     // GET binds the pending request to the first authenticated viewer and never
     // approves; it stays usable and still requires an explicit POST.
@@ -796,7 +800,8 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.ok(token.length >= 32);
     assert.equal(connection.kind, 'token');
     assert.equal(connection.clientName, 'CLI 客户端');
-    assert.deepEqual(connection.scopes, ['imstage.scenes']);
+    // Personal tokens adopt the full supported scope set by default.
+    assert.deepEqual(connection.scopes, ['imstage.scenes', 'imstage.projects']);
     assert.equal(connection.lastUsedAt, null);
     assert.equal(connection.status, 'awaiting_auth');
 
@@ -901,8 +906,8 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
     assert.equal(cleanup.status, 200);
   });
 
-  await t.test('MCP exposes only the account tools with OAuth securitySchemes', async () => {
-    const { tokens } = await obtainTokens(base, alice.cookie);
+  await t.test('MCP exposes only the account scene tools with OAuth securitySchemes (scenes-only credential)', async () => {
+    const { tokens } = await obtainTokens(base, alice.cookie, { scope: 'imstage.scenes' });
     const init = await mcp(base, tokens.access_token, {
       jsonrpc: '2.0',
       id: 1,
@@ -963,6 +968,98 @@ test('account-owned ChatGPT/MCP connections', async (t) => {
         .get(table);
       assert.equal(row, undefined, `${table} must not exist in the account database`);
     }
+  });
+
+  await t.test('default full scopes reveal the account project tools with per-tool schemes', async () => {
+    const { tokens } = await obtainTokens(base, alice.cookie, {
+      scope: 'imstage.scenes imstage.projects',
+    });
+    const listed = await mcp(base, tokens.access_token, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+    assert.equal(listed.res.status, 200, JSON.stringify(listed.body));
+    const tools = listed.body.result.tools;
+    const names = tools.map((tool) => tool.name);
+    for (const name of [
+      'imstage_list_project_types',
+      'imstage_create_project',
+      'imstage_list_projects',
+      'imstage_get_project',
+      'imstage_update_project',
+      'imstage_create_scenario',
+      'imstage_list_scenarios',
+      'imstage_get_scenario',
+      'imstage_create_template',
+      'imstage_list_templates',
+      'imstage_get_template',
+      'imstage_update_template',
+      'imstage_delete_template',
+      'imstage_create_batch',
+      'imstage_get_batch',
+      'imstage_list_batches',
+      'imstage_get_project_status',
+    ]) {
+      assert.ok(names.includes(name), `missing account tool ${name}`);
+    }
+    // Per-tool OAuth schemes: scene tools need scenes; project tools need both.
+    const sceneTool = tools.find((tool) => tool.name === 'imstage_create_scene');
+    assert.deepEqual(sceneTool.securitySchemes, [{ type: 'oauth2', scopes: ['imstage.scenes'] }]);
+    const batchTool = tools.find((tool) => tool.name === 'imstage_create_batch');
+    assert.deepEqual(batchTool.securitySchemes, [{ type: 'oauth2', scopes: ['imstage.scenes', 'imstage.projects'] }]);
+    for (const tool of tools) {
+      assert.equal(typeof tool.annotations.readOnlyHint, 'boolean', tool.name);
+      assert.equal(tool.annotations.openWorldHint, false, tool.name);
+    }
+  });
+
+  await t.test('legacy scenes-only credentials keep exactly the six scene tools', async () => {
+    const { tokens } = await obtainTokens(base, alice.cookie, { scope: 'imstage.scenes' });
+    const listed = await mcp(base, tokens.access_token, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+    assert.equal(listed.res.status, 200, JSON.stringify(listed.body));
+    const names = listed.body.result.tools.map((tool) => tool.name).sort();
+    assert.deepEqual(names, [
+      'imstage_create_scene',
+      'imstage_get_capabilities',
+      'imstage_get_scene',
+      'imstage_list_scenes',
+      'imstage_render_scene',
+      'imstage_update_scene',
+    ]);
+    for (const tool of listed.body.result.tools) {
+      assert.deepEqual(tool.securitySchemes, [{ type: 'oauth2', scopes: ['imstage.scenes'] }], tool.name);
+    }
+    // Direct invocation of a project tool is rejected: hidden names never
+    // reach a handler even when the token is otherwise valid.
+    const client = await connectMcp(base, tokens.access_token);
+    const error = toolError(await client.callTool({ name: 'imstage_get_project_status', arguments: { projectId: '00000000-0000-0000-0000-000000000000' } }));
+    assert.equal(error.code, 'invalid_request');
+    assert.match(error.message, /未知工具/);
+  });
+
+  await t.test('personal tokens honor explicit scope selection and reject unknown scopes', async () => {
+    const legacy = await fetch(`${base}/api/connections/tokens`, {
+      method: 'POST',
+      headers: mutationHeaders(alice.cookie),
+      body: JSON.stringify({ name: '仅作品', scopes: ['imstage.scenes'] }),
+    });
+    assert.equal(legacy.status, 200);
+    const legacyBody = await legacy.json();
+    assert.deepEqual(legacyBody.connection.scopes, ['imstage.scenes']);
+    const legacyListed = await mcp(base, legacyBody.token, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+    assert.equal(legacyListed.body.result.tools.length, 6, 'scenes-only personal token keeps 6 tools');
+
+    const invalid = await fetch(`${base}/api/connections/tokens`, {
+      method: 'POST',
+      headers: mutationHeaders(alice.cookie),
+      body: JSON.stringify({ name: '错误范围', scopes: ['admin'] }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error.code, 'invalid_scope');
+
+    const cleanup = await fetch(`${base}/api/connections/${legacyBody.connection.id}`, {
+      method: 'DELETE',
+      headers: mutationHeaders(alice.cookie),
+      body: '{}',
+    });
+    assert.equal(cleanup.status, 200);
   });
 
   await t.test('tokens bound to another audience are rejected', async () => {

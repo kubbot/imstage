@@ -111,7 +111,7 @@ function ConsentView({ requestId }: { requestId?: string }) {
     <p>{zh ? '当前账号' : 'Signed in as'} <strong>{user?.email}</strong></p>
     {!details && !error && <p role="status">{zh ? '正在读取授权请求…' : 'Loading the authorization request…'}</p>}
     {details && <><div className="connection-consent-details"><h2>{details.clientName}</h2><p>{zh ? '将获得以下权限：' : 'Requests permission to:'}</p>
-      <ul>{details.scopes.map(scope => <li key={scope}>{scope === 'imstage.scenes' ? (zh ? '读取、创建、修改你的聊天作品，并渲染为图片' : 'Read, create, edit and render your scenes') : scope}</li>)}</ul>
+      <ul>{details.scopes.map(scope => <li key={scope}>{scope === 'imstage.scenes' ? (zh ? '读取、创建、修改你的聊天作品，并渲染为图片' : 'Read, create, edit and render your scenes') : scope === 'imstage.projects' ? (zh ? '读取并管理你的项目、场景计划、模板与内容批次（不含模型调用；文件交付尚未开放）' : 'Read and manage your projects, scenario plans, templates and content batches (no model calls; file delivery not included yet)') : scope}</li>)}</ul>
       <p className="connection-note">{zh ? '授权后返回：' : 'Return to: '}<strong>{details.redirectHost}</strong></p>
       {loopbackReturn && <p className="connection-note">{zh ? '这是本机客户端。授权后会由浏览器自动返回，无需复制令牌或地址。' : 'This is a local client. The browser returns to it automatically; there is no token or URL to copy.'}</p>}
       <p className="connection-note">{zh ? '可以随时在「已连接应用」中断开。' : 'You can disconnect at any time from Connected apps.'}</p></div>

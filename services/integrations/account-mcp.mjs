@@ -26,7 +26,8 @@ import { integerField, rejectUnknownKeys } from '../mcp/args.mjs';
 import { MAX_STORED_RENDERS } from '../mcp/limits.mjs';
 import { newRunId as newAuditRunId, recordGenerationAudit, isCurrentPolicyVersion, POLICY_VERSION } from '../audit/generation-audit.mjs';
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
-import { SUPPORTED_SCOPES } from './scopes.mjs';
+import { SCENE_SCOPE, SUPPORTED_SCOPES, hasScopes } from './scopes.mjs';
+import { ACCOUNT_PROJECT_TOOLS, PROJECT_TOOL_SCOPES, createAccountProjectHandlers } from './account-projects.mjs';
 import { isUniqueConstraintError, withTransaction } from './util.mjs';
 
 export const ACCOUNT_MCP_SERVER_NAME = 'imstage-account-mcp';
@@ -342,25 +343,42 @@ const LIST_SCENES_TOOL = {
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 };
 
-/** Every account tool requires the OAuth scope and is annotated truthfully. */
+/** The six scene tools keep their original schemas and semantics and require
+ * only the scenes scope. */
 export const ACCOUNT_TOOLS = Object.freeze(
   [...TOOL_DEFINITIONS.filter((tool) => ACCOUNT_BASE_TOOLS.has(tool.name)), LIST_SCENES_TOOL].map((tool) => ({
     ...tool,
-    securitySchemes: [{ type: 'oauth2', scopes: [...SUPPORTED_SCOPES] }],
+    securitySchemes: [{ type: 'oauth2', scopes: [SCENE_SCOPE] }],
   })),
 );
 
+/**
+ * Account tool list filtered by the scopes the credential actually carries.
+ * A scenes-only credential keeps exactly the six scene tools; the project /
+ * scenario / template / content-batch tools appear only with `imstage.projects`.
+ */
+export function accountToolsForScopes(grantedScopes) {
+  return [...ACCOUNT_TOOLS, ...ACCOUNT_PROJECT_TOOLS].filter((tool) =>
+    hasScopes(grantedScopes, tool.securitySchemes[0].scopes),
+  );
+}
+
 export const ACCOUNT_INSTRUCTIONS =
-  'IMStage 账号 MCP：只操作当前已授权账号自己的作品，不调用模型。流程：imstage_list_scenes 找到 sceneId → imstage_get_scene 读取 → imstage_create_scene / imstage_update_scene(expectedRevision) 确定性保存 → imstage_render_scene 渲染 PNG。场景 id 为服务端生成的 UUID，与网页 #/workspace?scene=ID 相同；返回值中的 webUrl 可直接打开。support 的 platform 与字段见 imstage_get_capabilities。不要传远程图片 URL，只接受内嵌 data:image/...;base64。';
+  'IMStage 账号 MCP：只操作当前已授权账号自己的数据，不调用模型，内容由你生成。作品流程：imstage_list_scenes 找到 sceneId → imstage_get_scene 读取 → imstage_create_scene / imstage_update_scene(expectedRevision) 确定性保存 → imstage_render_scene 渲染 PNG。项目自动化流程：imstage_list_project_types 读配方 → imstage_create_project → imstage_create_scenario 生成 case-001… 计划 → 按计划用 imstage_create_batch 分批提交完整内容（每批 ≤20 条，可带 clientIdempotencyKey 幂等重试）→ imstage_get_project_status 查询缺项并续作。计划不是已完成内容；内容完成只报告 ready/awaiting_delivery，文件交付以后续实现为准。场景 id 为服务端生成的 UUID，与网页 #/workspace?scene=ID 相同；返回值中的 webUrl 可直接打开。不要传远程图片 URL，只接受内嵌 data:image/...;base64。';
 
 function textOk(text, structuredContent) {
   return { content: [{ type: 'text', text }], structuredContent };
 }
 
-function accountCapabilities(defaults = null) {
+function accountCapabilities(defaults = null, includeProjects = false) {
   const base = buildCapabilities();
   const tools = base.tools.filter((tool) => ACCOUNT_BASE_TOOLS.has(tool.name));
   tools.push({ name: 'imstage_list_scenes', readOnly: true, purpose: '列出当前账号最近保存的作品摘要。' });
+  if (includeProjects) {
+    for (const tool of ACCOUNT_PROJECT_TOOLS) {
+      tools.push({ name: tool.name, readOnly: tool.annotations.readOnlyHint === true, purpose: tool.description.slice(0, 80) });
+    }
+  }
   return {
     ...base,
     server: ACCOUNT_MCP_SERVER_NAME,
@@ -381,6 +399,9 @@ function accountCapabilities(defaults = null) {
       webDifference: base.workflow.webDifference,
       accountScope:
         '只读写当前账号的数据；已保存作品与网页“我的作品”共用同一张表，网页修改会被 MCP 读到，MCP 修改也会出现在网页。',
+      projectAutomation: includeProjects
+        ? '项目/场景/案例与内容批次经共享应用服务保存，与网页 /api/projects 数据一致；每批 ≤20 条，内容完成只报告 ready/awaiting_delivery。'
+        : null,
     },
     auth: {
       scheme: 'OAuth 2.1 authorization code + PKCE，或用户创建的私人令牌',
@@ -403,7 +424,13 @@ function accountCapabilities(defaults = null) {
   maxStoredRenders = MAX_STORED_RENDERS,
   authorizeCheck = null,
   readPreferences = null,
+  // Granted scopes + grant reference from the verified credential. tools/list
+  // and every handler guard against scopes the credential does not carry; the
+  // grant reference is recorded as batch provenance, never a raw token.
+  scopes = SUPPORTED_SCOPES,
+  grantId = null,
 }) {
+  const grantedScopes = Array.isArray(scopes) ? [...scopes] : [...SUPPORTED_SCOPES];
   const store = createAccountStore(db, userId, { maxStoredRenders });
   const webUrlBase = `${new URL(appOrigin).origin}/#/workspace?scene=`;
   const webUrlFor = (sceneId) => `${webUrlBase}${encodeURIComponent(sceneId)}`;
@@ -462,7 +489,7 @@ function accountCapabilities(defaults = null) {
     : null;
   const extraHandlers = {
     imstage_get_capabilities: async () => {
-      const capabilities = accountCapabilities(await readDefaults());
+      const capabilities = accountCapabilities(await readDefaults(), hasScopes(grantedScopes, PROJECT_TOOL_SCOPES));
       if (guardedAuthorizeCheck) await guardedAuthorizeCheck();
       return textOk('账号 MCP 能力与边界见 structuredContent。', capabilities);
     },
@@ -472,12 +499,16 @@ function accountCapabilities(defaults = null) {
       const items = store.listScenes({ limit }).map((item) => ({ ...item, webUrl: webUrlFor(item.sceneId) }));
       return textOk(`找到 ${items.length} 个作品。`, { items });
     },
+    // Account project/scenario/template/content-batch tools share one
+    // application service with the HTTP routes and guard the project scope on
+    // every call (also when invoked directly).
+    ...createAccountProjectHandlers({ db, userId, appOrigin, grantedScopes, grantRef: grantId }),
   };
   return createImstageMcpServer({
     store,
     renderService,
     logger,
-    tools: ACCOUNT_TOOLS,
+    tools: accountToolsForScopes(grantedScopes),
     extraHandlers,
     webUrlFor,
     sceneIdFactory: () => crypto.randomUUID(),

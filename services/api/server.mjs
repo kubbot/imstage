@@ -68,10 +68,11 @@ import {
   markConnectionDiscovery,
   revokeAllForUser,
   validateTokenName,
+  validateTokenScopes,
 } from '../integrations/connections.mjs';
 import { createOAuthIntegration } from '../integrations/oauth.mjs';
 import { createAccountMcpServer } from '../integrations/account-mcp.mjs';
-import { REQUIRED_SCOPE, RECENT_SESSION_MS } from '../integrations/scopes.mjs';
+import { REQUIRED_SCOPE, RECENT_SESSION_MS, SUPPORTED_SCOPES } from '../integrations/scopes.mjs';
 import { createRenderService, resolveChromiumExecutable } from '../mcp/render.mjs';
 
 const scryptAsync = promisify(crypto.scrypt);
@@ -458,6 +459,10 @@ function openDatabase(dbPath) {
   // Projects add tables only (no data reset, no scene migration required for
   // existing accounts): scenes associate through `scene_projects`.
   projects.installProjectSchema(db);
+
+  // Project automation: scenarios, planned cases and caller content batches.
+  // Additive only — legacy projects migrate to the custom recipe v1 defaults.
+  projects.installAutomationSchema(db);
 
   // Account-scoped contact library. Additive migration only; existing accounts
   // simply read the empty default until they PUT a library.
@@ -1351,21 +1356,15 @@ async function handleProjectCreate(ctx, req, res) {
   const session = requireSession(ctx, req);
   requireJsonContentType(req);
   const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
-  const name = projects.validateProjectName(body.name);
-  const rules = projects.validateProjectRules(body.rules, '');
-  const platform = projects.validateProjectPlatform(body.platform, projects.DEFAULT_PROJECT_PLATFORM);
-  const watermarkEnabled = projects.validateProjectWatermarkEnabled(body.watermarkEnabled, projects.DEFAULT_PROJECT_WATERMARK);
   recheckSession(ctx, req, session);
-  const item = projects.createProject(ctx.db, {
+  // The account automation application service owns validation, type/brief
+  // handling and idempotency; the MCP tools call the same function.
+  const result = ctx.automation.createProject({
     userId: session.user.id,
-    projectId: crypto.randomUUID(),
-    name,
-    rules,
-    platform,
-    watermarkEnabled,
-    nowMs: ctx.nowMs(),
+    input: body,
+    idempotencyKey: body.idempotencyKey ?? null,
   });
-  sendJson(req, res, 200, { item });
+  sendJson(req, res, 200, { item: result.item, deduplicated: result.deduplicated === true });
 }
 
 function handleProjectGet(ctx, req, res, projectId) {
@@ -1382,32 +1381,17 @@ async function handleProjectUpdate(ctx, req, res, projectId) {
   requireJsonContentType(req);
   const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
   const revision = projects.parseRevision(body.revision);
-  const existing = projects.getProjectRow(ctx.db, session.user.id, projectId);
-  if (!existing) throw new HttpError(404, 'not_found', '项目不存在');
-  const name = body.name === undefined ? existing.name : projects.validateProjectName(body.name);
-  const rules = body.rules === undefined
-    ? existing.rules
-    : projects.validateProjectRules(body.rules, existing.rules);
-  const platform = body.platform === undefined
-    ? existing.platform
-    : projects.validateProjectPlatform(body.platform, existing.platform);
-  // Omitted fields preserve the stored value (the store keeps the old switch);
-  // `null` and other non-booleans are rejected, never coerced.
-  const watermarkEnabled = body.watermarkEnabled === undefined
-    ? undefined
-    : projects.validateProjectWatermarkEnabled(body.watermarkEnabled);
   recheckSession(ctx, req, session);
-  const item = projects.updateProject(ctx.db, {
+  // Omitted fields keep their stored values (including the watermark switch
+  // and the recipe type/brief) — see the automation service.
+  const result = ctx.automation.updateProject({
     userId: session.user.id,
     projectId,
-    name,
-    rules,
-    platform,
-    watermarkEnabled,
-    revision,
-    nowMs: ctx.nowMs(),
+    expectedRevision: revision,
+    input: body,
+    idempotencyKey: body.idempotencyKey ?? null,
   });
-  sendJson(req, res, 200, { item });
+  sendJson(req, res, 200, { item: result.item, deduplicated: result.deduplicated === true });
 }
 
 async function handleProjectDelete(ctx, req, res, projectId) {
@@ -1619,6 +1603,79 @@ async function handleBatchRetry(ctx, req, res, projectId, jobId) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Project automation routes (scenarios / content batches / status)    */
+/* ------------------------------------------------------------------ */
+
+function handleProjectTypes(ctx, req, res) {
+  sendJson(req, res, 200, ctx.automation.listProjectTypes());
+}
+
+function handleScenarioList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.listScenarios({ userId: session.user.id, projectId }));
+}
+
+async function handleScenarioCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  // Accept both `{scenario: {...}}` and a bare scenario body.
+  const input = isPlainObject(body.scenario) ? body.scenario : body;
+  const result = ctx.automation.createScenario({
+    userId: session.user.id,
+    projectId,
+    input,
+    idempotencyKey: body.idempotencyKey ?? null,
+  });
+  sendJson(req, res, 200, result);
+}
+
+function handleScenarioGet(ctx, req, res, projectId, scenarioId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.getScenario({ userId: session.user.id, projectId, scenarioId }));
+}
+
+function handleContentBatchList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  const url = new URL(req.url, 'http://internal');
+  const rawLimit = Number(url.searchParams.get('limit'));
+  sendJson(req, res, 200, ctx.automation.listContentBatches({
+    userId: session.user.id,
+    projectId,
+    limit: Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 20,
+  }));
+}
+
+async function handleContentBatchCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, BATCH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const receipt = ctx.automation.createContentBatch({
+    userId: session.user.id,
+    projectId,
+    input: body,
+    idempotencyKey: body.clientIdempotencyKey ?? body.idempotencyKey ?? null,
+    origin: 'http',
+  });
+  sendJson(req, res, 200, { item: receipt, deduplicated: receipt.deduplicated === true });
+}
+
+function handleContentBatchGet(ctx, req, res, projectId, batchId) {
+  const session = requireSession(ctx, req);
+  const item = ctx.automation.getContentBatch({ userId: session.user.id, projectId, batchId });
+  sendJson(req, res, 200, { item });
+}
+
+function handleProjectStatus(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.getProjectStatus({ userId: session.user.id, projectId }));
+}
+
+/* ------------------------------------------------------------------ */
 /* Template routes                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -1823,12 +1880,16 @@ async function handleConnectionTokenCreate(ctx, req, res) {
   requireJsonContentType(req);
   const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
   const name = validateTokenName(body.name);
+  // Explicit scope selection: omitted scopes adopt the full supported set
+  // (scenes + projects); legacy scenes-only tokens are opt-in.
+  const scopes = validateTokenScopes(body.scopes);
   throttleBucket(ctx, 'connections', `connections:${session.user.id}`);
   recheckSession(ctx, req, session);
   const { token, connection } = createPersonalToken(ctx.db, {
     userId: session.user.id,
     name,
     resource: ctx.oauth.resourceUrl.href,
+    scopes,
     nowMs: ctx.nowMs(),
   });
   // The plaintext token is returned exactly once and never logged or stored.
@@ -2015,6 +2076,10 @@ async function handleAccountMcp(ctx, req, res) {
     });
     return;
   }
+  const grantedScopes = [...auth.scopes];
+  const grantRef = typeof auth.extra?.grantId === 'string' ? auth.extra.grantId : null;
+  const scopesStillValid = (scopes) =>
+    typeof scopes?.includes === 'function' && grantedScopes.every((scope) => scopes.includes(scope));
   const userId = auth.extra?.userId;
   if (typeof userId !== 'string' || userId === '') {
     sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
@@ -2055,7 +2120,7 @@ async function handleAccountMcp(ctx, req, res) {
   // in flight must still block the delayed request.
   try {
     const rechecked = await ctx.oauth.provider.verifyAccessToken(presentedToken);
-    if (rechecked.extra?.userId !== userId || !rechecked.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+    if (rechecked.extra?.userId !== userId || !rechecked.scopes.includes(REQUIRED_SCOPE) || !scopesStillValid(rechecked.scopes)) throw new InvalidTokenError('access token 授权已变化');
   } catch (error) {
     if (error instanceof InvalidTokenError) {
       sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
@@ -2083,11 +2148,15 @@ async function handleAccountMcp(ctx, req, res) {
   }
 
   const mcpServer = ctx.mcp.createServer(userId, {
+    // Granted scopes filter tools/list and guard every handler; the grant
+    // reference is recorded as content-batch provenance (never a raw token).
+    scopes: grantedScopes,
+    grantId: grantRef,
     // Also re-checked after the slow render step completes, so an in-flight
     // render cannot persist or return a PNG for a now-revoked account.
     authorizeCheck: async () => {
       const info = await ctx.oauth.provider.verifyAccessToken(presentedToken);
-      if (info.extra?.userId !== userId || !info.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+      if (info.extra?.userId !== userId || !info.scopes.includes(REQUIRED_SCOPE) || !scopesStillValid(info.scopes)) throw new InvalidTokenError('access token 授权已变化');
     },
   });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
@@ -2237,6 +2306,12 @@ async function route(ctx, req, res) {
     return;
   }
 
+  if (pathname === '/api/project-types') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleProjectTypes(ctx, req, res);
+    return;
+  }
+
   if (pathname === '/api/projects') {
     if (method === 'GET') {
       handleProjectList(ctx, req, res);
@@ -2283,6 +2358,54 @@ async function route(ctx, req, res) {
       return;
     }
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const projectScenariosMatch = /^\/api\/projects\/([^/]+)\/scenarios(?:\/([^/]+))?$/.exec(pathname);
+  if (projectScenariosMatch) {
+    const projectId = projects.validateProjectId(projectScenariosMatch[1]);
+    const scenarioId = projectScenariosMatch[2];
+    if (scenarioId === undefined) {
+      if (method === 'GET') {
+        handleScenarioList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleScenarioCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleScenarioGet(ctx, req, res, projectId, scenarioId);
+    return;
+  }
+
+  const projectContentBatchesMatch = /^\/api\/projects\/([^/]+)\/content-batches(?:\/([^/]+))?$/.exec(pathname);
+  if (projectContentBatchesMatch) {
+    const projectId = projects.validateProjectId(projectContentBatchesMatch[1]);
+    const batchId = projectContentBatchesMatch[2];
+    if (batchId === undefined) {
+      if (method === 'GET') {
+        handleContentBatchList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleContentBatchCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleContentBatchGet(ctx, req, res, projectId, batchId);
+    return;
+  }
+
+  const projectStatusMatch = /^\/api\/projects\/([^/]+)\/status$/.exec(pathname);
+  if (projectStatusMatch) {
+    const projectId = projects.validateProjectId(projectStatusMatch[1]);
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleProjectStatus(ctx, req, res, projectId);
+    return;
   }
 
   const projectScenesMatch = /^\/api\/projects\/([^/]+)\/scenes(?:\/([^/]+))?$/.exec(pathname);
@@ -2711,6 +2834,9 @@ export function createApp(options = {}) {
   const renderService =
     options.renderService ?? createRenderService({ executablePath, maxConcurrent: 1 });
   const preferencesReader = preferences.createPreferencesReader(db);
+  // One account automation application service shared by the HTTP routes and
+  // the account MCP tools, so both surfaces enforce the same rules.
+  const projectAutomation = projects.createProjectAutomation({ db, nowMs: config.nowMs });
   const oauth = createOAuthIntegration({
     db,
     appOrigin: config.appOrigin,
@@ -2728,11 +2854,12 @@ export function createApp(options = {}) {
     logger: config.logger,
     agent: { config: agentConfig, runtime: auditedAgentRuntime('agent'), limiter: agentLimiter },
     projects: { queue: batchQueue },
+    automation: projectAutomation,
     preferences: preferencesReader,
     oauth,
     mcp: {
       renderService,
-      createServer: (userId, { authorizeCheck = null } = {}) =>
+      createServer: (userId, { authorizeCheck = null, scopes = SUPPORTED_SCOPES, grantId = null } = {}) =>
         createAccountMcpServer({
           db,
           userId,
@@ -2740,6 +2867,11 @@ export function createApp(options = {}) {
           logger: config.logger,
           appOrigin: config.appOrigin,
           authorizeCheck,
+          // Granted scopes + grant reference flow through the API factory: the
+          // tool list is filtered per credential and batch receipts record the
+          // grant as provenance. No ephemeral token is ever created or stored.
+          scopes,
+          grantId,
           // Default fill resolves account avatars/mark on the server, so the
           // model never has to send them and only sees a small summary. Note:
           // scene-bearing tool results still return the stored scene verbatim
