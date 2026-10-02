@@ -601,10 +601,10 @@ test('deterministic HTML renders every platform template differently and honours
     }
     signatures.set(platform, html);
   }
-  // WeChat green self bubbles, WhatsApp green header, iMessage blue self
+  // WeChat green self bubbles, WhatsApp green Android header, iMessage blue self
   // bubbles and Slack purple header prove real chrome differences in output.
   assert.ok(renderSceneHtml({ ...base, platform: 'wechat' }, {}).includes('#95ec69'));
-  assert.ok(renderSceneHtml({ ...base, platform: 'whatsapp' }, {}).includes('#075e54'));
+  assert.ok(renderSceneHtml({ ...base, platform: 'whatsapp' }, { surface: 'android' }).includes('#075e54'));
   assert.ok(renderSceneHtml({ ...base, platform: 'imessage' }, {}).includes('#0b84ff'));
   assert.ok(renderSceneHtml({ ...base, platform: 'slack' }, {}).includes('#4a154b'));
 
@@ -633,4 +633,25 @@ test('render cache ids and audit scene hashes distinguish watermark on/off scene
     canonicalSceneJson({ ...base, watermarkEnabled: true }),
     canonicalSceneJson({ ...base, watermarkEnabled: false }),
   );
+});
+
+
+test('template header uses the counterpart and safely falls back for a solo scene', () => {
+  for (const platform of ['whatsapp', 'instagram']) {
+    const scene = sceneWith({ platform, title: 'Document title', participants: [{id:'p1',name:'甲'},{id:'p2',name:'乙'}] });
+    const html = renderSceneHtml(scene, {surface:'ios'});
+    assert.match(html, /class="avatar avatar-header"[^>]*>乙<\/span>/);
+    assert.match(html, /class="title">乙<\/span>/);
+    const solo = renderSceneHtml({...scene,participants:[scene.participants[0]],messages:[]}, {surface:'ios'});
+    assert.match(solo, /class="avatar avatar-header"[^>]*>\?<\/span>/);
+    assert.match(solo, /class="title">甲<\/span>/);
+  }
+});
+
+test('WhatsApp deterministic palette follows browser bubbles and surface header', () => {
+  const ios = renderSceneHtml(sceneWith({platform:'whatsapp'}), {surface:'ios'});
+  const android = renderSceneHtml(sceneWith({platform:'whatsapp'}), {surface:'android'});
+  assert.match(ios, /background: #d9fdd3/);
+  assert.match(ios, /padding: 10px 14px; background: #efeae2; color: #111111/);
+  assert.match(android, /padding: 10px 14px; background: #075e54; color: #ffffff/);
 });

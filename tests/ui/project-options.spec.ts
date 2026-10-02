@@ -78,6 +78,9 @@ test('project creation shows every template card with real previews and a live w
     page.locator('.project-template-card [data-platform="imstage"] .scene-row.is-self .scene-bubble').first(),
   ).toHaveCSS('background-color', 'rgb(214, 229, 255)');
 
+  await expect(page.locator('.project-template-card [data-platform="wechat"] .scene-row.is-self .scene-bubble').first())
+    .toHaveCSS('background-color', 'rgb(149, 236, 105)');
+
   // The watermark is on by default and the previews react immediately.
   const watermark = page.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true });
   await expect(watermark).toBeChecked();

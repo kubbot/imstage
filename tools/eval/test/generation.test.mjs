@@ -106,7 +106,7 @@ async function launchGen({ generateScene, renderScene, aiConfig, dataDir } = {})
     return { status: res.status, json, headers: res.headers, text };
   }
 
-  function rawGenerate(body, { destroyAfterMs } = {}) {
+  function rawGenerate(body, { destroyAfterMs, destroyWhen } = {}) {
     return new Promise((resolve, reject) => {
       const payload = JSON.stringify(body);
       const req = http.request(
@@ -130,12 +130,21 @@ async function launchGen({ generateScene, renderScene, aiConfig, dataDir } = {})
         },
       );
       req.on('error', (err) => {
-        if (destroyAfterMs !== undefined) resolve({ status: 0, error: err.message });
+        if (destroyAfterMs !== undefined || destroyWhen !== undefined) resolve({ status: 0, error: err.message });
         else reject(err);
       });
       req.write(payload);
       req.end();
-      if (destroyAfterMs !== undefined) {
+      if (destroyWhen !== undefined) {
+        const deadline = setTimeout(() => {
+          reject(new Error('cancellation test did not reach its synchronization point'));
+          req.destroy();
+        }, 5_000);
+        Promise.resolve(destroyWhen).then(() => {
+          clearTimeout(deadline);
+          req.destroy();
+        }, reject);
+      } else if (destroyAfterMs !== undefined) {
         setTimeout(() => req.destroy(), destroyAfterMs);
       }
     });
@@ -740,9 +749,12 @@ test('one concurrent generation at a time; duplicate in-flight requestId conflic
 
 test('client disconnect aborts the provider and stores nothing', async (t) => {
   let calls = 0;
+  let entered;
+  const providerEntered = new Promise(resolve => { entered = resolve; });
   const generateScene = async ({ signal }) => {
     calls += 1;
     if (calls === 1) {
+      entered();
       await new Promise((resolve) => {
         if (signal.aborted) resolve();
         else signal.addEventListener('abort', resolve, { once: true });
@@ -756,7 +768,7 @@ test('client disconnect aborts the provider and stores nothing', async (t) => {
 
   await env.rawGenerate(
     { revision: 0, requestId: 'req-cancel-1', input: { text: '生成微信聊天' } },
-    { destroyAfterMs: 30 },
+    { destroyWhen: providerEntered },
   );
   // Give the handler a moment to observe the abort and unwind.
   await new Promise((resolve) => setTimeout(resolve, 80));
@@ -780,6 +792,42 @@ test('client disconnect aborts the provider and stores nothing', async (t) => {
   } while (Date.now() < deadline);
   assert.equal(retry.status, 200, retry.text);
   assert.equal(calls, 2);
+});
+
+test('disconnect before generation listener registration skips the provider and releases the gate', async (t) => {
+  const generateScene = makeFakeGenerate(() => validScene());
+  const env = await launchGen({generateScene, renderScene: makeFakeRender()});
+  // Observe the server-side close, not only the client's socket error: the
+  // cancelled response must be destroyed before the delayed load resumes.
+  const serverClosed = new Promise(resolve => {
+    env.server.once('request', (_req, res) => res.once('close', resolve));
+  });
+  let release;
+  let entered;
+  const pendingLoad = new Promise(resolve => {release = resolve;});
+  const loadEntered = new Promise(resolve => {entered = resolve;});
+  const originalLoad = env.store.load.bind(env.store);
+  let blockOnce = true;
+  env.store.load = async () => {
+    if (blockOnce) {blockOnce = false; entered(); await pendingLoad;}
+    return originalLoad();
+  };
+  t.after(async () => {release(); await env.close();});
+  await env.rawGenerate({revision:0,requestId:'req-early-cancel',input:{text:'生成微信聊天'}}, {destroyWhen:loadEntered});
+  await serverClosed;
+  release();
+  // A later request must still be usable after the cancelled handler unwinds.
+  let retry;
+  const deadline = Date.now() + 5_000;
+  do {
+    retry = await env.request('POST','/api/generate',{revision:0,requestId:'req-after-early-cancel',input:{text:'生成微信聊天'}});
+    if (retry.status !== 409 || retry.json?.code !== 'generation_busy') break;
+    await new Promise(resolve => setTimeout(resolve,20));
+  } while (Date.now() < deadline);
+  assert.equal(retry.status,200,retry.text);
+  assert.equal(generateScene.calls.length,1,'only the live retry reaches the provider');
+  assert.equal(env.store.listCases().length,1,'only the live retry is committed');
+  assert.equal(env.store.listCases()[0].generation.requestId,'req-after-early-cancel');
 });
 
 // ---------------------------------------------------------------------------

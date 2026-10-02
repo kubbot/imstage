@@ -68,7 +68,7 @@ const PLATFORM_THEMES = Object.freeze({
   },
   whatsapp: {
     label: 'WhatsApp', headerBg: '#075e54', headerFg: '#ffffff', headerBorder: '#064c44',
-    bg: '#ece5dd', selfBubble: '#dcf8c6', selfFg: '#111111', otherBubble: '#ffffff', bubbleFg: '#111111',
+    bg: '#ece5dd', selfBubble: '#d9fdd3', selfFg: '#111111', otherBubble: '#ffffff', bubbleFg: '#111111',
     metaFg: '#667781', accent: '#25d366', bubbleRadius: '10px', avatarRadius: '50%',
     headerAvatar: true, messageAvatars: 'group', inlineTime: true, bubbleTail: true, composer: 'whatsapp',
   },
@@ -236,7 +236,7 @@ export function renderSceneHtml(scene, options = {}) {
   // Never trust scene.platform as a CSS class: normalize to a known enum before
   // it reaches the DOM; unknown/hostile values fall back to the generic skin.
   const platform = RENDERER_PLATFORMS.includes(scene.platform) ? scene.platform : 'imstage';
-  const theme = PLATFORM_THEMES[platform];
+  const theme = { ...PLATFORM_THEMES[platform], ...(platform === 'whatsapp' && surface === 'ios' ? { headerBg: '#efeae2', headerFg: '#111111' } : {}) };
   // User watermark preference: absent means on (new + legacy scenes). Nothing
   // but `watermarkEnabled === false` suppresses the disclosure/custom watermark.
   const watermarkOn = sceneWatermarkEnabled(scene);
@@ -263,7 +263,8 @@ export function renderSceneHtml(scene, options = {}) {
   const isGroup = (scene.participants ?? []).length > 2;
   const context = { theme, surface, participantsById, selfId: scene.selfId, assets, isGroup };
 
-  const headerTitle = escapeHtml(scene.title || participantsById.get(scene.selfId)?.name || 'Chat');
+  const other = (scene.participants ?? []).find((participant) => participant.id !== scene.selfId);
+  const headerTitle = escapeHtml(scene.headerText?.trim() || (isGroup ? scene.title || '群聊' : other?.name || participantsById.get(scene.selfId)?.name || '对话'));
   const dateDivider = scene.date
     ? `<div class="date-divider"><span>${formatDateText(scene.date)}</span></div>`
     : '';
@@ -282,7 +283,7 @@ export function renderSceneHtml(scene, options = {}) {
   const kindClass = `kind-${outputKind}`;
   const platformClass = `platform-${platform}`;
   const headerAvatar = theme.headerAvatar
-    ? `<span class="avatar avatar-header" style="background:${avatarColor(scene.selfId)}">${initials(participantsById.get(scene.selfId)?.name ?? 'Chat')}</span>`
+    ? `<span class="avatar avatar-header" style="background:${avatarColor(other?.id ?? 'unknown')}">${initials(other?.name ?? '?')}</span>`
     : '';
 
   return `<!DOCTYPE html>
