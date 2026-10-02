@@ -35,15 +35,16 @@ require a separate written agreement.
 -----------------
 You may not use the software to fabricate evidence, commit fraud, defame any
 person, impersonate any real person or organisation, or mislead any person
-about the authenticity of generated content. The mandatory
-"AI生成 / 虚构" (AI-generated / Fictional) disclosure must not be removed,
-obscured or disabled in any rendered output or export.
+about the authenticity of generated content. The built-in watermark control
+may disable the "AI生成 / 虚构" (AI-generated / Fictional) disclosure for
+permitted testing, learning and evaluation uses. This option does not permit
+deception or any other prohibited use listed above.
 
 4. Patent and trademark
 -----------------------
 No patent or trademark licence is granted. This software is independent of
 and not endorsed by any messaging platform whose interface style may be
-discussed in historical material.
+used as interface-style templates in this software.
 
 5. Warranty disclaimer
 ----------------------

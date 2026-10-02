@@ -441,6 +441,13 @@ export interface ProjectsCopy {
   rulesLabel: string;
   rulesPlaceholder: string;
   platformLabel: string;
+  templateLegend: string;
+  templatePreview: (name: string) => string;
+  watermarkLegend: string;
+  watermarkToggle: string;
+  watermarkHelp: string;
+  newSceneWithProject: string;
+  newSceneBlockedSync: string;
   create: string;
   creating: string;
   loading: string;
@@ -586,6 +593,9 @@ export interface ElementCopy {
   dateText: string;
   composerText: string;
   watermark: string;
+  platform: string;
+  watermarkToggle: string;
+  watermarkNote: string;
   backgroundSection: string;
   background: string;
   backgroundImage: string;
@@ -760,7 +770,7 @@ export interface AppCopy {
 const zh: AppCopy = {
   devices: {'legacy360':'通用手机 360×640','macos-window':'macOS 桌面窗口'},
   messageTypes: { text:'文字', image:'图片', location:'位置', system:'系统提示', contact:'联系人', voice:'语音', video:'视频', link:'链接', album:'相册' },
-  platforms: {imstage:'IMStage 通用聊天',wechat:'聊天样式 A（兼容旧数据）',whatsapp:'Chat style D (legacy data)',imessage:'聊天样式 C（兼容旧数据）',xiaohongshu:'聊天样式 B（兼容旧数据）',instagram:'聊天样式 F（兼容旧数据）',slack:'聊天样式 E（兼容旧数据）'},
+  platforms: {imstage:'IMStage 通用聊天',wechat:'微信 WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'小红书 Xiaohongshu',instagram:'Instagram',slack:'Slack'},
   reference: {title:'编辑层与位置',selected:'选中编辑层',all:'全部编辑层',text:'文字',image:'图片素材',axes:['左','上','宽','高'],font:'字号（源像素）',color:'文字颜色',background:'底色',remove:'移除此编辑层'},
   common: {
     retry: '重试', cancel: '取消', close: '关闭', save: '保存', saved: '已保存', loading: '正在准备…',
@@ -934,6 +944,11 @@ const zh: AppCopy = {
     listKicker: 'PROJECTS', listTitle: '项目与批量生成', listLede: '把规则、默认平台和一批提示词组织成一次批量创作。',
     newProject: '新建项目', nameLabel: '项目名称', namePlaceholder: '例如：新专辑发布', rulesLabel: '项目规则', rulesPlaceholder: '写清语气、人物设定与必须遵守的事实。',
     platformLabel: '默认平台', create: '创建项目', creating: '正在创建…', loading: '正在读取项目…',
+    templateLegend: '聊天模板', templatePreview: (name) => `模板预览 · ${name}`,
+    watermarkLegend: '水印', watermarkToggle: '为新作品添加水印（AI生成 / 虚构标识）',
+    watermarkHelp: '默认开启。关闭后，新建作品的预览与 PNG 导出不再显示水印；已保存的作品保持自己的设置，不会被改写，随时可以改回来。',
+    newSceneWithProject: '用这个项目新建创作',
+    newSceneBlockedSync: '项目设置保存成功后，才能使用新设置创建作品。',
     emptyTitle: '还没有项目', emptyBody: '创建一个项目，保存规则并批量生成作品。', deleteTitle: '删除这个项目？', sceneCount: (count) => `${count} 份作品`,
     updated: '更新于', open: '打开项目', delete: '删除项目', deleteConfirm: '删除这个项目？项目中的作品会保留。',
     keep: '保留项目', confirmDelete: '确认删除', deleting: '正在删除…', back: '← 全部项目',
@@ -1020,6 +1035,8 @@ const zh: AppCopy = {
     quoteSection: '引用与补充', subtitleField: '说明 / 地址 / 时长', quoteField: '引用内容',
     frameSection: '对话界面', headerText: '会话标题', deviceTime: '设备时间', battery: '电量 %', storyToday: '故事中的今天',
     dateHelp: '日期分隔按每条消息的发送日期自动生成。', dateText: '日期文字', composerText: '输入栏提示', watermark: '水印',
+    platform: '目标聊天平台', watermarkToggle: '显示水印（AI生成 / 虚构标识）',
+    watermarkNote: '水印默认开启，关闭后预览与导出都不再显示标识；设置属于当前画面，不会改写其他作品。',
     backgroundSection: '聊天背景', background: '背景颜色', backgroundImage: '背景图片', clearImage: '清除图片',
     deviceSection: '设备与尺寸', device: '截图设备', genericDevice: '通用尺寸（当前系统）',
     addSection: '添加元素', addMessage: '添加消息', addMember: '添加成员', newMember: '新成员', newMessage: '新消息', newPhoto: '新照片',
@@ -1043,7 +1060,7 @@ const zh: AppCopy = {
 const en: AppCopy = {
   devices: {'legacy360':'Generic phone 360×640','macos-window':'macOS window'},
   messageTypes: { text:'Text', image:'Image', location:'Location', system:'System notice', contact:'Contact', voice:'Voice', video:'Video', link:'Link', album:'Album' },
-  platforms: {imstage:'IMStage chat',wechat:'Chat style A (legacy data)',whatsapp:'Chat style D (legacy data)',imessage:'Chat style C (legacy data)',xiaohongshu:'Chat style B (legacy data)',instagram:'Chat style F (legacy data)',slack:'Chat style E (legacy data)'},
+  platforms: {imstage:'IMStage generic',wechat:'WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'Xiaohongshu',instagram:'Instagram',slack:'Slack'},
   reference: {title:'Edit layers & position',selected:'Selected layer',all:'All layers',text:'Text',image:'Image asset',axes:['Left','Top','Width','Height'],font:'Font size (source pixels)',color:'Text color',background:'Background',remove:'Remove this layer'},
   common: {
     retry: 'Retry', cancel: 'Cancel', close: 'Close', save: 'Save', saved: 'Saved', loading: 'Getting ready…',
@@ -1217,6 +1234,11 @@ const en: AppCopy = {
     listKicker: 'PROJECTS', listTitle: 'Projects & batch generation', listLede: 'Organise rules, a default platform and a set of prompts into one batch run.',
     newProject: 'New project', nameLabel: 'Project name', namePlaceholder: 'For example: album launch', rulesLabel: 'Project rules', rulesPlaceholder: 'State the tone, characters and facts that must hold.',
     platformLabel: 'Default platform', create: 'Create project', creating: 'Creating…', loading: 'Loading projects…',
+    templateLegend: 'Chat template', templatePreview: (name) => `Template preview · ${name}`,
+    watermarkLegend: 'Watermark', watermarkToggle: 'Add the watermark to new scenes (AI-generated / fictional)',
+    watermarkHelp: 'On by default. When off, previews and PNG exports of new scenes carry no watermark; existing works keep their own setting and are never rewritten. You can switch it back on at any time.',
+    newSceneWithProject: 'New creation with this project',
+    newSceneBlockedSync: 'Save the project settings before creating a scene with them.',
     emptyTitle: 'No projects yet', emptyBody: 'Create a project to store rules and generate scenes in batches.', deleteTitle: 'Delete this project?', sceneCount: (count) => `${count} scenes`,
     updated: 'Updated', open: 'Open project', delete: 'Delete project', deleteConfirm: 'Delete this project? Its scenes are kept.',
     keep: 'Keep project', confirmDelete: 'Delete', deleting: 'Deleting…', back: '← All projects',
@@ -1303,6 +1325,8 @@ const en: AppCopy = {
     quoteSection: 'Quote & extras', subtitleField: 'Note / address / duration', quoteField: 'Quoted content',
     frameSection: 'Chat interface', headerText: 'Session title', deviceTime: 'Device time', battery: 'Battery %', storyToday: 'Story date',
     dateHelp: 'Date dividers follow each message send date.', dateText: 'Date text', composerText: 'Composer hint', watermark: 'Watermark',
+    platform: 'Target chat platform', watermarkToggle: 'Show the watermark (AI-generated / fictional mark)',
+    watermarkNote: 'The watermark is on by default; turning it off removes the mark from this scene\u2019s previews and exports and never rewrites other works.',
     backgroundSection: 'Chat background', background: 'Background colour', backgroundImage: 'Background image', clearImage: 'Clear image',
     deviceSection: 'Device & size', device: 'Screenshot device', genericDevice: 'Generic size (current system)',
     addSection: 'Add element', addMessage: 'Add message', addMember: 'Add member', newMember: 'New member', newMessage: 'New message', newPhoto: 'New photo',

@@ -7,11 +7,16 @@
 //   scene/options it always returns the same bytes.
 // - Safe: every scene string is HTML-escaped. Uploaded images are embedded as
 //   `data:` URIs. No remote resources, no inline event handlers, no scripts.
-// - Generic IMStage skin: one independent chat UI for every legacy platform
-//   identifier. No messaging-platform logos, names or clone styling, on any
-//   public rendered output (browser, MCP widget, PNG export).
-// - Mandatory disclosure: every frame carries the "AI生成 / 虚构" mark. It is
-//   unconditional and cannot be disabled through UI, AI, import or API.
+// - Platform templates: each supported chat platform gets its own distinct
+//   header, bubble, avatar and composer chrome — an approximate style preview
+//   for synthetic content, never a pixel clone and never a brand logo. The
+//   IMStage generic skin is a first-class template of its own. Differences are
+//   real: switching `scene.platform` changes the rendered output.
+// - Watermark: the "AI生成 / 虚构" disclosure and any custom watermark are drawn
+//   by default (new and legacy scenes). `scene.watermarkEnabled === false` — a
+//   user choice frozen into the scene — suppresses both. Nothing else can.
+// - Payment safety: payment/transfer/red-packet messages render as a neutral
+//   system notice, never as a payment card.
 // - Surface differences: iOS/Android status bars, desktop/web window chrome.
 //
 // The companion screenshotter lives in tools/eval/src/render.mjs and loads the
@@ -24,29 +29,73 @@ import {
   disclosureStyleText,
   isPaymentMessageType,
   PAYMENT_NEUTRALIZED_TEXT,
+  sceneWatermarkEnabled,
 } from '../schema/policy.mjs';
 
-export const RENDERER_VERSION = 'v2';
+export const RENDERER_VERSION = 'v3';
 
 /**
- * Legacy platform identifiers are accepted for migration only. They select no
- * theme and no brand styling — every value renders the generic IMStage skin.
+ * Supported platform templates. An unknown/hostile value falls back to the
+ * IMStage generic template — the value is never echoed into a class or style.
  */
 export const RENDERER_PLATFORMS = Object.freeze(['imstage', 'wechat', 'telegram', 'whatsapp', 'xiaohongshu', 'imessage', 'slack', 'instagram']);
 export const RENDERER_SURFACES = Object.freeze(['ios', 'android', 'desktop', 'web']);
 
-const THEME = Object.freeze({
-  label: 'IMStage',
-  headerBg: '#f5f7fa',
-  headerFg: '#16202e',
-  headerBorder: '#d5dce5',
-  bg: '#e9edf2',
-  selfBubble: '#d6e5ff',
-  otherBubble: '#ffffff',
-  bubbleFg: '#16202e',
-  metaFg: '#5b6675',
-  accent: '#2f6fed',
-  bubbleRadius: '14px',
+/**
+ * One theme per platform template. Colors and metrics follow the shared
+ * browser skins (`apps/web/src/studio/platform-templates.ts` + `studio.css`)
+ * so the deterministic HTML and the React preview render the same platform.
+ */
+const PLATFORM_THEMES = Object.freeze({
+  imstage: {
+    label: 'IMStage', headerBg: '#f5f7fa', headerFg: '#16202e', headerBorder: '#d5dce5',
+    bg: '#e9edf2', selfBubble: '#d6e5ff', selfFg: '#16202e', otherBubble: '#ffffff', bubbleFg: '#16202e',
+    metaFg: '#5b6675', accent: '#2f6fed', bubbleRadius: '14px', avatarRadius: '6px',
+    headerAvatar: false, messageAvatars: 'all', inlineTime: true, bubbleTail: false, composer: 'default',
+  },
+  wechat: {
+    label: '微信 / WeChat', headerBg: '#ededed', headerFg: '#111111', headerBorder: '#d9d9d9',
+    bg: '#f5f5f5', selfBubble: '#95ec69', selfFg: '#111111', otherBubble: '#ffffff', bubbleFg: '#111111',
+    metaFg: '#8a8a8a', accent: '#07c160', bubbleRadius: '8px', avatarRadius: '7px',
+    headerAvatar: false, messageAvatars: 'all', inlineTime: false, bubbleTail: true, composer: 'wechat',
+  },
+  telegram: {
+    // Legacy id kept for stored scenes; renders as its own classic chat skin.
+    label: 'Telegram', headerBg: '#517da2', headerFg: '#ffffff', headerBorder: '#3f6d92',
+    bg: '#a3c2d6', selfBubble: '#effdde', selfFg: '#111111', otherBubble: '#ffffff', bubbleFg: '#111111',
+    metaFg: '#5f7d8f', accent: '#3390ec', bubbleRadius: '16px', avatarRadius: '50%',
+    headerAvatar: false, messageAvatars: 'group', inlineTime: true, bubbleTail: false, composer: 'default',
+  },
+  whatsapp: {
+    label: 'WhatsApp', headerBg: '#075e54', headerFg: '#ffffff', headerBorder: '#064c44',
+    bg: '#ece5dd', selfBubble: '#dcf8c6', selfFg: '#111111', otherBubble: '#ffffff', bubbleFg: '#111111',
+    metaFg: '#667781', accent: '#25d366', bubbleRadius: '10px', avatarRadius: '50%',
+    headerAvatar: true, messageAvatars: 'group', inlineTime: true, bubbleTail: true, composer: 'whatsapp',
+  },
+  imessage: {
+    label: 'iMessage', headerBg: '#f8f8fa', headerFg: '#111111', headerBorder: '#ececef',
+    bg: '#ffffff', selfBubble: '#0b84ff', selfFg: '#ffffff', otherBubble: '#e9e9eb', bubbleFg: '#111111',
+    metaFg: '#8a8a8a', accent: '#0b84ff', bubbleRadius: '18px', avatarRadius: '50%',
+    headerAvatar: false, messageAvatars: 'none', inlineTime: false, bubbleTail: false, composer: 'imessage',
+  },
+  instagram: {
+    label: 'Instagram', headerBg: '#ffffff', headerFg: '#111111', headerBorder: '#efefef',
+    bg: '#ffffff', selfBubble: '#6750f5', selfFg: '#ffffff', otherBubble: '#f1f1f4', bubbleFg: '#111111',
+    metaFg: '#8a8a8a', accent: '#6750f5', bubbleRadius: '20px', avatarRadius: '50%',
+    headerAvatar: true, messageAvatars: 'incoming', inlineTime: false, bubbleTail: false, composer: 'instagram',
+  },
+  xiaohongshu: {
+    label: '小红书 / Xiaohongshu', headerBg: '#ffffff', headerFg: '#111111', headerBorder: '#f0f0f2',
+    bg: '#ffffff', selfBubble: '#c71f3a', selfFg: '#ffffff', otherBubble: '#f4f4f6', bubbleFg: '#111111',
+    metaFg: '#8a8f96', accent: '#c71f3a', bubbleRadius: '14px', avatarRadius: '50%',
+    headerAvatar: false, messageAvatars: 'all', inlineTime: false, bubbleTail: false, composer: 'default',
+  },
+  slack: {
+    label: 'Slack', headerBg: '#4a154b', headerFg: '#ffffff', headerBorder: '#3f1240',
+    bg: '#ffffff', selfBubble: '#e8e3f0', selfFg: '#111111', otherBubble: '#f4f4f6', bubbleFg: '#111111',
+    metaFg: '#616061', accent: '#4a154b', bubbleRadius: '8px', avatarRadius: '4px',
+    headerAvatar: false, messageAvatars: 'all', inlineTime: true, bubbleTail: false, composer: 'slack',
+  },
 });
 
 function escapeHtml(value) {
@@ -110,8 +159,15 @@ function statusBar(surface, deviceTime, theme) {
   return `<div class="windowbar windowbar-${isWeb ? 'web' : 'desktop'}"><span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span><span class="window-title">${escapeHtml(theme.label)}</span><span class="window-time">${time}</span></div>`;
 }
 
+function showRowAvatar(theme, isSelf, isGroup) {
+  if (theme.messageAvatars === 'none') return false;
+  if (theme.messageAvatars === 'all') return true;
+  if (theme.messageAvatars === 'incoming') return !isSelf;
+  return !isSelf && isGroup; // 'group'
+}
+
 function renderMessage(message, context) {
-  const { theme, surface, participantsById, selfId } = context;
+  const { theme, participantsById, selfId, isGroup } = context;
   // Payment / transfer / red-packet cards can never render on any surface.
   if (isPaymentMessageType(message.type)) {
     return `<div class="system-message"><span>${escapeHtml(PAYMENT_NEUTRALIZED_TEXT)}</span><time>${escapeHtml(message.time ?? '')}</time></div>`;
@@ -124,8 +180,11 @@ function renderMessage(message, context) {
   }
 
   const name = participant?.name ?? '?';
-  const avatar = `<span class="avatar" style="background:${avatarColor(message.participantId)}">${initials(name)}</span>`;
+  const avatar = showRowAvatar(theme, isSelf, isGroup)
+    ? `<span class="avatar" style="background:${avatarColor(message.participantId)}">${initials(name)}</span>`
+    : '';
   const meta = `<span class="meta">${isSelf ? '' : `<span class="meta-name">${escapeHtml(name)}</span>`}<time>${escapeHtml(message.time)}</time></span>`;
+  const rowTime = theme.inlineTime ? '' : `<span class="row-time">${escapeHtml(message.time ?? '')}</span>`;
 
   if (message.type === 'image') {
     const uri = context.assets[message.assetIndex] ?? null;
@@ -133,14 +192,33 @@ function renderMessage(message, context) {
     const inner = uri
       ? `<img class="bubble-image" src="${escapeHtml(uri)}" alt="${escapeHtml(message.text || '图片消息')}" />`
       : `<div class="image-placeholder">[图片]${message.text ? ` ${escapeHtml(message.text)}` : ''}</div>`;
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble bubble-image-wrap">${meta}${inner}${caption}</div></div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${theme.inlineTime ? meta : ''}${inner}${caption}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
   if (message.type === 'location') {
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble"><span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${meta}</div></div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble"><span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
-  return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble"><span class="bubble-text">${escapeHtml(message.text)}</span>${meta}</div></div>`;
+  return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble${theme.bubbleTail ? ' bubble-tail' : ''}"><span class="bubble-text">${escapeHtml(message.text)}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+}
+
+function renderComposer(theme, composerText) {
+  const field = escapeHtml(composerText ?? '');
+  const empty = field === '';
+  switch (theme.composer) {
+    case 'wechat':
+      return `<footer class="composer composer-wechat"><span class="icon" aria-hidden="true"></span><span class="field"${empty ? '' : ' data-filled="true"'}>${field}</span><span class="icon" aria-hidden="true"></span><span class="icon" aria-hidden="true"></span></footer>`;
+    case 'whatsapp':
+      return `<footer class="composer composer-whatsapp"><span class="field" ${empty ? '' : 'data-filled="true" '}>${field}</span><span class="icon icon-round" aria-hidden="true">➤</span></footer>`;
+    case 'imessage':
+      return `<footer class="composer composer-imessage"><span class="field" ${empty ? '' : 'data-filled="true" '}>${field}</span><span class="icon icon-round icon-up" aria-hidden="true">↑</span></footer>`;
+    case 'instagram':
+      return `<footer class="composer composer-instagram"><span class="avatar-small" aria-hidden="true"></span><span class="field" ${empty ? '' : 'data-filled="true" '}>${field}</span><span class="icon" aria-hidden="true"></span></footer>`;
+    case 'slack':
+      return `<footer class="composer composer-slack"><span class="field-box"><span class="field" ${empty ? '' : 'data-filled="true" '}>${field}</span><span class="toolbar" aria-hidden="true"><i></i><i></i><i></i></span></span><span class="send" aria-hidden="true">➤</span></footer>`;
+    default:
+      return `<footer class="composer"><span class="icon" aria-hidden="true"></span><span class="field" ${empty ? '' : 'data-filled="true" '}>${field}</span><span class="icon" aria-hidden="true"></span></footer>`;
+  }
 }
 
 /**
@@ -155,16 +233,35 @@ export function renderSceneHtml(scene, options = {}) {
   const surface = RENDERER_SURFACES.includes(options.surface) ? options.surface : 'ios';
   const width = Number.isInteger(options.width) && options.width > 0 ? options.width : 390;
   const outputKind = options.outputKind === 'long-screenshot' ? 'long-screenshot' : 'screenshot';
-  // Never trust scene.platform as a CSS class: normalize to a known enum and
-  // render the generic IMStage skin regardless of the legacy identifier.
+  // Never trust scene.platform as a CSS class: normalize to a known enum before
+  // it reaches the DOM; unknown/hostile values fall back to the generic skin.
   const platform = RENDERER_PLATFORMS.includes(scene.platform) ? scene.platform : 'imstage';
-  const theme = THEME;
+  const theme = PLATFORM_THEMES[platform];
+  // User watermark preference: absent means on (new + legacy scenes). Nothing
+  // but `watermarkEnabled === false` suppresses the disclosure/custom watermark.
+  const watermarkOn = sceneWatermarkEnabled(scene);
+  // Supported manual appearance overrides (same bounds as the shared scene
+  // contract) win over the platform template defaults, matching the browser
+  // renderer's `--scene-*` variables.
+  const look = scene.appearance && typeof scene.appearance === 'object' ? scene.appearance : {};
+  const num = (value, min, max) => (typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : null);
+  const color = (value) => (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null);
+  const bubbleRadius = num(look.radius, 0, 40);
+  const fontPx = num(look.fontSize, 10, 40);
+  const messageSpacing = num(look.spacing, 0, 48);
+  const textOverride = color(look.color);
+  const bubbleOverride = color(look.background);
+  const bubbleCss = bubbleOverride ?? theme.otherBubble;
+  const selfBubbleCss = bubbleOverride ?? theme.selfBubble;
+  const bubbleTextCss = textOverride ?? theme.bubbleFg;
+  const selfTextCss = textOverride ?? theme.selfFg;
 
   const assetsInput = Array.isArray(options.assets) ? options.assets : [];
   const assets = assetsInput.map(assetToDataUri);
 
   const participantsById = new Map((scene.participants ?? []).map((p) => [p.id, p]));
-  const context = { theme, surface, participantsById, selfId: scene.selfId, assets };
+  const isGroup = (scene.participants ?? []).length > 2;
+  const context = { theme, surface, participantsById, selfId: scene.selfId, assets, isGroup };
 
   const headerTitle = escapeHtml(scene.title || participantsById.get(scene.selfId)?.name || 'Chat');
   const dateDivider = scene.date
@@ -172,17 +269,21 @@ export function renderSceneHtml(scene, options = {}) {
     : '';
 
   const body = (scene.messages ?? []).map((m) => renderMessage(m, context)).join('\n      ');
-  const watermark = scene.watermark
+  const watermark = watermarkOn && scene.watermark
     ? `<div class="watermark" aria-hidden="true">${escapeHtml(scene.watermark)}</div>`
     : '';
-  // Mandatory AI-generated / fictional disclosure — always present as the
-  // fixed header band below the status bar, on every preview and export. Not controlled by
-  // scene data, options, custom layouts or callers.
-  const disclosure = `<div class="${DISCLOSURE_CLASS}" ${DISCLOSURE_ATTRIBUTE}="true" style="${disclosureStyleText()}">${escapeHtml(DISCLOSURE_TEXT)}</div>`;
+  // AI-generated / fictional disclosure — drawn by default on every preview and
+  // export, inside the fixed header band below the status bar. Only a user's
+  // explicit `watermarkEnabled: false` turns it (and the custom watermark) off.
+  const disclosure = watermarkOn
+    ? `<div class="${DISCLOSURE_CLASS}" ${DISCLOSURE_ATTRIBUTE}="true" style="${disclosureStyleText()}">${escapeHtml(DISCLOSURE_TEXT)}</div>`
+    : '';
   const surfaceClass = `surface-${surface}`;
   const kindClass = `kind-${outputKind}`;
-  // Legacy ids never reach the DOM: the body class is always generic.
-  const platformClass = 'platform-imstage';
+  const platformClass = `platform-${platform}`;
+  const headerAvatar = theme.headerAvatar
+    ? `<span class="avatar avatar-header" style="background:${avatarColor(scene.selfId)}">${initials(participantsById.get(scene.selfId)?.name ?? 'Chat')}</span>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -260,7 +361,7 @@ export function renderSceneHtml(scene, options = {}) {
     padding: 14px 12px 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: ${messageSpacing === null ? '12px' : `${messageSpacing}px`};
     background: ${theme.bg};
   }
   .date-divider { text-align: center; color: ${theme.metaFg}; font-size: 11px; }
@@ -277,22 +378,29 @@ export function renderSceneHtml(scene, options = {}) {
   .row-other { justify-content: flex-start; }
   .row-self { justify-content: flex-end; }
   .avatar {
-    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 6px;
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: ${theme.avatarRadius};
     display: inline-flex; align-items: center; justify-content: center;
     color: #ffffff; font-size: 13px; font-weight: 600;
   }
+  .avatar-header { width: 28px; height: 28px; font-size: 11px; }
   .bubble {
     position: relative; max-width: 74%; padding: 9px 12px 8px;
-    border-radius: ${theme.bubbleRadius}; background: ${theme.otherBubble}; color: ${theme.bubbleFg};
+    border-radius: ${bubbleRadius === null ? theme.bubbleRadius : `${bubbleRadius}px`}; background: ${bubbleCss}; color: ${bubbleTextCss};
     box-shadow: 0 1px 1px rgba(0,0,0,0.06);
     display: flex; flex-direction: column; gap: 4px;
   }
-  .row-self .bubble { background: ${theme.selfBubble}; }
-  .bubble-text { font-size: 15px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .row-self .bubble { background: ${selfBubbleCss}; color: ${selfTextCss}; }
+  .bubble-tail::before {
+    content: ''; position: absolute; top: 12px; left: -4px; width: 8px; height: 8px;
+    transform: rotate(45deg); background: inherit; border-radius: 1px;
+  }
+  .row-self .bubble-tail::before { left: auto; right: -4px; }
+  .bubble-text { font-size: ${fontPx === null ? '15px' : `${fontPx}px`}; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .meta { display: flex; align-items: center; gap: 6px; font-size: 10px; color: ${theme.metaFg}; }
   .row-self .meta { justify-content: flex-end; }
   .meta-name { font-weight: 600; opacity: 0.9; }
   .meta time { opacity: 0.85; }
+  .row-time { flex: 0 0 auto; align-self: center; font-size: 10px; color: ${theme.metaFg}; opacity: 0.85; }
   .bubble-image-wrap { padding: 5px; gap: 5px; }
   .bubble-image { display: block; width: 100%; max-width: 220px; height: auto; border-radius: 6px; background: rgba(0,0,0,0.05); }
   .image-placeholder {
@@ -306,8 +414,24 @@ export function renderSceneHtml(scene, options = {}) {
     flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
     padding: 9px 12px; background: ${theme.headerBg}; border-top: 1px solid ${theme.headerBorder};
   }
-  .composer .field { flex: 1 1 auto; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.92); }
+  .composer .field {
+    flex: 1 1 auto; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.92);
+    color: #9aa2ad; font-size: 13px; display: flex; align-items: center; padding: 0 12px;
+  }
+  .composer .field[data-filled="true"] { color: #111111; }
   .composer .icon { width: 22px; height: 22px; border-radius: 50%; border: 2px solid ${theme.accent}; flex: 0 0 auto; }
+  .composer .icon-round { display: inline-flex; align-items: center; justify-content: center; background: ${theme.accent}; color: #ffffff; border: 0; font-size: 12px; width: 30px; height: 30px; }
+  .composer-whatsapp .field { background: #ffffff; border-radius: 18px; }
+  .composer-imessage .field { background: #ffffff; border: 1px solid ${theme.headerBorder}; border-radius: 16px; }
+  .composer-instagram { border-radius: 24px; margin: 6px 10px; background: #f5f5f5; border: 0; }
+  .composer-instagram .field { background: transparent; border-radius: 0; height: 26px; }
+  .composer-instagram .avatar-small { width: 26px; height: 26px; border-radius: 50%; background: ${theme.accent}; opacity: 0.75; }
+  .composer-slack { flex-wrap: wrap; padding-bottom: 6px; }
+  .composer-slack .field-box { flex: 1 1 auto; border: 1px solid ${theme.headerBorder}; border-radius: 6px; background: #ffffff; display: flex; flex-direction: column; }
+  .composer-slack .field-box .field { border-radius: 6px 6px 0 0; height: 28px; }
+  .composer-slack .toolbar { display: flex; gap: 6px; padding: 3px 8px 5px; }
+  .composer-slack .toolbar i { width: 14px; height: 10px; border-radius: 2px; background: rgba(0,0,0,0.18); }
+  .composer-slack .send { color: ${theme.accent}; font-size: 13px; font-weight: 600; }
 
   .watermark {
     position: absolute; right: 10px; bottom: 54px; font-size: 10px; color: ${theme.metaFg};
@@ -334,6 +458,7 @@ export function renderSceneHtml(scene, options = {}) {
     ${disclosure}
     <header class="chat-header">
       <span class="back" aria-hidden="true">${surface === 'android' ? '←' : surface === 'desktop' || surface === 'web' ? '' : '‹'}</span>
+      ${headerAvatar}
       <span class="title">${headerTitle}</span>
       <span class="spacer" aria-hidden="true">${surface === 'desktop' || surface === 'web' ? '' : '⋯'}</span>
     </header>
@@ -341,7 +466,7 @@ export function renderSceneHtml(scene, options = {}) {
       ${dateDivider}
       ${body}
     </main>
-    <footer class="composer"><span class="icon" aria-hidden="true"></span><span class="field"></span></footer>
+    ${renderComposer(theme, scene.composerText)}
     ${watermark}
   </div>
 </body>

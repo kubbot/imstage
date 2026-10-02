@@ -22,7 +22,7 @@ import {
   ConversationSchemaError,
   validateConversationScene,
 } from '../../../packages/schema/conversation.mjs';
-import { renderSceneHtml } from '../../../packages/renderer/renderSceneHtml.mjs';
+import { renderSceneHtml, RENDERER_VERSION } from '../../../packages/renderer/renderSceneHtml.mjs';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -236,7 +236,7 @@ test('text generation creates a fresh unreviewed case with AI provenance', async
   assert.equal(c.candidate.provenance.kind, 'ai-generated');
   assert.equal(c.candidate.provenance.model, 'fake-vision-1');
   assert.equal(c.candidate.provenance.promptVersion, 'v1');
-  assert.equal(c.candidate.provenance.rendererVersion, 'v2');
+  assert.equal(c.candidate.provenance.rendererVersion, RENDERER_VERSION);
   assert.equal(typeof c.candidate.provenance.generatedAt, 'string');
   assert.equal(c.generation.requestId, 'req-text-0001');
   assert.equal(c.generation.scene.platform, 'wechat');
@@ -765,11 +765,19 @@ test('client disconnect aborts the provider and stores nothing', async (t) => {
   assert.equal(store.json.revision, 0);
 
   // The server is still usable and the concurrency gate was released.
-  const retry = await env.request('POST', '/api/generate', {
-    revision: 0,
-    requestId: 'req-cancel-2',
-    input: { text: '生成微信聊天' },
-  });
+  // Wait for the observable gate release rather than assuming an 80ms unwind
+  // under parallel browser/renderer load. A leaked gate still fails at 5s.
+  let retry;
+  const deadline = Date.now() + 5_000;
+  do {
+    retry = await env.request('POST', '/api/generate', {
+      revision: 0,
+      requestId: 'req-cancel-2',
+      input: { text: '生成微信聊天' },
+    });
+    if (retry.status !== 409 || retry.json?.code !== 'generation_busy') break;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } while (Date.now() < deadline);
   assert.equal(retry.status, 200, retry.text);
   assert.equal(calls, 2);
 });
@@ -1164,7 +1172,7 @@ test('parseSceneResponse overrides platform and surfaces warnings', () => {
   assert.ok(warnings.includes('文字模糊'));
 });
 
-test('renderSceneHtml is deterministic, escaped and generic (no brand themes) with no remote loads', () => {
+test('renderSceneHtml is deterministic, escaped and platform-specific with no remote loads', () => {
   const scene = validateConversationScene(
     {
       ...validScene().scene,
@@ -1183,23 +1191,24 @@ test('renderSceneHtml is deterministic, escaped and generic (no brand themes) wi
   const first = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets });
   const again = renderSceneHtml(scene, { surface: 'ios', width: 390, outputKind: 'screenshot', assets });
   assert.equal(first, again, 'renderer must be deterministic');
-  assert.match(first, /platform-imstage/, 'every platform id renders the generic IMStage skin');
+  assert.match(first, /platform-wechat/, 'the selected template determines the skin');
   assert.match(first, /surface-ios/);
   assert.match(first, /kind-screenshot/);
-  assert.ok(first.includes('data-imstage-disclosure="true"'), 'mandatory disclosure on every frame');
+  assert.ok(first.includes('data-imstage-disclosure="true"'), 'watermark on by default');
   assert.equal(first.includes('<b>bold</b>'), false, 'raw HTML from text must not survive');
   assert.match(first, /&lt;b&gt;bold&lt;\/b&gt;/);
   assert.match(first, /data:image\/png;base64,/);
   assert.equal(first.includes('http://'), false);
   assert.equal(first.includes('https://'), false);
-  assert.equal(/95ec69|517da2|075e54|ededed/.test(first), false, 'no brand theme colors');
+  assert.match(first, /#95ec69/, 'WeChat self bubbles use their template color');
 
   const android = renderSceneHtml({ ...scene, platform: 'telegram' }, { surface: 'android', width: 390, outputKind: 'screenshot', assets });
-  assert.match(android, /platform-imstage/);
+  assert.match(android, /platform-telegram/);
   assert.match(android, /surface-android/);
 
   const desktop = renderSceneHtml({ ...scene, platform: 'whatsapp' }, { surface: 'desktop', width: 720, outputKind: 'long-screenshot', assets });
-  assert.match(desktop, /platform-imstage/);
+  assert.match(desktop, /platform-whatsapp/);
+  assert.notEqual(desktop, first, 'different templates produce different output');
   assert.match(desktop, /kind-long-screenshot/);
   assert.match(desktop, /windowbar/);
 

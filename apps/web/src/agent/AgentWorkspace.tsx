@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { IconChevronDown, IconPlus, IconSearch, IconPencil, IconCopy, IconTrash, IconX, IconMessageCircle } from '@tabler/icons-react';
 import { useAuth } from '../account/Auth';
+import { api } from '../account/api';
 import AgentStudio from './AgentStudio';
 import { setNavigationGuard } from '../account/navigation';
 import { useCopy, useFormatLocale } from '../i18n';
@@ -17,6 +18,27 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
   // Brand-new sessions inherit the saved account defaults. Existing sessions
   // (and duplicated ones) are never rewritten.
   const withDefaults=<T extends {scene:Scene}>(draft:T):T=>({...draft,scene:applyNewSceneDefaults(draft.scene,user?.id)});
+  /**
+   * Fresh blank scenes inherit the linked project's platform + watermark switch.
+   * The project is loaded *before* the session exists, so generation can never
+   * race the defaults and a delayed response can never clobber user edits or an
+   * account switch. Resumed, duplicated and handoff scenes never call this.
+   * A real API failure is rethrown: it surfaces in the existing boot error/retry
+   * UI instead of silently creating a scene with the wrong platform/mark.
+   */
+  const projectDefaults=async (projectId:string):Promise<Partial<Scene>>=>{
+    if(!projectId)return {};
+    const data=await api<{item:{platform:Scene['platform'];watermarkEnabled?:boolean}}>(`/projects/${encodeURIComponent(projectId)}`);
+    return {platform:data.item.platform,watermarkEnabled:data.item.watermarkEnabled!==false};
+  };
+  /**
+   * Abort a pending async boot when this workspace was replaced meanwhile
+   * (account switch / unmount), so a slow project load can never write or
+   * overwrite anything for the wrong owner.
+   */
+  const abortIfStale=():void=>{
+    if(!mounted.current){const error=new Error('创作环境已切换，本次新建已取消');error.name='AbortError';throw error;}
+  };
   const copy=useCopy();
   const formatLocale=useFormatLocale();
   const params=new URLSearchParams(location.hash.split('?')[1]);
@@ -92,6 +114,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
         const handoff=readHandoffPayload(handoffToken);
         const draft=handoff?recoverDraft({scene:handoff.scene,prompt:handoff.prompt,intent:handoff.intent} as Partial<SessionDraft>,fallback):fallback;
         draft.scene.id=crypto.randomUUID();
+        // Only the blank fallback seed inherits the linked project's platform +
+        // watermark switch; an authored handoff scene keeps its explicit values.
+        if(!handoff&&draft.projectId){draft.scene={...draft.scene,...await projectDefaults(draft.projectId)};abortIfStale();}
         // An authored handoff scene keeps its explicit values; only the blank
         // fallback seed receives account defaults.
         const created=await writeSession(newSession(owner,origin,handoff?draft:withDefaults(draft)));
@@ -112,6 +137,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
       const migrated=recoverDraft(legacy,fallback);
       // Only a genuinely blank new scene receives defaults; migrated drafts and
       // authored sample scenes keep their own avatars/watermark.
+      // A brand-new fallback with a linked project (no `new=1`) inherits the
+      // project platform + watermark too — resolved before the session exists.
+      if(!legacy&&migrated.projectId){migrated.scene={...migrated.scene,...await projectDefaults(migrated.projectId)};abortIfStale();}
       const created=await writeSession(newSession(owner,origin,legacy?migrated:withDefaults(migrated)));
       // Remove only after durable migration, never before a successful transaction.
       try{sessionStorage.removeItem(key);sessionStorage.removeItem(`${key}.chat`);if(user)sessionStorage.removeItem('imstage.agent.login-handoff');}catch{}
@@ -149,6 +177,9 @@ export default function AgentWorkspace(props:ComponentProps<typeof AgentStudio>)
     if(!dup)await persist();else{clearTimeout(timer.current);await queue.current.catch(()=>{});}
     const draft=dup&&latest.current?structuredClone(latest.current):emptyDraft(latest.current?.projectId,{locale:seedLocale});
     draft.scene.id=crypto.randomUUID();
+    // A genuinely new session inside a project inherits its platform + watermark
+    // switch (resolved before the session is written). Duplicates keep theirs.
+    if(!dup&&draft.projectId)draft.scene={...draft.scene,...await projectDefaults(draft.projectId)};
     const next=await writeSession(newSession(owner,origin,dup?draft:withDefaults(draft),dup?`${current.current?.title||''} · ${copy.sessions.duplicateSuffix}`:undefined));adopt(next);
   });
   async function switchTo(id:string){await action(async()=>{await persist();if(current.current?.id!==id)adopt(await readSession(owner,id));else setOpen(false);});}

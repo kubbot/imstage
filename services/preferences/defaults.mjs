@@ -23,9 +23,10 @@ function hasOwn(value, key) {
 /**
  * Fill missing avatar defaults on a scene-like object.
  *
- * The mandatory AI生成 / 虚构 disclosure is rendered unconditionally by every
- * renderer and export, so it is no longer stored in `scene.watermark` and no
- * preference can switch it off.
+ * The AI生成 / 虚构 watermark is drawn by every renderer by default; since the
+ * 2026-10-02 change a project/scene `watermarkEnabled: false` may switch it off
+ * (a user preference the model cannot change). The mark is still not stored in
+ * `scene.watermark`, which remains an optional custom note.
  *
  * @param {unknown} rawScene model/tool supplied scene
  * @param {{myAvatar?: string|null, otherAvatar?: string|null}} defaults
@@ -68,6 +69,6 @@ export function sceneDefaultsSummary(preferences) {
     showFictionalMark: true,
     markLabel: FICTIONAL_MARK_LABEL,
     onboardingStatus: preferences?.onboardingStatus ?? 'legacy',
-    note: '新场景会自动套用账号默认头像；AI生成/虚构标识由系统强制显示，不可关闭；显式传入 avatar（含空值）时以显式值为准。',
+    note: '新场景会自动套用账号默认头像；AI生成/虚构水印默认显示，项目与画面可关闭（AI 不能修改你的水印选择）；显式传入 avatar（含空值）时以显式值为准。',
   };
 }

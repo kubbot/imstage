@@ -135,6 +135,16 @@ export function validateConversationScene(raw, options = {}) {
   }) || '09:41';
   const date = cleanText(raw.date, 'date', { max: CONVERSATION_LIMITS.dateMax });
   const watermark = cleanText(raw.watermark, 'watermark', { max: CONVERSATION_LIMITS.watermarkMax });
+  // Optional user watermark switch: absent means enabled (the disclosure is
+  // drawn by default); only a real boolean may opt out. Aliases are stripped
+  // upstream by `stripDisclosureOverrides`.
+  let watermarkEnabled;
+  if (raw.watermarkEnabled !== undefined) {
+    if (typeof raw.watermarkEnabled !== 'boolean') {
+      schemaFail('invalid_field', 'watermarkEnabled 必须是布尔值', { field: 'watermarkEnabled' });
+    }
+    watermarkEnabled = raw.watermarkEnabled;
+  }
 
   if (!Array.isArray(raw.participants)) {
     schemaFail('invalid_participants', 'participants 必须是数组', { field: 'participants' });
@@ -270,6 +280,7 @@ export function validateConversationScene(raw, options = {}) {
     participants,
     messages,
     watermark,
+    ...(watermarkEnabled === undefined ? {} : { watermarkEnabled }),
   };
 }
 

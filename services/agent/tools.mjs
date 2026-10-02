@@ -46,20 +46,20 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
-  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout；参与者支持name,subtitle。标记（AI生成/虚构）由系统强制显示，不能修改、关闭或移除，watermark 不可更改。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
+  {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout；参与者支持name,subtitle。watermarkEnabled/watermark 是用户偏好，不能通过任何工具修改。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
     function: {
       name: 'create_scene',
       description:
-        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；图片内 AI生成/虚构标识由系统强制显示，不接受 watermark 字段；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
+        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；watermarkEnabled/watermark 属于用户偏好，服务端会保留当前值，你不接受也不能修改这两个字段；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
       parameters: {
         type: 'object',
         properties: {
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 只能是 imstage（推荐）或兼容旧值 wechat/xiaohongshu/imessage/whatsapp/slack/instagram，所有平台都渲染通用 IMStage 聊天界面；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用通用 IMStage 皮肤。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 可选 imstage（推荐）或 wechat/xiaohongshu/imessage/whatsapp/slack/instagram，决定聊天模板皮肤（均为合成内容风格预览，不含品牌 logo）；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用 scene.platform 对应的聊天模板皮肤。',
           },
         },
         required: ['scene'],
@@ -190,9 +190,11 @@ function applyCreateScene(args, context) {
   // A model-generated scene must not silently discard the selected output device.
   if(context.scene.deviceProfileId) { stripped.deviceProfileId=context.scene.deviceProfileId;stripped.surface=context.scene.surface; }
   // The image label / watermark belongs to the user: a rebuilt scene must not
-  // silently change it, and no tool lets the model edit it (the mandatory
-  // AI生成/虚构 disclosure is rendered unconditionally on top).
+  // silently change it, and no tool lets the model edit it. Both the watermark
+  // text and the user's on/off switch are preserved from the starting scene.
   stripped.watermark = context.scene.watermark;
+  if (context.scene.watermarkEnabled === undefined) delete stripped.watermarkEnabled;
+  else stripped.watermarkEnabled = context.scene.watermarkEnabled;
   const validation = validateScene(stripped);
   if (!validation.ok || !validation.scene) {
     const errors = validation.errors.slice(0, 3).join('；');

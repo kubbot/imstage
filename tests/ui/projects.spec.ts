@@ -149,10 +149,20 @@ test('custom declarative layout can be created, edited and survives reload', asy
   // set an attribute: assert the computed chat background.
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-messages')).toHaveCSS('background-color', 'rgb(238, 242, 247)');
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-header')).toHaveCSS('background-color', 'rgb(16, 20, 24)');
-  // Safety behavior: the brand/platform selector is gone; the custom layout
-  // keeps applying on the single generic IMStage skin.
-  await expect(page.getByLabel('目标聊天平台', { exact: true })).toHaveCount(0);
-  await expect(page.locator('.scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
+  // The platform selector is back with real bilingual brand names, and the
+  // custom layout keeps applying over the selected platform skin.
+  const platformSelect = page.getByLabel('目标聊天平台', { exact: true });
+  await expect(platformSelect).toHaveCount(1);
+  await expect(platformSelect).toHaveValue('whatsapp');
+  const platformNames = (await platformSelect.locator('option').allInnerTexts()).join(' ');
+  expect(platformNames).toMatch(/微信/);
+  expect(platformNames).toMatch(/WhatsApp/);
+  expect(platformNames).toMatch(/iMessage/);
+  await expect(page.locator('.scene-view')).toHaveAttribute('data-platform', 'whatsapp');
+  await platformSelect.selectOption('xiaohongshu');
+  await expect(page.locator('.scene-view')).toHaveAttribute('data-platform', 'xiaohongshu');
+  await platformSelect.selectOption('whatsapp');
+  await expect(page.locator('.scene-view')).toHaveAttribute('data-platform', 'whatsapp');
 
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-message-meta').first()).toHaveCSS('font-size', '10px');
   await page.reload();

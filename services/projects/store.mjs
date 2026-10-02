@@ -22,6 +22,7 @@ export const PROJECT_SCHEMA_SQL = `
     name       TEXT NOT NULL,
     rules      TEXT NOT NULL DEFAULT '',
     platform   TEXT NOT NULL DEFAULT 'wechat',
+    watermark_enabled INTEGER NOT NULL DEFAULT 1,
     revision   INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -48,6 +49,7 @@ export const PROJECT_SCHEMA_SQL = `
     client_batch_id  TEXT,
     status           TEXT NOT NULL,
     rules            TEXT NOT NULL DEFAULT '',
+    watermark_enabled INTEGER NOT NULL DEFAULT 1,
     template_id      TEXT,
     template_revision INTEGER,
     template_json    TEXT,
@@ -87,13 +89,18 @@ export const PROJECT_SCHEMA_SQL = `
 /**
  * Install the project/batch tables and apply additive column migrations.
  * Existing rows and scenes are never rewritten or deleted; a legacy database
- * simply gains NULL template/variant columns.
+ * simply gains NULL template/variant columns and a watermark column defaulting
+ * to on (1), so every legacy project keeps its watermark.
  */
 export function installProjectSchema(db) {
   db.exec(PROJECT_SCHEMA_SQL);
   const columns = (table) => new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name));
+  const projectColumns = columns('projects');
+  for (const [name, ddl] of [['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1']]) {
+    if (!projectColumns.has(name)) db.exec(`ALTER TABLE projects ADD COLUMN ${name} ${ddl}`);
+  }
   const jobColumns = columns('batch_jobs');
-  for (const [name, ddl] of [['template_id', 'TEXT'], ['template_revision', 'INTEGER'], ['template_json', 'TEXT']]) {
+  for (const [name, ddl] of [['template_id', 'TEXT'], ['template_revision', 'INTEGER'], ['template_json', 'TEXT'], ['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1']]) {
     if (!jobColumns.has(name)) db.exec(`ALTER TABLE batch_jobs ADD COLUMN ${name} ${ddl}`);
   }
   const taskColumns = columns('batch_tasks');
@@ -128,6 +135,8 @@ function projectItem(row, sceneCount = 0) {
     name: row.name,
     rules: row.rules,
     platform: row.platform,
+    // Legacy rows migrate to 1 (on); only an explicit 0 turns the watermark off.
+    watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1,
     revision: Number(row.revision),
     updatedAt: row.updated_at,
     sceneCount: Number(sceneCount),
@@ -141,7 +150,7 @@ function projectItem(row, sceneCount = 0) {
 export function listProjects(db, userId) {
   const rows = db
     .prepare(
-      `SELECT p.id, p.name, p.rules, p.platform, p.revision, p.updated_at,
+      `SELECT p.id, p.name, p.rules, p.platform, p.watermark_enabled, p.revision, p.updated_at,
               (SELECT COUNT(*) FROM scene_projects sp
                 WHERE sp.user_id = p.user_id AND sp.project_id = p.id) AS scene_count
        FROM projects p
@@ -155,7 +164,7 @@ export function listProjects(db, userId) {
 export function getProjectRow(db, userId, projectId) {
   return (
     db
-      .prepare('SELECT id, name, rules, platform, revision, updated_at FROM projects WHERE user_id = ? AND id = ?')
+      .prepare('SELECT id, name, rules, platform, watermark_enabled, revision, updated_at FROM projects WHERE user_id = ? AND id = ?')
       .get(userId, projectId) ?? null
   );
 }
@@ -177,7 +186,7 @@ export function getProjectItem(db, userId, projectId) {
 export function getProjectContext(db, userId, projectId) {
   const row = getProjectRow(db, userId, projectId);
   if (!row) return null;
-  return { id: row.id, name: row.name, rules: row.rules, platform: row.platform };
+  return { id: row.id, name: row.name, rules: row.rules, platform: row.platform, watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1 };
 }
 
 export function countProjects(db, userId) {
@@ -185,24 +194,29 @@ export function countProjects(db, userId) {
   return Number(row?.total ?? 0);
 }
 
-export function createProject(db, { userId, projectId, name, rules, platform, nowMs }) {
+export function createProject(db, { userId, projectId, name, rules, platform, watermarkEnabled = true, nowMs }) {
   const stamp = nowIso(nowMs);
   return withTransaction(db, () => {
     if (countProjects(db, userId) >= MAX_PROJECTS_PER_USER) {
       throw projectsError(409, 'project_limit_reached', `每个账号最多保存 ${MAX_PROJECTS_PER_USER} 个项目`);
     }
     db.prepare(
-      `INSERT INTO projects (user_id, id, name, rules, platform, revision, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).run(userId, projectId, name, rules, platform, stamp, stamp);
+      `INSERT INTO projects (user_id, id, name, rules, platform, watermark_enabled, revision, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    ).run(userId, projectId, name, rules, platform, watermarkEnabled ? 1 : 0, stamp, stamp);
     return projectItem(
-      { id: projectId, name, rules, platform, revision: 1, updated_at: stamp },
+      { id: projectId, name, rules, platform, watermark_enabled: watermarkEnabled ? 1 : 0, revision: 1, updated_at: stamp },
       0,
     );
   });
 }
 
-export function updateProject(db, { userId, projectId, name, rules, platform, revision, nowMs }) {
+/**
+ * Update a project. An omitted `watermarkEnabled` preserves the stored switch
+ * (only an explicit boolean changes it), so a partial update can never quietly
+ * turn a legacy project's watermark back on.
+ */
+export function updateProject(db, { userId, projectId, name, rules, platform, watermarkEnabled, revision, nowMs }) {
   const stamp = nowIso(nowMs);
   return withTransaction(db, () => {
     const row = getProjectRow(db, userId, projectId);
@@ -210,18 +224,19 @@ export function updateProject(db, { userId, projectId, name, rules, platform, re
     if (Number(row.revision) !== revision) {
       throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
     }
+    const storedWatermark = watermarkEnabled === undefined ? Number(row.watermark_enabled ?? 1) === 1 : watermarkEnabled === true;
     const result = db
       .prepare(
         `UPDATE projects
-         SET name = ?, rules = ?, platform = ?, revision = revision + 1, updated_at = ?
+         SET name = ?, rules = ?, platform = ?, watermark_enabled = ?, revision = revision + 1, updated_at = ?
          WHERE user_id = ? AND id = ? AND revision = ?`,
       )
-      .run(name, rules, platform, stamp, userId, projectId, revision);
+      .run(name, rules, platform, storedWatermark ? 1 : 0, stamp, userId, projectId, revision);
     if (result.changes !== 1) {
       throw projectsError(409, 'revision_conflict', '项目已更新，请刷新后重试');
     }
     return projectItem(
-      { id: projectId, name, rules, platform, revision: revision + 1, updated_at: stamp },
+      { id: projectId, name, rules, platform, watermark_enabled: storedWatermark ? 1 : 0, revision: revision + 1, updated_at: stamp },
       countProjectScenes(db, userId, projectId),
     );
   });
@@ -329,6 +344,8 @@ function jobSummary(row) {
     projectId: row.project_id,
     status: row.status,
     rules: row.rules,
+    // Frozen at enqueue: later project edits never change a queued/finished job.
+    watermarkEnabled: Number(row.watermark_enabled ?? 1) === 1,
     templateId: row.template_id ?? null,
     templateRevision: row.template_revision === null || row.template_revision === undefined ? null : Number(row.template_revision),
     reason: row.reason ?? null,
@@ -426,18 +443,19 @@ export function countActiveJobs(db, userId) {
 /**
  * Persist a new job and its tasks atomically. Task scene ids are generated
  * up front so a retry/replace never reuses another account's scene id. A
- * frozen template snapshot and every item's values are written in the same
- * transaction, so later template/project edits cannot change queued output.
+ * frozen template snapshot, the project's watermark switch and every item's
+ * values are written in the same transaction, so later template/project edits
+ * cannot change queued output.
  */
-export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs, template = null }) {
+export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs, template = null, watermarkEnabled = true }) {
   const jobId = crypto.randomUUID();
   const stamp = nowIso(nowMs);
   const templateJson = template ? JSON.stringify(template.definition) : null;
   withTransaction(db, () => {
     db.prepare(
       `INSERT INTO batch_jobs
-         (id, user_id, project_id, session_id, client_batch_id, status, rules, template_id, template_revision, template_json, total, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, project_id, session_id, client_batch_id, status, rules, watermark_enabled, template_id, template_revision, template_json, total, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       jobId,
       userId,
@@ -445,6 +463,7 @@ export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks,
       sessionId ?? null,
       clientBatchId,
       rules,
+      watermarkEnabled ? 1 : 0,
       template ? template.id : null,
       template ? template.revision : null,
       templateJson,
@@ -592,8 +611,10 @@ export function markJobCancelRequested(db, { userId, projectId, jobId, reason, n
 
 /**
  * Build a fresh job containing only the retryable tasks of a terminal job,
- * reusing the original rule snapshot. Explicit retries therefore never resume
- * automatically after a restart and never create duplicate scenes.
+ * reusing the original rule and watermark snapshots — a retry keeps the
+ * enqueue-time user settings even if the project changed since. Explicit
+ * retries therefore never resume automatically after a restart and never
+ * create duplicate scenes.
  */
 export function createRetryJob(db, { userId, projectId, jobId, sessionId, nowMs }) {
   const prior = findJobByClientId(db,userId,projectId,'retry-'+jobId);
@@ -624,6 +645,7 @@ export function createRetryJob(db, { userId, projectId, jobId, sessionId, nowMs 
     projectId,
     sessionId,
     rules: source.rules,
+    watermarkEnabled: Number(source.watermark_enabled ?? 1) === 1,
     tasks: retryable.map((task) => {
       let values = {};
       if (typeof task.values_json === 'string' && task.values_json !== '') { try { values = JSON.parse(task.values_json); } catch { values = {}; } }

@@ -5,26 +5,35 @@
  * deterministic renderer, the API server and both MCP servers:
  *
  *   1. Disclosure: every rendered frame and every PNG export carries the
- *      mandatory "AI生成 / 虚构" (AI-generated / Fictional) mark. It cannot be
- *      turned off through the UI, the Agent, an import or the API.
+ *      "AI生成 / 虚构" (AI-generated / Fictional) mark unless the user chose a
+ *      watermark-free project/scene (`watermarkEnabled: false`). The flag is a
+ *      *user* preference: it defaults to on for new and legacy scenes, the
+ *      Agent model can never change it, and obsolete toggle aliases are still
+ *      stripped on import.
  *   2. Payments: transfer / red-packet / balance style messages are not
  *      supported anywhere. Legacy or imported scenes are neutralised, never
  *      silently deleted (stored work is preserved as a neutral notice).
  *   3. Real screenshots: reference-scene ("edit a real screenshot") documents
  *      are rejected on all public surfaces. Internal offline evaluation code
  *      may keep its research implementation, but it is unreachable publicly.
- *   4. Generic rendering: the product renders its own generic IMStage chat UI.
- *      Legacy platform identifiers may survive in stored data for migration,
- *      but no public rendered output shows a brand logo or platform clone.
+ *   4. Platform templates: each supported chat platform renders its own
+ *      template chrome (bubbles, avatars, composer) as an *approximate style
+ *      preview* for synthetic data — never a pixel clone and never a brand
+ *      logo. The IMStage generic skin stays a first-class option alongside
+ *      WeChat, WhatsApp, iMessage, Instagram, Xiaohongshu and Slack.
  *
  * This module must stay dependency-free (no `node:` imports, no DOM) so the
  * browser bundle and plain Node share exactly one policy.
  */
 
 /** Bump when a policy-visible behaviour changes; recorded in the audit log. */
-export const POLICY_VERSION = 'imstage-safety-2026-09-30';
+export const POLICY_VERSION = 'imstage-safety-2026-10-02';
 
-/** The mandatory visible disclosure. Bilingual on purpose: exports travel. */
+/**
+ * The visible disclosure/watermark. Bilingual on purpose: exports travel.
+ * Shown by default; `Scene.watermarkEnabled === false` (a user choice frozen
+ * into the scene) suppresses it together with any custom watermark text.
+ */
 export const DISCLOSURE_TEXT = 'AI生成 / 虚构 · AI-generated / Fictional';
 
 /** Shorter in-frame label; still contains both mandated words. */
@@ -138,20 +147,38 @@ export function hasPaymentMessages(messages) {
   return Array.isArray(messages) && messages.some((m) => m && isPaymentMessageType(m.type));
 }
 
-/** Field names a producer might use to try to disable the disclosure. */
+/**
+ * Obsolete field names a producer might use to toggle the disclosure. These
+ * aliases predate the supported `watermarkEnabled` boolean and are still
+ * dropped before validation; `watermarkEnabled` itself is a supported scene
+ * field and is validated by the scene contract instead.
+ */
 export const DISCLOSURE_OVERRIDE_FIELDS = Object.freeze([
   'showFictionalMark',
   'fictionalMark',
   'showMark',
   'hideDisclosure',
   'disclosure',
-  'watermarkEnabled',
   'markEnabled',
 ]);
 
 /**
- * Strip fields that attempt to toggle the mandatory disclosure. The disclosure
- * is unconditional, so any such key is simply dropped before validation.
+ * True unless the scene explicitly opts out. `watermarkEnabled` is optional and
+ * absent means on, so every legacy/stored scene keeps its watermark and every
+ * surface (React preview, deterministic HTML, PNG export, MCP render) makes the
+ * same decision from the same rule.
+ *
+ * @param {{ watermarkEnabled?: unknown }|undefined} scene
+ * @returns {boolean}
+ */
+export function sceneWatermarkEnabled(scene) {
+  return !(scene && scene.watermarkEnabled === false);
+}
+
+/**
+ * Strip obsolete alias fields that attempted to toggle the disclosure. The
+ * supported `watermarkEnabled` boolean is kept and validated by the scene
+ * contract; any older alias is simply dropped before validation.
  *
  * @param {Record<string, unknown>} raw
  * @returns {Record<string, unknown>}

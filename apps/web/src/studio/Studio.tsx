@@ -21,6 +21,8 @@ import {
 import {
   MESSAGE_TYPES,
   MESSAGE_TYPE_LABELS,
+  PLATFORMS,
+  PLATFORM_LABELS,
   TEMPLATE_IDS,
   TEMPLATE_LABELS,
   addMessage,
@@ -44,6 +46,7 @@ import {
   updateScene,
   type History,
   type MessageType,
+  type Platform,
   type Scene,
   type TemplateId,
 } from './model';
@@ -909,10 +912,23 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
               <span className="studio-label">场景标题</span>
               <input className="studio-input" {...titleField} disabled={exporting} />
             </label>
-            <div className="studio-field">
-              <span className="studio-label">聊天界面</span>
-              <p className="studio-label">通用 IMStage 聊天界面；所有画面统一渲染，不提供平台皮肤选择。</p>
-            </div>
+            <label className="studio-field">
+              <span className="studio-label">平台</span>
+              <select
+                className="studio-select"
+                value={scene.platform}
+                onChange={(event) =>
+                  mutate((s) => updateScene(s, { platform: event.target.value as Platform }))
+                }
+                disabled={exporting}
+              >
+                {PLATFORMS.map((platform) => (
+                  <option key={platform} value={platform}>
+                    {PLATFORM_LABELS[platform]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="studio-grid-2">
               <label className="studio-field">
                 <span className="studio-label">设备时间</span>
@@ -923,13 +939,25 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
                 <input className="studio-input" {...dateField} disabled={exporting} />
               </label>
             </div>
+            <label className="studio-field studio-check-field">
+              <span className="studio-label">水印（AI生成 / 虚构标识）</span>
+              <input
+                type="checkbox"
+                checked={scene.watermarkEnabled !== false}
+                onChange={(event) =>
+                  mutate((s) => updateScene(s, { watermarkEnabled: event.target.checked }))
+                }
+                disabled={exporting}
+              />
+              <small>默认开启；关闭后预览与导出都不显示水印标识，仅影响当前画面。</small>
+            </label>
             <label className="studio-field">
-              <span className="studio-label">水印（默认关闭）</span>
+              <span className="studio-label">自定义水印文字（可选）</span>
               <input
                 className="studio-input"
                 {...watermarkField}
                 placeholder="留空则不显示"
-                disabled={exporting}
+                disabled={exporting || scene.watermarkEnabled === false}
               />
             </label>
           </details>

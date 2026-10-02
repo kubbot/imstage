@@ -50,6 +50,7 @@ const SCENE_KEYS = new Set([
   'participants',
   'messages',
   'watermark',
+  'watermarkEnabled',
   'reference',
   'referenceDate',
   'surface',
@@ -88,6 +89,7 @@ const SET_KEYS = new Set([
   'deviceTime',
   'date',
   'watermark',
+  'watermarkEnabled',
   'surface',
   'deviceProfileId',
   'background',
@@ -243,6 +245,9 @@ export function enforceSceneBounds(scene, { label = 'scene' } = {}) {
   rejectUnknownKeys(scene, SCENE_KEYS, label);
   assertString(scene.title, `${label}.title`, { max: SCENE_LIMITS.titleMax, required: true });
   assertString(scene.watermark, `${label}.watermark`, { max: SCENE_LIMITS.watermarkMax });
+  if (scene.watermarkEnabled !== undefined && typeof scene.watermarkEnabled !== 'boolean') {
+    invalidRequest(`${label}.watermarkEnabled 必须是布尔值`, { field: `${label}.watermarkEnabled` }, '删除 watermarkEnabled 或传入 true/false；缺省表示开启水印。');
+  }
   assertString(scene.date, `${label}.date`, { max: SCENE_LIMITS.dateMax });
   assertString(scene.deviceTime, `${label}.deviceTime`, { max: SCENE_LIMITS.deviceTimeMax });
   assertString(scene.composerText, `${label}.composerText`, { max: 4000 });
@@ -492,6 +497,8 @@ export function adaptSceneForRenderer(scene) {
       participants: scene.participants.map((p) => ({ id: p.id, name: p.name })),
       messages,
       watermark: scene.watermark,
+      ...(scene.watermarkEnabled === undefined ? {} : { watermarkEnabled: scene.watermarkEnabled }),
+      ...(scene.appearance ? { appearance: scene.appearance } : {}),
       ...(scene.layout ? { layout: scene.layout } : {}),
     },
     assets,
@@ -539,9 +546,9 @@ export function buildCapabilities() {
       nativelyRenderedMessageTypes: [...NATIVE_MESSAGE_TYPES],
       degradedMessageTypes: degraded,
       persistedNotRendered: [],
-      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用通用 IMStage 聊天皮肤（所有平台 id 渲染一致，不复刻任何真实平台界面）。',
+      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用 scene.platform 选择的聊天模板皮肤（imstage 为通用 IMStage 皮肤，另有 wechat/whatsapp/imessage/instagram/xiaohongshu/slack 近似风格模板，均为合成内容风格预览，不复刻任何真实平台界面）。',
       unsupported: ['reference screenshot overlays (real-screenshot editing is disabled on all public surfaces)', 'payment / transfer / red-packet / balance message types'],
-      disclosure: '所有预览与导出固定带有 AI生成 / 虚构 标识，不可关闭。',
+      disclosure: '预览与导出默认带有 AI生成 / 虚构 水印（含自定义 watermark 文字）。scene.watermarkEnabled=false 时关闭两者；缺省为开启，模型工具不能修改该用户设置。',
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',
     },
     limits: {

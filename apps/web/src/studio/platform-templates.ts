@@ -1,21 +1,40 @@
 import type {Platform} from './model';
 /**
- * Generic IMStage chat chrome. Platform identifiers survive in stored scenes
- * for migration only; every value renders the same independent IMStage UI, so
- * public output never shows a messaging-platform logo, name or clone.
+ * Platform chat templates belong to code. Agent content cannot redefine
+ * platform structure. Each entry is an approximate style preview for synthetic
+ * content — never a pixel clone and never a brand logo. `imstage` is the
+ * generic IMStage template and stays a first-class option alongside WeChat,
+ * WhatsApp, iMessage, Instagram, Xiaohongshu and Slack. The deterministic
+ * renderer (packages/renderer/renderSceneHtml.mjs) mirrors these differences.
  */
-export const GENERIC_TEMPLATE = {
+export interface PlatformTemplate {
+  version: string;
+  headerAvatar: boolean;
+  messageAvatars: 'all' | 'incoming' | 'group' | 'none';
+  inlineTime: boolean;
+  composer: 'default' | 'wechat' | 'whatsapp' | 'imessage' | 'instagram' | 'slack';
+  background: string;
+}
+
+export const GENERIC_TEMPLATE: PlatformTemplate = {
   version: 'imstage-generic-2026-v1',
   headerAvatar: false,
   messageAvatars: 'all',
   inlineTime: true,
   composer: 'default',
   background: '#e9edf2',
-} as const;
-/** @deprecated legacy structural keys kept only so old code keeps compiling. */
-export const PLATFORM_TEMPLATES = new Proxy({} as Record<Platform, typeof GENERIC_TEMPLATE>, {
-  get: () => GENERIC_TEMPLATE,
-});
-export function platformTemplate(_platform: Platform) {
-  return GENERIC_TEMPLATE;
+};
+
+export const PLATFORM_TEMPLATES: Record<Platform, PlatformTemplate> = {
+  imstage: GENERIC_TEMPLATE,
+  wechat: { version: 'wechat-ios-2026-v1', headerAvatar: false, messageAvatars: 'all', inlineTime: false, composer: 'wechat', background: '#f5f5f5' },
+  whatsapp: { version: 'whatsapp-ios-2026-v1', headerAvatar: true, messageAvatars: 'group', inlineTime: true, composer: 'whatsapp', background: '#ece5dd' },
+  instagram: { version: 'instagram-ios-2026-v1', headerAvatar: true, messageAvatars: 'incoming', inlineTime: false, composer: 'instagram', background: '#ffffff' },
+  imessage: { version: 'imessage-v1', headerAvatar: false, messageAvatars: 'none', inlineTime: false, composer: 'imessage', background: '#ffffff' },
+  xiaohongshu: { version: 'xiaohongshu-v1', headerAvatar: false, messageAvatars: 'all', inlineTime: false, composer: 'default', background: '#ffffff' },
+  slack: { version: 'slack-v1', headerAvatar: false, messageAvatars: 'all', inlineTime: true, composer: 'slack', background: '#ffffff' },
+};
+
+export function platformTemplate(platform: Platform): PlatformTemplate {
+  return PLATFORM_TEMPLATES[platform] ?? GENERIC_TEMPLATE;
 }

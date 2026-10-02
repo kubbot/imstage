@@ -46,11 +46,14 @@ function sleep(ms) {
 
 /**
  * Build the starting scene for one task. A queued job that froze a template
- * instantiates that exact snapshot with the item values; otherwise the legacy
- * blank scene is used. Platform comes from the task so project defaults keep
- * working for template-free batches.
+ * instantiates that exact snapshot with the item values (an explicit template
+ * scene keeps its own watermark setting); otherwise the legacy blank scene is
+ * used and carries the watermark switch the job froze at enqueue. Platform
+ * comes from the task so project defaults keep working for template-free
+ * batches.
  */
 function initialScene(job, task) {
+  const watermarkEnabled = Number(job.watermark_enabled ?? 1) === 1;
   if (typeof job.template_json === 'string' && job.template_json !== '') {
     let definition = null;
     try { definition = JSON.parse(job.template_json); } catch { definition = null; }
@@ -65,7 +68,7 @@ function initialScene(job, task) {
       return validated.scene;
     }
   }
-  return blankScene(task.platform, task.sceneId);
+  return blankScene(task.platform, task.sceneId, watermarkEnabled);
 }
 
 function eventDetail(event) {

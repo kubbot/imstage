@@ -1354,6 +1354,7 @@ async function handleProjectCreate(ctx, req, res) {
   const name = projects.validateProjectName(body.name);
   const rules = projects.validateProjectRules(body.rules, '');
   const platform = projects.validateProjectPlatform(body.platform, projects.DEFAULT_PROJECT_PLATFORM);
+  const watermarkEnabled = projects.validateProjectWatermarkEnabled(body.watermarkEnabled, projects.DEFAULT_PROJECT_WATERMARK);
   recheckSession(ctx, req, session);
   const item = projects.createProject(ctx.db, {
     userId: session.user.id,
@@ -1361,6 +1362,7 @@ async function handleProjectCreate(ctx, req, res) {
     name,
     rules,
     platform,
+    watermarkEnabled,
     nowMs: ctx.nowMs(),
   });
   sendJson(req, res, 200, { item });
@@ -1389,6 +1391,11 @@ async function handleProjectUpdate(ctx, req, res, projectId) {
   const platform = body.platform === undefined
     ? existing.platform
     : projects.validateProjectPlatform(body.platform, existing.platform);
+  // Omitted fields preserve the stored value (the store keeps the old switch);
+  // `null` and other non-booleans are rejected, never coerced.
+  const watermarkEnabled = body.watermarkEnabled === undefined
+    ? undefined
+    : projects.validateProjectWatermarkEnabled(body.watermarkEnabled);
   recheckSession(ctx, req, session);
   const item = projects.updateProject(ctx.db, {
     userId: session.user.id,
@@ -1396,6 +1403,7 @@ async function handleProjectUpdate(ctx, req, res, projectId) {
     name,
     rules,
     platform,
+    watermarkEnabled,
     revision,
     nowMs: ctx.nowMs(),
   });
@@ -1543,6 +1551,8 @@ async function handleBatchCreate(ctx, req, res, projectId) {
       projectId,
       sessionId: session.sessionId,
       rules: project.rules,
+      // Frozen at enqueue: a later project edit or retry never changes it.
+      watermarkEnabled: project.watermarkEnabled,
       tasks,
       clientBatchId,
       template,
@@ -1714,6 +1724,8 @@ async function handleAgentRun(ctx, req, res) {
     if (typeof context.rules === 'string' && context.rules.trim() !== '') {
       input.prompt = projects.buildTaskPrompt(context.rules, input.prompt);
     }
+    // Scene settings are caller-owned, including absent watermarkEnabled (= on).
+    // Project defaults are applied when constructing NEW scenes, never at run time.
   }
 
   const runtime = ctx.agent.runtime;

@@ -85,7 +85,7 @@ test('cross-tab change pauses local writes and allows deliberate resolution', as
 });
 
 test('PNG export is a real image, supports full content and has correct dimensions', async ({ page }, testInfo) => {
-  await page.goto('/#/studio');await settings(page);await page.getByLabel('水印（默认关闭）').fill('IMStage 合成演示');
+  await page.goto('/#/studio');await settings(page);await page.getByLabel('自定义水印文字（可选）').fill('IMStage 合成演示');
   for(const mode of ['standard','full']) {
     if(mode==='full'){await page.getByRole('textbox',{name:'添加一条台词',exact:true}).fill('长图内容 '.repeat(100));await page.getByRole('button',{name:'添加这条台词'}).click();await page.getByRole('button',{name:'长截图',exact:true}).click();}
     const dl=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();const download=await dl;

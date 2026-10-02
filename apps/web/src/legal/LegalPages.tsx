@@ -1,11 +1,12 @@
 /**
  * Bilingual terms of use and privacy / retention notices.
  *
- * Both documents describe what the product actually does since the 2026-09-30
- * safety change: synthetic chat authoring for tests and evaluation datasets,
- * a mandatory AI生成 / 虚构 disclosure on every preview and export, no payment
- * message capabilities, no real-screenshot reconstruction, a minimal hosted
- * generation audit with 90-day retention, and a non-commercial source license.
+ * Both documents describe what the product actually does: synthetic chat
+ * authoring for tests and evaluation datasets, an AI生成 / 虚构 watermark shown
+ * by default on every preview and export (a per-project/per-scene user switch
+ * may turn it off), no payment message capabilities, no real-screenshot
+ * reconstruction, a minimal hosted generation audit with 90-day retention,
+ * and a non-commercial source license.
  */
 import { useLocale } from '../marketing/LocaleContext';
 import { BUSINESS_EMAIL, businessEmailAvailable } from '../config';
@@ -55,15 +56,15 @@ export function Terms() {
             <li><strong>{locale === 'zh' ? '伪造证据' : 'Fabricating evidence'}</strong><p>{locale === 'zh' ? '不得将生成画面作为真实聊天、交易、承诺或行为的证据。' : 'Never present generated frames as evidence of a real conversation, transaction, promise or act.'}</p></li>
             <li><strong>{locale === 'zh' ? '欺诈与误导' : 'Fraud and deception'}</strong><p>{locale === 'zh' ? '不得用于欺诈、虚假宣传、误导他人或规避法律义务。' : 'No fraud, false advertising, misleading others or evading legal obligations.'}</p></li>
             <li><strong>{locale === 'zh' ? '诽谤与冒充' : 'Defamation and impersonation'}</strong><p>{locale === 'zh' ? '不得诽谤他人，不得冒充真实个人、企业或机构。' : 'No defamation and no impersonation of real people, companies or institutions.'}</p></li>
-            <li><strong>{locale === 'zh' ? '移除标识' : 'Removing the label'}</strong><p>{locale === 'zh' ? '不得移除、遮盖或淡化「AI生成 / 虚构」标识；该标识在所有预览与导出中强制显示。' : 'Never remove, obscure or dilute the “AI生成 / 虚构” (AI-generated / Fictional) label; it is mandatory on every preview and export.'}</p></li>
+            <li><strong>{locale === 'zh' ? '水印与标识' : 'Watermark and label'}</strong><p>{locale === 'zh' ? '「AI生成 / 虚构」水印默认在所有预览与导出中显示；项目与画面提供水印开关，关闭只影响所选范围。不得用关闭水印的能力伪造真实对话证据；AI 不能替你修改水印设置。' : 'The “AI生成 / 虚构” (AI-generated / Fictional) watermark is shown by default on every preview and export; projects and scenes have a watermark switch whose scope is only that project/scene. Never use the watermark-off option to fabricate evidence of a real conversation; the AI can never change your watermark setting.'}</p></li>
             <li><strong>{locale === 'zh' ? '真实截图仿制' : 'Real-screenshot forgery'}</strong><p>{locale === 'zh' ? '不得重建或仿制真实聊天截图；相关功能已停用，不得绕过。' : 'Do not rebuild or imitate real chat screenshots; that capability is disabled and must not be bypassed.'}</p></li>
             <li><strong>{locale === 'zh' ? '支付类内容' : 'Payment content'}</strong><p>{locale === 'zh' ? '支付、转账、红包、余额类消息能力已移除，不得以任何形式重建。' : 'Payment, transfer, red-packet and balance message capabilities are removed and must not be recreated in any form.'}</p></li>
           </ul>
           <h2>{locale === 'zh' ? '3. 生成内容' : '3. Generated content'}</h2>
           <p>
             {locale === 'zh'
-              ? '所有输出画面都是为测试、教学与评测标注生成的合成内容，不证明任何真实人物说过或做过什么，也不得作为真实对话或行为的证据。人物、头像、时间与地点可以是虚构素材，也可以是你有权使用的真实素材（例如授权头像、真实地名）；你须确保所用素材是虚构的或已获授权。界面渲染为通用 IMStage 聊天样式，与任何聊天平台无隶属关系，不使用其商标或界面克隆。'
-              : 'All output is synthetic content produced for testing, teaching and evaluation annotations. It proves nothing that any real person said or did and must never be used as evidence of a real conversation or act. People, avatars, times and places may be fictional or real material you are authorised to use (for example an authorised avatar or a real place name); you must ensure assets are fictional or properly authorised. The UI renders as the generic IMStage chat style; it is independent of any messaging platform and uses no trademarks or interface clones.'}
+              ? '所有输出画面都是为测试、教学与评测标注生成的合成内容，不证明任何真实人物说过或做过什么，也不得作为真实对话或行为的证据。人物、头像、时间与地点可以是虚构素材，也可以是你有权使用的真实素材（例如授权头像、真实地名）；你须确保所用素材是虚构的或已获授权。界面按所选聊天模板渲染（通用 IMStage、微信、WhatsApp、iMessage、Instagram、小红书、Slack），均为合成内容的风格预览，与任何聊天平台无隶属关系，不使用其商标，不做像素级界面克隆。'
+              : 'All output is synthetic content produced for testing, teaching and evaluation annotations. It proves nothing that any real person said or did and must never be used as evidence of a real conversation or act. People, avatars, times and places may be fictional or real material you are authorised to use (for example an authorised avatar or a real place name); you must ensure assets are fictional or properly authorised. The UI renders per selected chat template (IMStage generic, WeChat, WhatsApp, iMessage, Instagram, Xiaohongshu, Slack) as an approximate style preview for synthetic content; it is independent of any messaging platform, uses no trademarks and is not a pixel-level interface clone.'}
           </p>
           <h2>{locale === 'zh' ? '4. 许可与商业授权' : '4. License and commercial licensing'}</h2>
           <p>
@@ -102,8 +103,8 @@ export function Privacy() {
           <h2>{locale === 'zh' ? '1. 匿名本地编辑与导出' : '1. Anonymous local editing and export'}</h2>
           <p>
             {locale === 'zh'
-              ? '免登录的编辑与 PNG 导出不会把场景内容或导出图片上传到服务器（页面本身仍会加载静态资源，服务器仍保留常规访问日志），服务端也不会为这些操作生成审计记录。精确局限：本地行为无法在服务端审计或追踪；相应地，「AI生成 / 虚构」标识在渲染器内强制绘制，随每张导出图片携带。'
-              : 'Editing and PNG export without an account never upload scene contents or exported images to a server (the page itself still loads static assets and the server keeps ordinary access logs), and no server audit record is created for these actions. Precise limitation: local actions cannot be audited or traced server-side; instead the “AI生成 / 虚构” label is drawn by the renderer itself and travels with every exported image.'}
+              ? '免登录的编辑与 PNG 导出不会把场景内容或导出图片上传到服务器（页面本身仍会加载静态资源，服务器仍保留常规访问日志），服务端也不会为这些操作生成审计记录。精确局限：本地行为无法在服务端审计或追踪；相应地，「AI生成 / 虚构」水印默认由渲染器绘制并随每张导出图片携带（关闭水印的场景除外）。'
+              : 'Editing and PNG export without an account never upload scene contents or exported images to a server (the page itself still loads static assets and the server keeps ordinary access logs), and no server audit record is created for these actions. Precise limitation: local actions cannot be audited or traced server-side; instead the “AI生成 / 虚构” watermark is drawn by the renderer and travels with every exported image by default (except scenes whose watermark is switched off).'}
           </p>
           <h2>{locale === 'zh' ? '2. 账号数据' : '2. Account data'}</h2>
           <p>

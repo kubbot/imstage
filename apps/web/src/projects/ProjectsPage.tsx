@@ -26,17 +26,89 @@ import {
   type TemplateDetail,
   type TemplateSummary,
 } from '../account/api';
-import { PLATFORMS, type Platform } from '../studio/model';
+import { PLATFORMS, createScene, type Platform, type Scene } from '../studio/model';
+import { SceneView } from '../studio/SceneView';
+import { ScaledSceneFrame } from '../marketing/DeviceFrame';
 
 /**
- * Public UI offers only the generic IMStage chat skin. Legacy platform ids in
- * stored projects stay readable (migration) but no brand/platform selector is
- * presented: every value renders the same generic IMStage chat UI.
+ * Every supported chat template is offered as a real, selectable card: the
+ * IMStage generic skin plus WeChat, WhatsApp, iMessage, Instagram, Xiaohongshu
+ * and Slack. Previews render the shared synthetic sample locally (no network,
+ * no model calls, no reference images) and react to the watermark switch.
  */
-const selectablePlatforms = (current?: string | string[]): Platform[] => {
-  const keep = Array.isArray(current) ? current : current ? [current] : [];
-  return Array.from(new Set(['imstage', ...keep])).filter((value): value is Platform => PLATFORMS.includes(value as Platform));
-};
+const TEMPLATE_PREVIEW_DEVICE = { width: 402, height: 470 };
+
+function platformPreviewScene(platform: Platform, watermarkEnabled: boolean): Scene {
+  return {
+    ...createScene('weekend'),
+    id: `template-preview-${platform}`,
+    platform,
+    title: '',
+    ...(watermarkEnabled ? {} : { watermarkEnabled: false }),
+  };
+}
+
+function TemplateOption({ group, platform, label, selected, watermarkEnabled, onSelect, previewLabel }: {
+  group: string;
+  platform: Platform;
+  label: string;
+  selected: boolean;
+  watermarkEnabled: boolean;
+  onSelect: () => void;
+  previewLabel: string;
+}) {
+  const scene = useMemo(() => platformPreviewScene(platform, watermarkEnabled), [platform, watermarkEnabled]);
+  return (
+    <label className={`project-template-card${selected ? ' is-selected' : ''}`}>
+      <span className="project-template-head">
+        <input
+          type="radio"
+          name={group}
+          className="project-template-radio"
+          aria-label={label}
+          value={platform}
+          checked={selected}
+          onChange={onSelect}
+        />
+        <strong>{label}</strong>
+      </span>
+      <span className="project-template-preview" aria-label={previewLabel}>
+        <ScaledSceneFrame size={TEMPLATE_PREVIEW_DEVICE}>
+          <SceneView scene={scene} exportMode />
+        </ScaledSceneFrame>
+      </span>
+    </label>
+  );
+}
+
+function PlatformCards({ group, value, watermarkEnabled, onChange, copy }: {
+  group: string;
+  value: Platform;
+  watermarkEnabled: boolean;
+  onChange: (platform: Platform) => void;
+  copy: { templateLegend: string; templatePreview: (name: string) => string };
+}) {
+  const labels = useCopy().platforms;
+  return (
+    <fieldset className="project-templates">
+      <legend>{copy.templateLegend}</legend>
+      <div className="project-template-grid">
+        {PLATFORMS.map((platform) => (
+          <TemplateOption
+            key={platform}
+            group={group}
+            platform={platform}
+            label={labels[platform]}
+            selected={value === platform}
+            watermarkEnabled={watermarkEnabled}
+            onSelect={() => onChange(platform)}
+            previewLabel={copy.templatePreview(labels[platform])}
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 import { readImageFile } from '../studio/storage';
 import { useAuth } from '../account/Auth';
 import { useCopy } from '../i18n';
@@ -76,6 +148,7 @@ function ProjectList() {
   const [name, setName] = useState('');
   const [rules, setRules] = useState('');
   const [platform, setPlatform] = useState<Platform>('wechat');
+  const [watermarkEnabled, setWatermarkEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -113,7 +186,7 @@ function ProjectList() {
     try {
       const data = await api<{ item: Project }>('/projects', {
         method: 'POST',
-        body: { name: name.trim(), rules, platform },
+        body: { name: name.trim(), rules, platform, watermarkEnabled },
       });
       location.hash = `/projects?project=${encodeURIComponent(data.item.id)}`;
     } catch (err) {
@@ -162,14 +235,12 @@ function ProjectList() {
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <label>
-          {p.platformLabel}
-          <select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
-            {selectablePlatforms(platform).map((value) => (
-              <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
-            ))}
-          </select>
+        <label className="project-watermark-toggle">
+          <input type="checkbox" checked={watermarkEnabled} onChange={(event) => setWatermarkEnabled(event.target.checked)} />
+          {p.watermarkToggle}
         </label>
+        <p className="project-muted">{p.watermarkHelp}</p>
+        <PlatformCards group="project-create-template" value={platform} watermarkEnabled={watermarkEnabled} onChange={setPlatform} copy={p} />
         <label>
           {p.rulesLabel}
           <textarea
@@ -587,6 +658,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   return (
     <div className="projects-shell projects-detail">
       <p className="projects-back"><a className="text-link" href="#/projects"><IconArrowLeft size={15} /> {p.back}</a></p>
+      <p className="projects-back"><a className="btn btn-primary project-new-scene" href={`#/create?project=${encodeURIComponent(projectId)}&new=1`} aria-disabled={autosave.syncBlocked} onClick={event => { if (autosave.syncBlocked) event.preventDefault(); }}>{p.newSceneWithProject}</a>{autosave.syncBlocked && <span className="project-new-scene-note" role="status">{p.newSceneBlockedSync}</span>}</p>
       <header className="projects-heading">
         <div>
           <span className="account-kicker">PROJECT</span>
@@ -611,14 +683,16 @@ function ProjectDetail({ projectId }: { projectId: string }) {
               {p.nameLabel}
               <input value={autosave.settings.name} maxLength={80} onChange={(event) => autosave.setName(event.target.value)} />
             </label>
-            <label>
-              {p.platformLabel}
-              <select value={autosave.settings.platform} onChange={(event) => autosave.setPlatform(event.target.value as Platform)}>
-                {selectablePlatforms(autosave.settings.platform).map((value) => (
-                  <option key={value} value={value}>{PLATFORM_LABELS[value]}</option>
-                ))}
-              </select>
+            <label className="project-watermark-toggle">
+              <input
+                type="checkbox"
+                checked={autosave.settings.watermarkEnabled}
+                onChange={(event) => autosave.setWatermarkEnabled(event.target.checked)}
+              />
+              {p.watermarkToggle}
             </label>
+            <p className="project-muted">{p.watermarkHelp}</p>
+            <PlatformCards group="project-detail-template" value={autosave.settings.platform} watermarkEnabled={autosave.settings.watermarkEnabled} onChange={autosave.setPlatform} copy={p} />
             <label>
               {p.rulesLabel}
               <textarea
@@ -724,7 +798,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           </fieldset>}
           <fieldset className="project-platforms">
             <legend>{p.platformShort}</legend>
-            {selectablePlatforms(platforms).map((value) => (
+            {PLATFORMS.map((value) => (
               <label key={value} className="project-checkbox">
                 <input type="checkbox" checked={platforms.includes(value)} onChange={() => togglePlatform(value)} />
                 {PLATFORM_LABELS[value]}

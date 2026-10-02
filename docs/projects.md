@@ -11,6 +11,10 @@ A project is account-owned metadata, not a separate content store:
 - `rules` (default empty, max 4000 chars) — ordinary user-authored creative
   constraints, explicitly **not** secrets;
 - `platform` (default `wechat`) — the default platform for new batch items;
+- `watermarkEnabled` (boolean, default `true`; legacy rows migrate to on) —
+  whether new scenes carry the AI生成 / 虚构 watermark. Omitted updates preserve
+  the stored switch; non-booleans (including `null`) are rejected. It is frozen
+  into batch jobs at enqueue and preserved on retry even if the project changes.
 - `revision` and `updatedAt` — optimistic concurrency for saved edits.
 
 A project is limited to 50 per account. Deleting a project deletes only the
@@ -95,8 +99,8 @@ deadline).
 ## Agent integration
 
 `services/projects/store.mjs` exposes `getProjectContext(db, userId, projectId)`,
-returning `{ id, name, rules, platform }` only when the project belongs to the
-caller, otherwise `null`.
+returning `{ id, name, rules, platform, watermarkEnabled }` only when the project
+belongs to the caller, otherwise `null`.
 
 `POST /api/agent/run` accepts an optional `body.projectId`. When present, the
 server loads the owned project, appends its rules as the labelled instruction
