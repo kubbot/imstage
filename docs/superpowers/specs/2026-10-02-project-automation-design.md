@@ -1,12 +1,14 @@
 # IMStage 账号项目自动化与完整文件交付
 
-日期：2026-10-02。状态：对话方案已获用户同意；本文是待审阅的书面设计，产品代码尚未实现。
+日期：2026-10-02。状态：用户已授权深度实现，并明确本任务停用 brainstorming 分阶段确认。按本机 Pi + MiMo 实现、Codex 验收的既定方式连续执行；不修改全局技能或其他任务设置。
 
 ## 1. 用户目标与范围
 
 用户希望在 ChatGPT 或 Claude 中，用自然语言创建 IMStage 项目，根据项目类型生成全部作品和文件，并在网页查看、下载和继续编辑。项目必须属于本人账号，换聊天或换 AI 客户端后可以续作。
 
-验收示例：创建一个中文客服培训项目，微信和 WhatsApp 各 10 个场景，共享人物与规则，关闭水印。调用方 AI 生成内容，IMStage 保存 20 个独立场景、渲染 20 张 PNG、生成说明与清单并打包。随后另一个客户端能找到同一项目，修改一个场景，仅重新渲染发生变化的作品并生成新的文件包。
+最新验收示例：创建一个模块/项目，在其中建立“WhatsApp 结交新朋友”场景，生成 50 个不同的 use case。每个案例都有稳定编号、名称、目标、背景和独立对话；多批提交可恢复，网页显示同一场景下的全部案例与进度，最终交付 50 份 Scene JSON、50 张 PNG、案例索引及文件包。随后另一个客户端能找到同一项目/场景，修改一个案例，仅重新渲染变化的作品并生成新包。
+
+层级明确为 Project（模块）→ Scenario（一个真实使用情境）→ Case（可独立运行/编辑/导出的合成案例）。模块沿用既有项目实体，新增场景实体和案例映射，不用孤立批次冒充用户的场景。
 
 本期实现账号项目管理、类型配方、调用方内容批量保存、进度、确定性渲染和 ZIP 交付。ChatGPT/Claude 是内容生成方，服务端不暗中再调用模型。不创建 ChatGPT/Claude 产品内部的原生 Project，不生成软件应用源码，不向用户电脑任意路径写文件，不新增付费供应商、支付服务、远程自主内容 Agent、视频生成或语音播放。
 
@@ -48,9 +50,13 @@
 
 所有类型包含项目 JSON、README、Scene JSON、PNG、manifest 和 validation 文件。`evaluation_dataset` 额外要求 records.jsonl 与 annotations.jsonl；其他类型有显式标注时可提供标注文件。配方不声称能确定性验证“文风一致”“合理剧情”等自然语言规则。
 
-账号项目增量增加 `type`、`recipeVersion` 和有界的 `brief` 配置；旧项目迁移为 `custom` 配方 v1，保留所有原有数据与 revision。brief 包含语言、预期 item key、平台和可选人物表，不存宿主聊天全文。人物表最多 20 人，名字/角色分别限制 80 字，头像沿用现有内嵌图片契约。预期 item key 最多 20 个且唯一；不用空目录充当已经完成的作品。
+账号项目增量增加 `type`、`recipeVersion` 和有界的 `brief` 配置；旧项目迁移为 `custom` 配方 v1，保留所有原有数据与 revision。brief 包含语言、平台和可选人物表，不存宿主聊天全文。人物表最多 20 人，名字/角色分别限制 80 字，头像沿用现有内嵌图片契约。
 
-带预期 item key 的新项目默认 `autoExport: true`，可明确关闭。计划内容和必需标注全部提交后，服务端自动建立一次确定性导出，不要求调用方再猜测需要打包。按计划 revision 和内容 fingerprint 去重，只在首次完整提交时自动执行；后续定向修改由调用方明确请求新导出。活动任务/存储容量不足时保留已提交内容，状态显示交付待启动及原因，重新请求导出即可恢复，不把保存成功伪报为文件完成。
+场景保存 name、brief、preset、caseCount、platform、locale、revision、autoExport 与冻结的项目默认值。每场景 1–100 个案例，项目最多 20 个场景；整体沿用每账号 100 个已保存作品限制，不增加无限生成配额。create_scenario 生成 case-001 等稳定 key 与可复用的 casePlan，返回计数、缺项和建议提交范围；50 个案例可按 20/20/10 三批提交。预设含 friendship、support、teaching、story、custom。friendship 按认识渠道、共同兴趣、关系阶段、沟通困难和预期结果规划变化，帮助调用方生成有区别的完整对话；这些规划不是已生成的作品。
+
+每个 Case 保存 key、name、objective、context、Scene ID/revision、annotations 与内容来源。批量入口检查编号归属、必填信息、非空对话及标准化消息签名；同一场景已有或同批出现的完全重复对话拒绝，不以改 ID/标题/时间冒充不同案例。语义质量仍由调用方生成与人工审阅，不承诺检测所有近义重复。
+
+新场景默认 `autoExport: true`，可明确关闭。计划案例和必需标注全部提交后，服务端自动建立一次该场景的确定性导出，不要求调用方再猜测需要打包。按场景计划 revision 和内容 fingerprint 去重，只在首次完整提交时自动执行；后续定向修改由调用方明确请求新导出。活动任务/存储容量不足时保留已提交内容，状态显示交付待启动及原因，重新请求导出即可恢复，不把保存成功伪报为文件完成。
 
 既有 `platform`、`watermarkEnabled`、`rules` 保留原契约。项目默认值对新作品生效，不在后台重写已存在的场景。调用方批次在首次提交时冻结项目 revision、配方、人物、规则、平台、水印及模板版本。
 
@@ -80,10 +86,12 @@
 | `imstage_create_project` | `{project:{name,rules?,type?,brief?,defaults?:{platform?,watermarkEnabled?}},idempotencyKey?}`；创建账号项目，返回项目 ID、revision、缺少的内容 |
 | `imstage_list_projects` / `imstage_get_project` | 列表有界；详情包含共享规则、计划、作品摘要、批次/导出摘要与恢复建议，不默认返回图片字节和所有完整场景 |
 | `imstage_update_project` | `{projectId,expectedRevision,project,idempotencyKey?}`；省略字段保持不变；冲突要求重新读取 |
+| `imstage_create_scenario` | `{projectId,scenario:{name,brief,preset?,caseCount?,platform?,locale?,autoExport?},idempotencyKey}`；规划稳定案例编号，默认 caseCount=50，生成指引与计划不算完成内容 |
+| `imstage_list_scenarios` / `imstage_get_scenario` | 读取项目下场景、冻结规则、案例计划、案例摘要、缺项与续作指引 |
 | `imstage_create_template` / `imstage_list_templates` / `imstage_get_template` / `imstage_update_template` | 复用账号网页模板表和共享变量校验；不是迁入独立实例模板 |
-| `imstage_create_batch` | `{projectId,templateId?,templateRevision?,clientIdempotencyKey?,items:[{itemKey,name,prompt?,scene 或 values+patch?,annotations?}]}`；最多 20 条，调用方负责内容；原子保存并关联账号项目 |
+| `imstage_create_batch` | `{projectId,scenarioId?,templateId?,templateRevision?,clientIdempotencyKey?,items:[{itemKey,name,objective?,context?,prompt?,scene 或 values+patch?,annotations?}]}`；最多 20 条，调用方负责内容；原子保存并关联账号项目/场景 |
 | `imstage_get_batch` / `imstage_list_batches` | 返回账号确定性批次回执与 sceneId/revision，不与 Web 付费生成 job 混用 |
-| `imstage_export_project` | `{projectId,expectedRevision,idempotencyKey,sceneIds?,renderOptions?,allowPartial?}`；默认导出整个项目，冻结场景后立即返回 exportId；不等待长渲染完成 |
+| `imstage_export_project` | `{projectId,expectedRevision,idempotencyKey,scenarioId?,sceneIds?,renderOptions?,allowPartial?}`；可导出单场景或整个项目，冻结内容后立即返回 exportId；不等待长渲染完成 |
 | `imstage_get_project_status` | `{projectId,exportId?}`；返回预期/已提交数量、缺项、阶段、逐项状态、完整交付与恢复动作 |
 | `imstage_retry_project_export` | `{projectId,exportId,idempotencyKey}`；显式重试失败/中断条目，复用成功的冻结输出；不重新生成内容 |
 | `imstage_cancel_project_export` | `{projectId,exportId,idempotencyKey?}`；取消未完成的确定性任务 |
@@ -114,6 +122,8 @@ ZIP 使用服务器生成的 ASCII 路径和稳定 ordinal/item key 映射，不
 ```text
 project.json
 README.md
+scenarios/<scenario-id>/scenario.json
+cases.jsonl                          # 稳定编号、目标、背景、场景文件与截图映射
 scenes/0001.scene.json
 renders/wechat/0001.png
 assets/<sha256>.<verified-extension>   # 有真实内嵌素材时才出现
