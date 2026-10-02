@@ -1286,3 +1286,25 @@ test('evaluation cases require caller labels and cleared drafts become pending a
   }));
   assert.equal(resumed.total, 1, 'the cleared case can be submitted again');
 });
+
+test('account MCP discovers and freezes the same optional scenario watermark override as Web', async () => {
+  const { base } = await makeApp();
+  const { cookie } = await register(base);
+  const { token } = await createToken(base, cookie);
+  const tools = await mcpList(base, token);
+  const create = tools.find(tool => tool.name === 'imstage_create_scenario');
+  assert.equal(create.inputSchema.properties.scenario.properties.watermarkEnabled.type, 'boolean');
+  for (const [projectFlag, scenarioFlag] of [[true, false], [false, true], [false, undefined]]) {
+    const project = toolOk(await mcpTool(base, token, 'imstage_create_project', { project: { name: 'Watermark contract', defaults: { watermarkEnabled: projectFlag } } })).project;
+    const scenario = { name: 'Frozen watermark', caseCount: 1, autoExport: false, ...(scenarioFlag === undefined ? {} : { watermarkEnabled: scenarioFlag }) };
+    const request = { projectId: project.id, scenario, idempotencyKey: `watermark-${project.id}` };
+    const planned = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
+    assert.equal(planned.scenario.frozen.watermarkEnabled, scenarioFlag ?? projectFlag);
+    const replay = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
+    assert.equal(replay.scenario.scenarioId, planned.scenario.scenarioId);
+    const conflict = toolErr(await mcpTool(base, token, 'imstage_create_scenario', { ...request, scenario: { ...scenario, watermarkEnabled: !(scenarioFlag ?? projectFlag) } }));
+    assert.equal(conflict.code, 'idempotency_conflict');
+    const invalid = toolErr(await mcpTool(base, token, 'imstage_create_scenario', { projectId: project.id, scenario: { ...scenario, watermarkEnabled: 'false' } }));
+    assert.match(invalid.code, /invalid/);
+  }
+});

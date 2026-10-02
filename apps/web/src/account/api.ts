@@ -2,7 +2,12 @@ import type { Platform, Scene } from '../studio/model';
 export type User = { id: string; email: string; name: string };
 export type SceneSummary = { id: string; title: string; platform: Scene['platform']; messageCount: number; updatedAt: string; revision: number };
 export type SavedScene = { projectIds?:string[]; id: string; scene: Scene; updatedAt: string; revision: number };
-export type Project = { id: string; name: string; rules: string; platform: Platform; watermarkEnabled: boolean; revision: number; updatedAt: string; sceneCount: number };
+export type ProjectType = 'training' | 'demo' | 'story' | 'evaluation_dataset' | 'custom';
+export type ProjectBriefCastMember = { name: string; role: string; avatar?: string };
+/** Structured project brief (never free text): language / platform / cast. */
+export type ProjectBrief = { language?: string; platform?: Platform; cast?: ProjectBriefCastMember[] };
+export type Project = { id: string; name: string; rules: string; platform: Platform; watermarkEnabled: boolean; type: ProjectType; recipeVersion: number; brief: ProjectBrief; revision: number; updatedAt: string; sceneCount: number };
+export type ProjectTypeSummary = { type: ProjectType; version: number; name: { zh: string; en: string }; description: { zh: string; en: string }; requiredDeliverables: string[]; extraDeliverables?: string[]; guidance?: unknown; constraints?: unknown };
 export type BatchTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted';
 export type BatchJobStatus = 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
 export type BatchTask = { id: string; ordinal: number; prompt: string; platform: Platform; status: BatchTaskStatus; sceneId: string | null; error: string | null; errorCode: string | null; detail: string; updatedAt: string; name?: string; values?: Record<string, string> };
@@ -11,6 +16,76 @@ export type TemplateVariable = { key: string; label: string; type: 'text' | 'ima
 export type TemplateSummary = { id: string; name: string; description: string; mode: 'reference' | 'custom' | 'structured'; variableCount: number; revision: number; createdAt: string; updatedAt: string };
 export type TemplateDefinition = { schemaVersion?: number; name: string; description: string; scene: Scene; variables: TemplateVariable[] };
 export type TemplateDetail = TemplateSummary & { definition: TemplateDefinition };
+export type ScenarioPreset = 'friendship' | 'support' | 'teaching' | 'story' | 'custom';
+export type ScenarioSummary = {
+  scenarioId: string; name: string; preset: ScenarioPreset; caseCount: number; platform: Platform;
+  locale: string; autoExport: boolean; submitted: number; missing: number;
+  contentStatus: 'collecting' | 'ready'; updatedAt: string;
+};
+export type RecipeText = string | { zh: string; en: string };
+export type CasePlanEntry = {
+  itemKey: string; ordinal: number; name: string; objective: string; context: string;
+  variation?: { key: string; label: RecipeText; value: RecipeText }[];
+};
+export type CaseItem = {
+  itemKey: string; ordinal: number; name: string; objective: string; context: string;
+  annotations: { labels?: Record<string, string> }; sceneId: string | null; sceneRevision: number | null;
+  submitted: boolean; source: string; updatedAt: string;
+};
+export type ScenarioDetail = {
+  scenario: {
+    scenarioId: string; projectId: string; name: string; brief: string; preset: ScenarioPreset;
+    caseCount: number; platform: Platform; locale: string; autoExport: boolean;
+    recipeType: ProjectType; recipeVersion: number; revision: number; createdAt: string; updatedAt: string;
+    frozen?: { rules: string; watermarkEnabled: boolean; cast: ProjectBriefCastMember[]; defaults: Record<string, unknown> };
+  };
+  casePlan: { preset: ScenarioPreset; caseCount: number; locale: string; guidance?: RecipeText[]; suggestedRanges: { fromKey: string; toKey: string; count: number }[]; cases: CasePlanEntry[] };
+  cases: CaseItem[];
+  counts: { planned: number; submitted: number; missing: number };
+  missingItemKeys: string[];
+  missingTruncated?: boolean;
+  suggestedNextRange: { fromKey: string; toKey: string; count: number; itemKeys: string[] } | null;
+  contentStatus: 'collecting' | 'ready';
+};
+export type GenerationFailure = { itemKey: string; error: string | null; errorCode: string | null };
+export type GenerationView = {
+  generationId: string; projectId: string; scenarioId: string; mode: string; sourceGenerationId: string | null;
+  status: 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
+  idempotencyKey: string | null; caseTotal: number; chunkSize: number; chunksTotal: number; chunksStarted: number;
+  reason: string | null; cancelRequested: boolean; done: number; failed: number; pending: number;
+  failures: GenerationFailure[]; createdAt: string; updatedAt: string;
+};
+export type GenerationStatus = {
+  generation: GenerationView | null; active: GenerationView | null;
+  submittedItemKeys: string[]; missingItemKeys: string[]; cases: CaseItem[];
+  reservations: { itemKey: string; status: string; sceneId: string | null; error: string | null; errorCode: string | null; jobId: string | null; taskId: string | null; attempt: number }[];
+};
+export type ProjectExportItem = {
+  exportId: string; projectId: string; scenarioId: string | null; status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
+  phase: string; counts: { total: number; done: number; failed: number; cancelled: number; interrupted: number };
+  missingItemKeys: string[]; contentState: 'current' | 'historical' | 'expired';
+  delivery: { state: string; available: boolean; expiresAt: string | null; downloadUrl: string | null };
+  createdAt: string; updatedAt: string; finishedAt?: string | null; errorCode?: string | null; errorMessage?: string | null;
+};
+/** Real delivery facts: the union of current unexpired packs, the single whole
+ * package (`current`) and bounded history — never a synthetic combined ZIP. */
+export type ProjectDeliverySummary = {
+  export: string; active: number;
+  latest: ProjectExportItem | null;
+  current: ProjectExportItem | null;
+  currentExports: ProjectExportItem[];
+  historical: Array<Pick<ProjectExportItem, 'exportId' | 'status' | 'finishedAt' | 'contentState'> & { expiresAt: string | null; downloadAvailable: boolean }>;
+  coverage: { delivered: number; expected: number; complete: boolean };
+  downloadsExpireAt: string | null;
+  note?: string;
+};
+export type ProjectStatus = {
+  project: { id: string; name: string; type: ProjectType; recipeVersion: number; platform: Platform; watermarkEnabled: boolean; revision: number };
+  scenarios: Array<{ scenarioId: string; name: string; submitted: number; missing: number; contentStatus: string; autoExport: boolean }>;
+  totals: { scenarios: number; expectedCases: number; submittedCases: number; missingCases: number; accountScenes: number };
+  status: string;
+  delivery: ProjectDeliverySummary;
+};
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -74,6 +149,13 @@ const CODE_EN: Record<string, string> = {
   invalid_batch_size: 'Too many items for one batch.',
   nothing_to_retry: 'There is nothing to retry.',
   job_not_finished: 'The job has not finished yet.',
+  case_reserved: 'That case is being generated right now. Wait for it to finish or cancel it first.',
+  missing_annotations: 'Evaluation cases need caller-provided labels before they can be submitted.',
+  nothing_to_generate: 'No case is missing content; there is nothing to generate.',
+  generation_gone: 'The generation task no longer exists.',
+  session_required: 'AI generation needs a valid signed-in session. Please sign in again.',
+  invalid_brief: 'The project brief is not valid.',
+  invalid_type: 'That project type is not supported.',
 };
 
 /**

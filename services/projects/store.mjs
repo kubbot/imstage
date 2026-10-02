@@ -12,8 +12,10 @@
 
 import crypto from 'node:crypto';
 
+import { assertSceneCapacity, installSceneReservations, releaseGenerationReservations, releaseProjectReservations } from './capacity.mjs';
 import { projectsError, isTerminalJobStatus } from './errors.mjs';
 import { MAX_PROJECTS_PER_USER, MAX_SCENES_PER_USER } from './model.mjs';
+import { withTransaction } from './txn.mjs';
 
 export const PROJECT_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS projects (
@@ -48,9 +50,11 @@ export const PROJECT_SCHEMA_SQL = `
     id               TEXT PRIMARY KEY,
     user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id       TEXT NOT NULL,
+    generation_id    TEXT,
     session_id       TEXT,
     client_batch_id  TEXT,
     status           TEXT NOT NULL,
+    not_before       TEXT,
     rules            TEXT NOT NULL DEFAULT '',
     watermark_enabled INTEGER NOT NULL DEFAULT 1,
     template_id      TEXT,
@@ -79,6 +83,11 @@ export const PROJECT_SCHEMA_SQL = `
     platform   TEXT NOT NULL,
     variant_name TEXT,
     values_json TEXT,
+    scenario_id TEXT,
+    item_key    TEXT,
+    generation_id TEXT,
+    attempt     INTEGER,
+    reservation_id TEXT,
     status     TEXT NOT NULL,
     scene_id   TEXT,
     error      TEXT,
@@ -99,6 +108,8 @@ export const PROJECT_SCHEMA_SQL = `
  */
 export function installProjectSchema(db) {
   db.exec(PROJECT_SCHEMA_SQL);
+  // Reservation ledger shared by every new-Scene path (idempotent).
+  installSceneReservations(db);
   const columns = (table) => new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name));
   const projectColumns = columns('projects');
   for (const [name, ddl] of [
@@ -110,28 +121,20 @@ export function installProjectSchema(db) {
     if (!projectColumns.has(name)) db.exec(`ALTER TABLE projects ADD COLUMN ${name} ${ddl}`);
   }
   const jobColumns = columns('batch_jobs');
-  for (const [name, ddl] of [['template_id', 'TEXT'], ['template_revision', 'INTEGER'], ['template_json', 'TEXT'], ['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1']]) {
+  for (const [name, ddl] of [['template_id', 'TEXT'], ['template_revision', 'INTEGER'], ['template_json', 'TEXT'], ['watermark_enabled', 'INTEGER NOT NULL DEFAULT 1'], ['generation_id', 'TEXT'], ['not_before', 'TEXT']]) {
     if (!jobColumns.has(name)) db.exec(`ALTER TABLE batch_jobs ADD COLUMN ${name} ${ddl}`);
   }
   const taskColumns = columns('batch_tasks');
-  for (const [name, ddl] of [['variant_name', 'TEXT'], ['values_json', 'TEXT']]) {
+  for (const [name, ddl] of [
+    ['variant_name', 'TEXT'],
+    ['values_json', 'TEXT'],
+    ['scenario_id', 'TEXT'],
+    ['item_key', 'TEXT'],
+    ['generation_id', 'TEXT'],
+    ['attempt', 'INTEGER'],
+    ['reservation_id', 'TEXT'],
+  ]) {
     if (!taskColumns.has(name)) db.exec(`ALTER TABLE batch_tasks ADD COLUMN ${name} ${ddl}`);
-  }
-}
-
-function withTransaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const result = fn();
-    db.exec('COMMIT');
-    return result;
-  } catch (err) {
-    try {
-      db.exec('ROLLBACK');
-    } catch {
-      /* original error wins */
-    }
-    throw err;
   }
 }
 
@@ -298,7 +301,13 @@ export function countProjectScenes(db, userId, projectId) {
 /**
  * Delete a project. Association rows cascade, scenes are preserved, and any
  * queued/running batch for the project is marked for cancellation before the
- * project row disappears.
+ * project row disappears. The scenario-generation lifecycle is terminated in
+ * the SAME transaction: non-terminal parents are cancelled truthfully (cases
+ * already published stay, the parent may end `partial`) and EVERY active
+ * reservation — including future/unassigned chunk keys — is released, so the
+ * account's Scene capacity is freed immediately without waiting for any worker
+ * callback or restart. A slow in-flight result cannot publish afterwards: the
+ * publisher re-checks project existence.
  */
 export function deleteProject(db, { userId, projectId, revision, nowMs }) {
   const stamp = nowIso(nowMs);
@@ -322,10 +331,42 @@ export function deleteProject(db, { userId, projectId, revision, nowMs }) {
        WHERE job_id IN (SELECT id FROM batch_jobs WHERE user_id = ? AND project_id = ? AND status = 'cancelled' AND cancel_requested = 1)
          AND status = 'queued'`,
     ).run(stamp, userId, projectId);
+    terminateScenarioGenerations(db, { userId, projectId, nowMs });
     const result = db.prepare('DELETE FROM projects WHERE user_id = ? AND id = ?').run(userId, projectId);
     if (result.changes !== 1) throw projectsError(404, 'not_found', '项目不存在');
     return { detachedScenes: detached };
   });
+}
+
+/**
+ * Central delete guard for the scenario-generation lifecycle (see
+ * `deleteProject`). Table-existence guarded so legacy embedders that only
+ * install the old project schema keep working unchanged.
+ */
+function terminateScenarioGenerations(db, { userId, projectId, nowMs }) {
+  const hasGenerations = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'scenario_generations'")
+    .get();
+  if (!hasGenerations) return { parents: 0, reservations: 0 };
+  const stamp = nowIso(nowMs);
+  const parents = db
+    .prepare("SELECT id FROM scenario_generations WHERE user_id = ? AND project_id = ? AND status IN ('queued', 'running')")
+    .all(userId, projectId);
+  let released = 0;
+  for (const parent of parents) {
+    const consumed = Number(
+      db
+        .prepare("SELECT COUNT(*) AS n FROM scene_reservations WHERE user_id = ? AND generation_id = ? AND status = 'consumed'")
+        .get(userId, parent.id)?.n ?? 0,
+    );
+    // Truthful cancellation: published cases are never erased; the parent may
+    // legitimately end `partial` instead of pretending full success/failure.
+    db.prepare(
+      `UPDATE scenario_generations SET status = ?, cancel_requested = 1, reason = COALESCE(reason, '项目已删除'), updated_at = ? WHERE id = ?`,
+    ).run(consumed > 0 ? 'partial' : 'cancelled', stamp, parent.id);
+  }
+  released += releaseProjectReservations(db, { userId, projectId, reason: '项目已删除', errorCode: 'cancelled', nowMs });
+  return { parents: parents.length, reservations: released };
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,6 +429,7 @@ function jobSummary(row) {
   return {
     id: row.id,
     projectId: row.project_id,
+    generationId: row.generation_id ?? null,
     status: row.status,
     rules: row.rules,
     // Frozen at enqueue: later project edits never change a queued/finished job.
@@ -418,6 +460,12 @@ function taskItem(row) {
     values,
     status: row.status,
     sceneId: row.scene_id ?? null,
+    // Scenario-generation bindings (absent for legacy project batches).
+    scenarioId: row.scenario_id ?? null,
+    itemKey: row.item_key ?? null,
+    generationId: row.generation_id ?? null,
+    attempt: row.attempt === null || row.attempt === undefined ? null : Number(row.attempt),
+    reservationId: row.reservation_id ?? null,
     error: row.error ?? null,
     errorCode: row.error_code ?? null,
     detail: row.detail ?? '',
@@ -469,10 +517,11 @@ export function getJobDetailById(db, userId, jobId) {
   return jobDetail(db, row);
 }
 
+/** Public batch history never mixes internal scenario-generation chunks. */
 export function listBatchJobs(db, userId, projectId, limit = 10) {
   return db
     .prepare(
-      `SELECT * FROM batch_jobs WHERE user_id = ? AND project_id = ?
+      `SELECT * FROM batch_jobs WHERE user_id = ? AND project_id = ? AND generation_id IS NULL
        ORDER BY created_at DESC, rowid DESC LIMIT ?`,
     )
     .all(userId, projectId, limit)
@@ -491,21 +540,24 @@ export function countActiveJobs(db, userId) {
  * up front so a retry/replace never reuses another account's scene id. A
  * frozen template snapshot, the project's watermark switch and every item's
  * values are written in the same transaction, so later template/project edits
- * cannot change queued output.
+ * cannot change queued output. Scenario-generation tasks additionally carry
+ * their frozen `scenarioId`/`itemKey`/`generationId`/`attempt`/`reservationId`
+ * bindings so publication can fence writes per attempt.
  */
-export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs, template = null, watermarkEnabled = true }) {
+export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks, clientBatchId, nowMs, template = null, watermarkEnabled = true, generationId = null }) {
   const jobId = crypto.randomUUID();
   const stamp = nowIso(nowMs);
   const templateJson = template ? JSON.stringify(template.definition) : null;
   withTransaction(db, () => {
     db.prepare(
       `INSERT INTO batch_jobs
-         (id, user_id, project_id, session_id, client_batch_id, status, rules, watermark_enabled, template_id, template_revision, template_json, total, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, project_id, generation_id, session_id, client_batch_id, status, rules, watermark_enabled, template_id, template_revision, template_json, total, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       jobId,
       userId,
       projectId,
+      generationId,
       sessionId ?? null,
       clientBatchId,
       rules,
@@ -519,8 +571,8 @@ export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks,
     );
     const insertTask = db.prepare(
       `INSERT INTO batch_tasks
-         (id, job_id, user_id, ordinal, prompt, platform, variant_name, values_json, status, scene_id, detail, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, '', ?)`,
+         (id, job_id, user_id, ordinal, prompt, platform, variant_name, values_json, scenario_id, item_key, generation_id, attempt, reservation_id, status, scene_id, detail, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, '', ?)`,
     );
     tasks.forEach((task, index) => {
       insertTask.run(
@@ -532,6 +584,11 @@ export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks,
         task.platform,
         task.name || null,
         JSON.stringify(task.values ?? {}),
+        task.scenarioId ?? null,
+        task.itemKey ?? null,
+        task.generationId ?? generationId,
+        task.attempt ?? (task.itemKey ? 1 : null),
+        task.reservationId ?? null,
         crypto.randomUUID(),
         stamp,
       );
@@ -540,12 +597,20 @@ export function createBatchJob(db, { userId, projectId, sessionId, rules, tasks,
   return jobDetail(db, getJobRowById(db, userId, jobId));
 }
 
-/** Atomically claim the oldest queued job for the single serial worker. */
+/**
+ * Claim the oldest eligible queued job for the single serial worker. Deferred
+ * jobs (rate pacing) are skipped until their `not_before` instant, so the
+ * global worker yields to other accounts instead of blocking on one limiter.
+ */
 export function claimNextJob(db, nowMs) {
   return withTransaction(db, () => {
     const row = db
-      .prepare("SELECT * FROM batch_jobs WHERE status = 'queued' ORDER BY created_at ASC, rowid ASC LIMIT 1")
-      .get();
+      .prepare(
+        `SELECT * FROM batch_jobs
+         WHERE status = 'queued' AND (not_before IS NULL OR not_before <= ?)
+         ORDER BY created_at ASC, rowid ASC LIMIT 1`,
+      )
+      .get(nowIso(nowMs));
     if (!row) return null;
     db.prepare("UPDATE batch_jobs SET status = 'running', updated_at = ? WHERE id = ?").run(
       nowIso(nowMs),
@@ -553,6 +618,19 @@ export function claimNextJob(db, nowMs) {
     );
     return { ...row, status: 'running' };
   });
+}
+
+/**
+ * Durable rate-pacing defer: put a not-yet-started task's job back to `queued`
+ * until `notBeforeMs`. Only used BEFORE any provider execution (the lease
+ * could not be acquired), so the same task/attempt/reservation simply resumes
+ * later — nothing is re-run or lost.
+ */
+export function deferJob(db, jobId, notBeforeMs, nowMs) {
+  db.prepare(
+    `UPDATE batch_jobs SET status = 'queued', not_before = ?, updated_at = ?
+     WHERE id = ? AND status = 'running'`,
+  ).run(nowIso(notBeforeMs), nowIso(nowMs), jobId);
 }
 
 export function sessionStillValid(db, userId, sessionId, nowMs) {
@@ -637,12 +715,60 @@ export function finalizeJob(db, jobId, { status, reason }, nowMs) {
  * Mark the job cancelled and cancel every still-pending task. Running tasks are
  * handled by the worker, which finalizes the job only after the active run
  * actually stops.
+ *
+ * Internal scenario-generation chunks (`generation_id` set) are NEVER
+ * cancellable through the legacy public batch entry: cancelling a queued chunk
+ * there would strand its parent and reservations. The scenario-generation
+ * service cancels whole parents with `allowGenerationChunk: true`.
  */
-export function markJobCancelRequested(db, { userId, projectId, jobId, reason, nowMs }) {
+export function markJobCancelRequested(db, { userId, projectId, jobId, reason, nowMs, allowGenerationChunk = false }) {
   const stamp = nowIso(nowMs);
   return withTransaction(db, () => {
     const row = getJobRow(db, userId, projectId, jobId);
     if (!row) throw projectsError(404, 'not_found', '生成任务不存在');
+    if (row.generation_id && !allowGenerationChunk) {
+      // Public legacy entry on an internal chunk: DELEGATE to a consistent
+      // whole-parent cancellation (the parent's trusted internal call is the
+      // only other path). All sibling chunks stop and every reservation of the
+      // parent is released in this same transaction.
+      const hasGenerations = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'scenario_generations'")
+        .get();
+      if (hasGenerations) {
+        const consumed = Number(
+          db
+            .prepare("SELECT COUNT(*) AS n FROM scene_reservations WHERE user_id = ? AND generation_id = ? AND status = 'consumed'")
+            .get(userId, row.generation_id)?.n ?? 0,
+        );
+        db.prepare(
+          `UPDATE scenario_generations SET cancel_requested = 1, status = ?, reason = COALESCE(reason, ?), updated_at = ?
+           WHERE id = ? AND status IN ('queued', 'running')`,
+        ).run(consumed > 0 ? 'partial' : 'cancelled', reason, stamp, row.generation_id);
+        const chunks = db
+          .prepare("SELECT id FROM batch_jobs WHERE user_id = ? AND generation_id = ? AND status IN ('queued', 'running')")
+          .all(userId, row.generation_id);
+        for (const chunk of chunks) {
+          db.prepare(
+            `UPDATE batch_jobs SET cancel_requested = 1,
+               status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
+               reason = COALESCE(reason, ?), updated_at = ?
+             WHERE id = ?`,
+          ).run(reason, stamp, chunk.id);
+          db.prepare(
+            `UPDATE batch_tasks SET status = 'cancelled', error = COALESCE(error, ?), error_code = 'cancelled', updated_at = ?
+             WHERE job_id = ? AND status = 'queued'`,
+          ).run(reason, stamp, chunk.id);
+        }
+        releaseGenerationReservations(db, {
+          userId,
+          generationId: row.generation_id,
+          reason,
+          errorCode: 'cancelled',
+          nowMs,
+        });
+      }
+      return jobDetail(db, getJobRow(db, userId, projectId, jobId));
+    }
     if (isTerminalJobStatus(row.status)) return jobDetail(db, row);
     db.prepare(
       'UPDATE batch_jobs SET cancel_requested = 1, reason = COALESCE(reason, ?), updated_at = ? WHERE id = ?',
@@ -667,6 +793,15 @@ export function createRetryJob(db, { userId, projectId, jobId, sessionId, nowMs 
   if(prior) return jobDetail(db,prior);
   const source = getJobRow(db, userId, projectId, jobId);
   if (!source) throw projectsError(404, 'not_found', '生成任务不存在');
+  if (source.generation_id) {
+    // Scenario chunks carry frozen case bindings; a legacy retry would drop
+    // them and pay for a loose scene that is not a case. Retry the parent.
+    throw projectsError(
+      409,
+      'generation_chunk',
+      '这是 AI 生成案例的内部任务，不能用旧批量重试；请使用场景的“重试缺项/失败项”。',
+    );
+  }
   if (!isTerminalJobStatus(source.status)) {
     throw projectsError(409, 'job_not_finished', '生成任务尚未结束，无法重试');
   }
@@ -714,10 +849,8 @@ export function publishGeneratedScene(db, { userId, projectId, scene, nowMs, tas
   return withTransaction(db, () => {
     const existing = db.prepare('SELECT revision FROM scenes WHERE user_id = ? AND id = ?').get(userId, sceneId);
     if (existing) throw projectsError(409, 'conflict', '生成的作品已存在');
-    const count = db.prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?').get(userId);
-    if (Number(count?.total ?? 0) >= MAX_SCENES_PER_USER) {
-      throw projectsError(409, 'scene_limit_reached', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`);
-    }
+    // Shared capacity guard: real scenes + active generation reservations.
+    assertSceneCapacity(db, userId, 1);
     db.prepare(
       `INSERT INTO scenes (user_id, id, title, platform, message_count, revision, scene_json, updated_at)
        VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,

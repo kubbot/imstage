@@ -418,3 +418,101 @@ test('edits during a lost acknowledgement and its reconciliation GET remain the 
   expect(await projectOnServer(page, { headers }, projectId)).toMatchObject({ rules: 'C 在 GET 期间输入' });
   expect(puts).toBe(2);
 });
+
+/* ------------------------------------------------------------------ */
+/* type/brief metadata: legacy drafts and canonicalized acks           */
+/* ------------------------------------------------------------------ */
+
+async function sessionUserId(page: Page) {
+  const response = await page.request.get('/api/auth/session');
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as { user: { id: string } }).user.id;
+}
+
+async function createRichProject(page: Page, label: string, brief: Record<string, unknown>, type = 'story') {
+  await page.goto('/?lang=zh#/register');
+  const session = await registerViaApi(page, `结构化${label}`);
+  const created = await page.request.post('/api/projects', {
+    headers: session.headers,
+    data: {
+      name: `${label} 项目`,
+      rules: '初始规则',
+      platform: 'wechat',
+      type,
+      brief,
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const item = (await created.json()).item as { id: string; revision: number };
+  // Pull the API session into AuthProvider before hash-only navigation.
+  await page.reload();
+  return { ...session, projectId: item.id, userId: await sessionUserId(page) };
+}
+
+test('a legacy draft without type/brief inherits the richer remote metadata at the same revision', async ({ page }) => {
+  const avatar = 'data:image/png;base64,iVBORw0KGgoAAAABAAAAAQAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const { projectId, userId } = await createRichProject(page, '继承', {
+    language: 'zh-CN',
+    cast: [{ name: '小林', role: '新同事', avatar }],
+  });
+
+  // Old-format cached draft: type/brief omitted entirely (omission marker).
+  await page.addInitScript(
+    ({ draftKey, draft }) => {
+      try { sessionStorage.setItem(draftKey, JSON.stringify(draft)); } catch { /* ignore */ }
+    },
+    {
+      draftKey: `imstage.project.draft.${userId}.${projectId}`,
+      draft: {
+        token: 'legacy-draft-token',
+        userId,
+        projectId,
+        baseRevision: 1,
+        settings: { name: '继承 项目', rules: '旧草稿的规则', platform: 'wechat', watermarkEnabled: true },
+      },
+    },
+  );
+  // A different query forces a full document load so the seeded draft exists
+  // before the project autosave hook mounts.
+  await page.goto(`/?lang=zh&draft=legacy#/projects?project=${projectId}`);
+
+  // The draft survives without a conflict and type/brief come from the server.
+  await expect(rulesField(page)).toHaveValue('旧草稿的规则');
+  await expect(autosave(page, 'conflict')).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: '叙事' })).toBeChecked();
+  await expect(page.getByLabel('姓名 1')).toHaveValue('小林');
+  await expect(page.getByLabel('角色 1')).toHaveValue('新同事');
+
+  // The synced PUT keeps the remote cast/avatar instead of erasing them.
+  await expect(autosave(page, 'saved')).toBeVisible({ timeout: 15000 });
+  const stored = (await projectOnServer(page, { headers: { Origin: new URL(page.url()).origin, 'X-IMStage-Request': '1' } }, projectId)) as unknown as {
+    rules: string; type: string; brief: { cast?: Array<{ name: string; role: string; avatar?: string }> };
+  };
+  expect(stored.rules).toBe('旧草稿的规则');
+  expect(stored.type).toBe('story');
+  expect(stored.brief.cast?.[0]?.name).toBe('小林');
+  expect(stored.brief.cast?.[0]?.avatar).toBe(avatar);
+});
+
+test('a lost acknowledgement with a canonicalized brief never becomes a false conflict', async ({ page }) => {
+  // The server trims name/role and canonicalizes key order; the local snapshot
+  // intentionally differs in key order and whitespace before the PUT.
+  const { headers, projectId } = await createRichProject(page, '回执', {
+    cast: [{ role: ' me ', name: ' A ' }],
+    language: 'zh-CN',
+  });
+  await loseFirstPut(page, projectId);
+  await page.goto(`/?lang=zh#/projects?project=${projectId}`);
+  await expect(page.getByLabel('姓名 1')).toHaveValue('A');
+
+  await rulesField(page).fill('丢回执后的规则');
+  await expect(autosave(page, 'saved')).toBeVisible({ timeout: 15000 });
+  await expect(autosave(page, 'conflict')).toHaveCount(0);
+  const stored = (await projectOnServer(page, { headers }, projectId)) as unknown as {
+    rules: string; type: string; brief: { cast?: Array<{ name: string; role: string }>; language?: string };
+  };
+  expect(stored.rules).toBe('丢回执后的规则');
+  expect(stored.type).toBe('story');
+  expect(stored.brief.cast?.[0]?.name).toBe('A');
+  expect(stored.brief.language).toBe('zh-CN');
+});

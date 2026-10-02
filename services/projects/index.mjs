@@ -8,6 +8,18 @@
 
 export { ProjectsError, projectsError, isTerminalJobStatus, isRetryableTaskStatus } from './errors.mjs';
 export { createProjectAutomation } from './automation.mjs';
+export {
+  assertSceneCapacity,
+  countActiveReservations,
+  countSceneRows,
+  installSceneReservations,
+  sceneCapacityUsage,
+} from './capacity.mjs';
+export {
+  createScenarioGenerationService,
+  installScenarioGenerationSchema,
+  buildCaseTaskPrompt,
+} from './scenario-generation.mjs';
 export { AUTOMATION_SCHEMA_SQL, installAutomationSchema } from './automation-store.mjs';
 export {
   DEFAULT_RENDER_OPTIONS,

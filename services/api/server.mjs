@@ -465,6 +465,9 @@ function openDatabase(dbPath) {
   // Additive only — legacy projects migrate to the custom recipe v1 defaults.
   projects.installAutomationSchema(db);
 
+  // Scenario AI generation: parent queue + case reservations (capacity ledger).
+  projects.installScenarioGenerationSchema(db);
+
   // Account-scoped contact library. Additive migration only; existing accounts
   // simply read the empty default until they PUT a library.
   db.exec(contacts.CONTACT_SCHEMA_SQL);
@@ -1122,12 +1125,8 @@ async function handleScenePut(ctx, req, res, sceneId) {
       if (existing) {
         throw new HttpError(409, 'conflict', '场景已存在，请重新加载');
       }
-      const count = ctx.db
-        .prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?')
-        .get(userId);
-      if (Number(count.total) >= MAX_SCENES_PER_USER) {
-        throw new HttpError(409, 'scene_limit_reached', `每个用户最多保存 ${MAX_SCENES_PER_USER} 个场景`);
-      }
+      // Shared capacity guard: real scenes + active generation reservations.
+      projects.assertSceneCapacity(ctx.db, userId, 1);
       try {
         ctx.db
           .prepare(
@@ -1680,6 +1679,63 @@ function handleContentBatchGet(ctx, req, res, projectId, batchId) {
 function handleProjectStatus(ctx, req, res, projectId) {
   const session = requireSession(ctx, req);
   sendJson(req, res, 200, ctx.automation.getProjectStatus({ userId: session.user.id, projectId }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario AI generation (existing paid Web generator, persisted jobs) */
+/* ------------------------------------------------------------------ */
+
+function handleScenarioGenerationStatus(ctx, req, res, projectId, scenarioId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.scenarioGeneration.status({ userId: session.user.id, projectId, scenarioId }));
+}
+
+async function handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, action) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  if (action === 'cancel') {
+    if (typeof body.generationId !== 'string' || body.generationId === '') {
+      throw new HttpError(400, 'invalid_request', '缺少 generationId');
+    }
+    const result = ctx.scenarioGeneration.cancel({
+      userId: session.user.id,
+      projectId,
+      scenarioId,
+      generationId: body.generationId,
+      reason: '用户已取消',
+    });
+    ctx.projects.queue.wake();
+    sendJson(req, res, 200, result);
+    return;
+  }
+  // Explicit user action only: the server never starts paid generation on page
+  // open. Unconfigured models fail truthfully while caller content + the
+  // deterministic export stay usable.
+  if (!ctx.agent.runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务未配置，无法生成案例；调用方内容提交（MCP）与确定性导出仍然可用。');
+  }
+  const result = action === 'retry'
+    ? ctx.scenarioGeneration.retry({
+        userId: session.user.id,
+        projectId,
+        scenarioId,
+        sessionId: session.sessionId,
+        generationId: typeof body.generationId === 'string' && body.generationId !== '' ? body.generationId : null,
+        idempotencyKey: body.idempotencyKey ?? null,
+      })
+    : ctx.scenarioGeneration.enqueue({
+        userId: session.user.id,
+        projectId,
+        scenarioId,
+        sessionId: session.sessionId,
+        idempotencyKey: body.idempotencyKey ?? null,
+      });
+  ctx.projects.queue.start();
+  ctx.projects.queue.wake();
+  sendJson(req, res, 200, result);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2518,6 +2574,27 @@ async function route(ctx, req, res) {
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
   }
 
+  const projectScenarioGenerationMatch = /^\/api\/projects\/([^/]+)\/scenarios\/([^/]+)\/generation(?:\/(retry|cancel))?$/.exec(pathname);
+  if (projectScenarioGenerationMatch) {
+    const projectId = projects.validateProjectId(projectScenarioGenerationMatch[1]);
+    const scenarioId = projectScenarioGenerationMatch[2];
+    const action = projectScenarioGenerationMatch[3];
+    if (action === undefined) {
+      if (method === 'GET') {
+        handleScenarioGenerationStatus(ctx, req, res, projectId, scenarioId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, 'generate');
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, action);
+    return;
+  }
+
   const projectScenariosMatch = /^\/api\/projects\/([^/]+)\/scenarios(?:\/([^/]+))?$/.exec(pathname);
   if (projectScenariosMatch) {
     const projectId = projects.validateProjectId(projectScenariosMatch[1]);
@@ -2994,17 +3071,34 @@ export function createApp(options = {}) {
       }
     },
   });
+  // Durable scenario generation (Web AI cases): freezes stable case keys,
+  // drives 20/20/10 persisted chunks through the same batch worker and fences
+  // every case publish by reservation/attempt. The auto-export hook and the
+  // queue handle are wired lazily because both services are created below.
+  let autoExportHook = null;
+  const scenarioGeneration = projects.createScenarioGenerationService({
+    db,
+    nowMs: config.nowMs,
+    logger: config.logger,
+    queue: { wake: () => batchQueue?.wake?.() },
+    onScenarioContentReady: (args) => autoExportHook?.(args),
+    readPreferences: (userId) => preferencesReader.get(userId),
+  });
   const batchQueue = projects.createBatchQueue({
     db,
     agent: { runtime: auditedAgentRuntime('batch'), limiter: agentLimiter },
     nowMs: config.nowMs,
     logger: config.logger,
+    scenarioGeneration,
+    onJobFinished: (job) => scenarioGeneration.onChunkJobSettled(job),
     ...(options.projects ?? {}),
   });
   // Truthful restart recovery runs before the worker may claim any job: a
   // queued/running job from a previous process is marked interrupted, never
-  // silently resumed as if it had succeeded.
+  // silently resumed as if it had succeeded. Scenario parents + their case
+  // reservations are recovered the same way (released for explicit retry).
   projects.markInterruptedJobs(db, config.nowMs());
+  scenarioGeneration.recoverInterrupted();
   batchQueue.start();
 
   // Real 90-day audit retention: purge expired rows now and on an interval.
@@ -3066,6 +3160,8 @@ export function createApp(options = {}) {
     exportService: projectExports,
     onScenarioContentReady: (args) => projectExports.enqueueAutoScenario(args),
   });
+  // Shared auto-export hook for scenario generation (runs AFTER commit).
+  autoExportHook = (args) => projectExports.enqueueAutoScenario(args);
   const oauth = createOAuthIntegration({
     db,
     appOrigin: config.appOrigin,
@@ -3084,6 +3180,7 @@ export function createApp(options = {}) {
     agent: { config: agentConfig, runtime: auditedAgentRuntime('agent'), limiter: agentLimiter },
     projects: { queue: batchQueue },
     automation: projectAutomation,
+    scenarioGeneration,
     exports: projectExports,
     preferences: preferencesReader,
     oauth,

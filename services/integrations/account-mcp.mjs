@@ -18,6 +18,7 @@
 import crypto from 'node:crypto';
 
 import { MAX_SCENES_PER_USER } from '../projects/model.mjs';
+import { assertSceneCapacity } from '../projects/capacity.mjs';
 import { createImstageMcpServer, TOOL_DEFINITIONS } from '../mcp/server.mjs';
 import { buildCapabilities } from '../mcp/scene.mjs';
 import { applySceneDefaults, sceneDefaultsSummary, recordEvent } from '../preferences/index.mjs';
@@ -111,9 +112,12 @@ export function createAccountStore(db, userId, { maxStoredRenders = MAX_STORED_R
       const result = withTransaction(db, () => {
         const existing = readIdempotent(idempotencyKey, 'create_scene', requestHash);
         if (existing) return { ...existing, deduplicated: true };
-        const count = db.prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?').get(userId);
-        if (Number(count.total) >= MAX_SCENES_PER_USER) {
-          fail('storage_limit', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`, { status: 429 });
+        // Shared capacity guard: real scenes + active scenario generation
+        // reservations count toward the account limit in every create path.
+        try {
+          assertSceneCapacity(db, userId, 1);
+        } catch {
+          fail('storage_limit', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品（含生成中占用）`, { status: 429 });
         }
         const updatedAt = new Date(nowMs).toISOString();
         try {

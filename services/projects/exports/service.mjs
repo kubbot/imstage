@@ -963,8 +963,12 @@ export function createProjectExportService({
         delivered.add(key);
       }
       if (contributes) currentExports.push(view);
-      if (liveTotal > 0 && keys.size === liveTotal) current = view;
-      if (liveTotal > 0 && delivered.size === liveTotal) break;
+      // The single whole package is recorded even when older packs already
+      // cover the plan union (rows with equal created_at have no stable order):
+      // never miss it, never replace it with an older one, and only stop the
+      // scan once both the union is covered AND the whole package was seen.
+      if (liveTotal > 0 && keys.size === liveTotal && current === null) current = view;
+      if (liveTotal > 0 && delivered.size === liveTotal && current !== null) break;
     }
     const complete = liveTotal > 0 && delivered.size === liveTotal;
     return {

@@ -1592,6 +1592,72 @@ test('project completion requires full delivery coverage (two scenarios / subset
   assert.ok(user.id);
 });
 
+test('delivery summary finds the whole package deterministically (newer covering subsets, same coverage)', async () => {
+  const clock = makeClock(Date.parse('2026-10-03T00:00:00.000Z'));
+  const renderer = stubRenderService();
+  const { base } = await makeApp({ clock, renderService: renderer });
+  const { cookie, user } = await register(base);
+  const { token } = await createToken(base, cookie);
+  const project = toolOk(
+    await mcpTool(base, token, 'imstage_create_project', { project: { name: '交付顺序回归', defaults: { platform: 'whatsapp' } } }),
+    'project',
+  ).project;
+  const scenarioIds = [];
+  for (const [index, name] of ['场景一', '场景二'].entries()) {
+    const planned = toolOk(
+      await mcpTool(base, token, 'imstage_create_scenario', {
+        projectId: project.id,
+        scenario: { name, preset: 'custom', caseCount: 2, platform: 'whatsapp', autoExport: false },
+      }),
+      `scenario ${index}`,
+    );
+    scenarioIds.push(planned.scenario.scenarioId);
+    toolOk(
+      await mcpTool(base, token, 'imstage_create_batch', {
+        projectId: project.id,
+        scenarioId: planned.scenario.scenarioId,
+        items: planned.casePlan.cases.map((entry, position) => ({
+          itemKey: entry.itemKey, name: entry.name, objective: entry.objective, context: entry.context,
+          scene: sceneFor(700 + index * 10 + position, { texts: [`${name} ${entry.itemKey} 一`, `${name} ${entry.itemKey} 二`] }),
+        })),
+      }),
+      `batch ${index}`,
+    );
+  }
+
+  // Whole package FIRST; the two subset packs that jointly cover the whole
+  // plan are created LATER with strictly newer timestamps. The delivery scan
+  // must still report the whole package as `current`: stopping as soon as the
+  // union is covered would deterministically lose it.
+  clock.advance(1_000);
+  const whole = toolOk(
+    await mcpTool(base, token, 'imstage_export_project', { projectId: project.id, expectedRevision: 1, idempotencyKey: 'order-whole' }),
+    'whole export',
+  );
+  await pollExport(base, cookie, project.id, whole.export.exportId, ['completed']);
+  for (const [index, scenarioId] of scenarioIds.entries()) {
+    clock.advance(1_000);
+    const subset = toolOk(
+      await mcpTool(base, token, 'imstage_export_project', {
+        projectId: project.id, expectedRevision: 1, scenarioId, idempotencyKey: `order-subset-${index}`,
+      }),
+      `subset ${index}`,
+    );
+    await pollExport(base, cookie, project.id, subset.export.exportId, ['completed']);
+  }
+
+  const status = toolOk(await mcpTool(base, token, 'imstage_get_project_status', { projectId: project.id }), 'status');
+  assert.equal(status.status, 'completed');
+  assert.equal(status.delivery.coverage.complete, true);
+  assert.equal(
+    status.delivery.current?.exportId,
+    whole.export.exportId,
+    'the single whole package stays current even when newer subset packs cover the union first',
+  );
+  assert.ok(status.delivery.currentExports.length >= 2, 'subset packs remain separate downloads');
+  assert.ok(user.id);
+});
+
 test('publish race: cancel during a blocked publish commit never serves a stale ZIP', async () => {
   const clock = makeClock(Date.parse('2026-10-03T00:00:00.000Z'));
   const renderer = stubRenderService();

@@ -63,6 +63,7 @@ import {
 } from './model.mjs';
 import * as legacyStore from './store.mjs';
 import * as autoStore from './automation-store.mjs';
+import { assertSceneCapacity, findActiveCaseReservation } from './capacity.mjs';
 import { dialogueSignature } from './automation-store.mjs';
 
 export const MAX_PROJECT_BRIEF_CHARS = PROJECT_RECIPE_LIMITS.brief;
@@ -387,14 +388,23 @@ function pickPlatform(input, defaults) {
     if (typeof autoExport !== 'boolean') {
       throw projectsError(400, 'invalid_auto_export', 'autoExport 必须是布尔值');
     }
+    // Optional per-scenario watermark override: an explicit boolean wins over
+    // the project default and is FROZEN onto the scenario. Omitted keeps the
+    // project's setting (and stays out of the idempotency hash).
+    let watermarkOverride;
+    if (input.watermarkEnabled !== undefined) {
+      watermarkOverride = validateProjectWatermarkEnabled(input.watermarkEnabled);
+    }
     // Normalized request for idempotency: constant defaults are resolved, but
-    // `platform` is recorded only when explicitly provided — its default comes
-    // from mutable project settings and must not break replay hashing.
+    // `platform`/`watermarkEnabled` are recorded only when explicitly provided —
+    // their defaults come from mutable project settings and must not break
+    // replay hashing.
     const provided = { name, brief, preset, caseCount, locale, autoExport };
     if (input.platform !== undefined && input.platform !== null && input.platform !== '') provided.platform = platform;
+    if (watermarkOverride !== undefined) provided.watermarkEnabled = watermarkOverride;
     return {
       provided,
-      value: { name, brief, preset, caseCount, platform, locale, autoExport },
+      value: { name, brief, preset, caseCount, platform, locale, autoExport, watermarkEnabled: watermarkOverride },
     };
   }
 
@@ -427,7 +437,9 @@ function pickPlatform(input, defaults) {
           // Frozen at creation: later project edits never change this scenario.
           frozen: {
             rules: project.rules,
-            watermarkEnabled: project.watermarkEnabled,
+            // Explicit per-scenario override wins; omitted keeps the project's
+            // flag — both are frozen so later project edits never rewrite them.
+            watermarkEnabled: value.watermarkEnabled ?? project.watermarkEnabled,
             cast: project.brief?.cast ?? [],
             defaults: {
               platform: project.platform,
@@ -839,6 +851,11 @@ function pickPlatform(input, defaults) {
           throw projectsError(400, 'unknown_item_key', `itemKey 不属于该场景计划：${item.itemKey}`);
         }
         const row = autoStore.getCaseRow(db, userId, scenarioId, item.itemKey, id);
+        // A case key reserved by an in-flight Web generation can only be
+        // published by that matching server-internal attempt.
+        if (findActiveCaseReservation(db, userId, scenarioId, item.itemKey)) {
+          throw projectsError(409, 'case_reserved', `案例 ${item.itemKey} 正在由 AI 生成占用，请等生成完成或取消后再提交`);
+        }
         if (row && autoStore.caseItem(row).submitted) {
           throw projectsError(409, 'duplicate_item_key', `案例已提交，不能重复创建：${item.itemKey}`);
         }
@@ -874,12 +891,10 @@ function pickPlatform(input, defaults) {
       throw error;
     }
 
-    // True capacity validation: the account scene limit is checked before the
-    // transaction and re-checked inside it, so a concurrent batch can never
-    // push an account past the cap.
-    if (autoStore.countAccountScenes(db, userId) + items.length > MAX_SCENES_PER_USER) {
-      throw projectsError(409, 'scene_limit_reached', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`);
-    }
+    // True capacity validation: real scenes PLUS active generation
+    // reservations count toward the account limit, checked before the
+    // transaction and re-checked inside it (shared capacity helper).
+    assertSceneCapacity(db, userId, items.length);
 
     const receipt = autoStore.withTransaction(db, () => {
       // The transaction is the serialization point: resolve the exact key once
@@ -892,9 +907,7 @@ function pickPlatform(input, defaults) {
         }
         return batchReceipt(racedInside, { deduplicated: true });
       }
-      if (autoStore.countAccountScenes(db, userId) + items.length > MAX_SCENES_PER_USER) {
-        throw projectsError(409, 'scene_limit_reached', `每个账号最多保存 ${MAX_SCENES_PER_USER} 个作品`);
-      }
+      assertSceneCapacity(db, userId, items.length);
       const batchId = crypto.randomUUID();
       if (scenarioContext) {
         // Housekeeping: cached signatures of deleted scenes are cleared inside

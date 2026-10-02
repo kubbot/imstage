@@ -16,6 +16,9 @@ import crypto from 'node:crypto';
 
 import { projectsError } from './errors.mjs';
 import { sha256Hex } from '../mcp/util.mjs';
+import { withTransaction } from './txn.mjs';
+
+export { withTransaction };
 
 export const AUTOMATION_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS scenarios (
@@ -141,22 +144,6 @@ export function dialogueSignature(scene) {
     message.asset ? 1 : 0,
   ]);
   return sha256Hex(JSON.stringify(lines));
-}
-
-export function withTransaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const result = fn();
-    db.exec('COMMIT');
-    return result;
-  } catch (error) {
-    try {
-      db.exec('ROLLBACK');
-    } catch {
-      /* the original error wins */
-    }
-    throw error;
-  }
 }
 
 /* ------------------------------------------------------------------ */

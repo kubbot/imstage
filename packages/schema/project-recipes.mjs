@@ -58,7 +58,11 @@ export const MAX_SCENARIOS_PER_PROJECT = SCENARIO_LIMITS.scenariosPerProject;
 export const SCENARIO_LOCALES = Object.freeze(['zh-CN', 'en']);
 
 const b = (zh, en) => Object.freeze({ zh, en });
-const localized = (value, locale) => (locale === 'en' ? value.en : value.zh);
+/** Resolve a recipe's bilingual text at a display/prompt boundary. */
+export function localizeRecipeText(value, locale) {
+  return typeof value === 'string' ? value : (locale === 'en' ? value?.en : value?.zh) ?? '';
+}
+const localized = localizeRecipeText;
 const frozenList = (items) => Object.freeze(items.map((item) => Object.freeze(item)));
 
 /* ------------------------------------------------------------------ */

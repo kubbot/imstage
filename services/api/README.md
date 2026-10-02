@@ -197,8 +197,49 @@ the real deterministic renderer):
 
 Retention is 7 days (enforced at read/mint and by startup + hourly sweeps;
 expired snapshots also drop their frozen Scene blobs). Project deletion cancels
-and purges every export, ticket and file of that project. See
-[docs/project-automation.md](../../docs/project-automation.md).
+and purges every export, ticket and file of that project, terminates every
+non-terminal scenario generation parent and releases ALL of its case
+reservations in the same transaction (published scenes stay; slow in-flight
+results can never publish afterwards).
+See [docs/project-automation.md](../../docs/project-automation.md).
+
+## Scenario AI generation (existing paid Web generator)
+
+Explicit user actions only — nothing runs on page open. All routes require a
+non-empty valid session; POST routes also require the mutation contract (exact
+`Origin` + `X-IMStage-Request`):
+
+- `GET /api/projects/:id/scenarios/:sid/generation` — parent status, per-case
+  reservations and missing keys.
+- `POST .../generation` — generate the missing cases (`idempotencyKey`
+  optional); a replayed key or double click returns the SAME generation and
+  never calls the model twice; a different immutable request under the same
+  key → `409 idempotency_conflict`.
+- `POST .../generation/retry` — explicit retry of missing/failed keys only;
+  completed cases are never re-run.
+- `POST .../generation/cancel` — cancel queued/running work; reservations are
+  released so an explicit retry or MCP submission can resume those keys.
+
+Semantics: stable case keys are frozen as capacity reservations at enqueue and
+persisted as ≤20-task chunks of the existing `batch_jobs`/`batch_tasks` (20/20/10
+for 50 cases; a durable parent driver serially releases later chunks for up to
+100 cases, ≤3 queued/running jobs per account). Publication is one short
+synchronous transaction that re-checks session/ownership, cancellation,
+project/scenario existence, the exact reservation/attempt, scene validity,
+duplicate dialogue and capacity, then binds scene + case + task success
+atomically; auto-export runs through the shared export service AFTER commit
+and an export failure never downgrades a committed task. A crash after the
+provider returned but before commit is result-unknown: startup marks such work
+`interrupted` and releases reservations; an explicit retry may incur another
+provider call (no exactly-once claim across process crashes).
+
+Unconfigured models return `503 ai_not_configured` while caller content
+submission (account MCP `imstage_create_batch`) and deterministic exports keep
+working. `evaluation_dataset` scenarios refuse unlabeled AI generation with
+`422 missing_annotations` (labels are caller-provided; the server never invents
+ground truth). Active case reservations count toward the 100-scene account
+limit in EVERY new-scene path and reject concurrent writes of a reserved
+`itemKey` with `409 case_reserved`.
 
 ## Limits and resource bounds
 

@@ -108,7 +108,7 @@ const ACCOUNT_PROJECT_INPUT_SCHEMA = {
 
 const SCENARIO_INPUT_SCHEMA = {
   type: 'object',
-  description: '账号场景计划：名称、简述、预设、案例数（1-100，默认 50）、平台、语言与 autoExport。',
+  description: '账号场景计划：名称、简述、预设、案例数（1-100，默认 50）、平台、语言、水印与 autoExport。',
   properties: {
     name: { type: 'string', maxLength: 80 },
     brief: { type: 'string', maxLength: 4000 },
@@ -117,6 +117,7 @@ const SCENARIO_INPUT_SCHEMA = {
     platform: { type: 'string' },
     locale: { type: 'string', enum: ['zh-CN', 'en'] },
     autoExport: { type: 'boolean' },
+    watermarkEnabled: { type: 'boolean', description: '省略时继承项目；显式 true/false 冻结为本场景的水印设置。' },
   },
   required: ['name'],
   additionalProperties: false,
@@ -548,7 +549,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       rejectUnknownKeys(args, new Set(['projectId', 'scenario', 'idempotencyKey']), 'arguments');
       const projectId = stringField(args, 'projectId', { required: true });
       const raw = objectField(args, 'scenario', { required: true });
-      rejectUnknownKeys(raw, new Set(['name', 'brief', 'preset', 'caseCount', 'platform', 'locale', 'autoExport']), 'scenario');
+      rejectUnknownKeys(raw, new Set(['name', 'brief', 'preset', 'caseCount', 'platform', 'locale', 'autoExport', 'watermarkEnabled']), 'scenario');
       const idempotencyKey = optionalIdempotencyKey(args);
       const result = serviceCall(() => service.createScenario({ userId, projectId, input: raw, idempotencyKey }));
       return textOk(

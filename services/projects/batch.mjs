@@ -16,6 +16,7 @@
 
 import { validateScene } from '../../apps/web/src/studio/model.ts';
 import { instantiateTemplate } from '../../packages/schema/templates.ts';
+import { assertSceneCapacity } from './capacity.mjs';
 import { projectsError } from './errors.mjs';
 import { blankScene, buildTaskPrompt } from './model.mjs';
 import {
@@ -32,6 +33,7 @@ import {
   markTaskInterrupted,
   markTaskRunning,
   markInterruptedJobs,
+  deferJob,
   publishGeneratedScene,
   sessionStillValid,
   updateTaskDetail,
@@ -68,7 +70,28 @@ function initialScene(job, task) {
       return validated.scene;
     }
   }
-  return blankScene(task.platform, task.sceneId, watermarkEnabled);
+  const blank = blankScene(task.platform, task.sceneId, watermarkEnabled);
+  // Scenario generation seeds the frozen cast names onto the starting scene so
+  // the model builds the conversation around the project's 人物表 (roles travel
+  // in the prompt; avatar bytes never do). Cast members beyond the template's
+  // participant slots are appended as extra participants.
+  const cast = Array.isArray(task.values?.cast) ? task.values.cast.filter((member) => member && member.name) : [];
+  if (cast.length === 0) return blank;
+  const others = blank.participants.filter((participant) => participant.id !== blank.selfId);
+  const renamed = new Map();
+  cast.forEach((member, index) => {
+    if (others[index]) renamed.set(others[index].id, member.name);
+  });
+  const participants = blank.participants.map((participant) =>
+    (participant.id !== blank.selfId && renamed.has(participant.id)
+      ? { ...participant, name: renamed.get(participant.id), avatar: undefined }
+      : participant),
+  );
+  for (let index = others.length; index < cast.length; index += 1) {
+    const template = others[0] ?? blank.participants[0];
+    participants.push({ ...template, id: `p-cast-${index + 1}`, name: cast[index].name, avatar: undefined });
+  }
+  return { ...blank, participants };
 }
 
 function eventDetail(event) {
@@ -112,6 +135,10 @@ function failureMessage(result) {
  * @param {{ runtime: { run: Function }, limiter: { tryStart: Function } }} options.agent
  * @param {() => number} options.nowMs
  * @param {object} [options.logger]
+ * @param {object} [options.scenarioGeneration] scenario generation publisher
+ *   (`settleTask` / `afterPublish` / `releaseJobReservations` / `onChunkJobSettled`);
+ *   scenario-bound tasks are never published through the legacy loose path.
+ * @param {(job: object) => void} [options.onJobFinished] durable driver hook
  * @param {number} [options.pollMs]
  * @param {number} [options.sessionCheckMs]
  * @param {number} [options.maxLeaseWaitMs]
@@ -121,6 +148,8 @@ export function createBatchQueue({
   agent,
   nowMs,
   logger = console,
+  scenarioGeneration = null,
+  onJobFinished = null,
   pollMs = 1_000,
   sessionCheckMs = 2_000,
   maxLeaseWaitMs = 5 * 60 * 1_000,
@@ -154,12 +183,15 @@ export function createBatchQueue({
     });
   }
 
-  async function acquireLease(userId) {
+  async function acquireLease(userId, deferDenied = false) {
     const deadline = nowMs() + maxLeaseWaitMs;
     for (;;) {
       if (stopped) return null;
       const lease = agent.limiter.tryStart(userId, nowMs());
       if (lease.ok) return lease;
+      // Scenario work yields immediately on a known pre-run denial. Waiting
+      // here would monopolize the serial worker until the legacy timeout.
+      if (deferDenied) return { deferred: true, retryAfterMs: Math.max(1, Number(lease.retryAfterMs) || 1_000) };
       const remaining = deadline - nowMs();
       if (remaining <= 0) return null;
       await sleep(Math.min(Math.max(100, lease.retryAfterMs ?? 1_000), 5_000, remaining));
@@ -249,13 +281,75 @@ export function createBatchQueue({
         break;
       }
 
-      const lease = await acquireLease(job.user_id);
+      // Capacity pre-flight BEFORE any provider call: real scenes plus active
+      // generation reservations must leave a free slot (a scenario task's own
+      // reservation is excluded — publishing consumes it). Failing here never
+      // spends a model call the account cannot store.
+      try {
+        assertSceneCapacity(db, job.user_id, 1, { excludeReservationId: task.reservationId ?? null });
+      } catch (error) {
+        markTaskFailed(db, task.id, { code: error?.code ?? 'scene_limit_reached', message: error?.message ?? '作品数量已达上限' }, nowMs());
+        continue;
+      }
+
+      const lease = await acquireLease(job.user_id, Boolean(task.generationId));
       if (!lease) {
-        interruptedReason = '等待生成资源超时，任务已中断';
+        interruptedReason = stopped ? '服务已重启或停止' : '等待生成资源超时，任务已中断';
         break;
+      }
+      if (lease.deferred) {
+        if (stopped) { interruptedReason = '服务已重启或停止'; break; }
+        if (jobCancelRequested(db, jobId) || !sessionStillValid(db, job.user_id, job.session_id, nowMs())) {
+          cancelledReason = '任务已取消或登录已失效';
+          break;
+        }
+        deferJob(db, jobId, nowMs() + lease.retryAfterMs, nowMs());
+        return 'deferred';
       }
 
       if (stopped || jobCancelRequested(db,jobId) || !sessionStillValid(db,job.user_id,job.session_id,nowMs())) { lease.release(); cancelledReason='任务已取消或登录已失效'; break; }
+      // Capacity recheck AFTER the async lease wait: another create may have
+      // filled the account while waiting. Never spend a provider call the
+      // account cannot store; release the lease and fail this task honestly
+      // (scenario tasks release only their own matching reservation).
+      try {
+        assertSceneCapacity(db, job.user_id, 1, { excludeReservationId: task.reservationId ?? null });
+      } catch (error) {
+        lease.release();
+        const message = error?.message ?? '作品数量已达上限';
+        markTaskFailed(db, task.id, { code: error?.code ?? 'scene_limit_reached', message }, nowMs());
+        if (scenarioGeneration && task.reservationId) {
+          scenarioGeneration.releaseTask({
+            userId: job.user_id,
+            reservationId: task.reservationId,
+            taskId: task.id,
+            attempt: task.attempt ?? 1,
+            code: error?.code ?? 'scene_limit_reached',
+            message,
+          });
+        }
+        continue;
+      }
+      // Scenario tasks: pre-run session/ownership/cancel/fencing inspection so
+      // an already-unpublishable task never pays for a model run.
+      if (task.itemKey && task.generationId && scenarioGeneration) {
+        const guard = scenarioGeneration.guardBeforeRun({
+          userId: job.user_id,
+          jobId,
+          taskId: task.id,
+          generationId: task.generationId,
+          scenarioId: task.scenarioId,
+          projectId: job.project_id,
+          itemKey: task.itemKey,
+          reservationId: task.reservationId,
+          attempt: task.attempt ?? 1,
+          sessionId: job.session_id,
+        });
+        if (!guard.ok) {
+          lease.release();
+          continue;
+        }
+      }
       const controller = new AbortController();
       activeRuns.set(jobId, controller);
       markTaskRunning(db, task.id, nowMs());
@@ -313,27 +407,82 @@ export function createBatchQueue({
       }
 
       if (result?.ok === true && result.scene) {
-        try {
-          const normalized = validateScene(result.scene);
-          if (!normalized.ok || !normalized.scene) {
-            throw projectsError(500, 'invalid_scene', '生成的作品未通过校验');
+        if (task.itemKey && task.generationId) {
+          // Scenario generation: ONE transaction re-checks session/ownership,
+          // parent+child cancellation, project/scenario existence, the exact
+          // reservation/attempt, scene validity, duplicate dialogue and
+          // capacity, then binds content + case + task success atomically.
+          if (!scenarioGeneration) {
+            markTaskFailed(db, task.id, { code: 'internal_error', message: '场景生成服务未接入，结果未保存' }, nowMs());
+            continue;
           }
-          const scene = { ...normalized.scene, id: task.sceneId };
-          publishGeneratedScene(db, {
-            userId: job.user_id,
-            projectId: job.project_id,
-            scene,
-            taskId:task.id,
-            nowMs: nowMs(),
-          });
-
-        } catch (error) {
-          markTaskFailed(
-            db,
-            task.id,
-            { code: error?.code ?? 'publish_failed', message: error?.message ?? '保存生成的作品失败' },
-            nowMs(),
-          );
+          let settled;
+          try {
+            const accountDefaults = scenarioGeneration.fetchAccountDefaults
+              ? await scenarioGeneration.fetchAccountDefaults(job.user_id)
+              : null;
+            if (stopped) {
+              // Shutdown after the async defaults read: never publish across a
+              // stop — finish honestly as interrupted; already committed tasks
+              // stay committed.
+              markTaskInterrupted(db, task.id, '服务已停止', nowMs());
+              interruptedReason = '服务已重启或停止';
+              break;
+            }
+            settled = scenarioGeneration.settleTask({
+              userId: job.user_id,
+              jobId,
+              taskId: task.id,
+              generationId: task.generationId,
+              scenarioId: task.scenarioId,
+              projectId: job.project_id,
+              itemKey: task.itemKey,
+              reservationId: task.reservationId,
+              attempt: task.attempt ?? 1,
+              scene: result.scene,
+              sessionId: job.session_id,
+              accountDefaults,
+            });
+          } catch (error) {
+            settled = { ok: false, code: error?.code ?? 'publish_failed', message: error?.message ?? '保存生成的作品失败' };
+            markTaskFailed(db, task.id, { code: settled.code, message: settled.message }, nowMs());
+          }
+          if (settled?.ok === true) {
+            // Shared auto-export check AFTER commit; an export failure never
+            // downgrades the committed task.
+            try {
+              await scenarioGeneration.afterPublish({
+                userId: job.user_id,
+                projectId: job.project_id,
+                scenarioId: task.scenarioId,
+                sessionId: job.session_id,
+              });
+            } catch (error) {
+              logger.warn?.('[imstage-projects] auto export after publish failed:', error?.message ?? error);
+            }
+          }
+        } else {
+          try {
+            const normalized = validateScene(result.scene);
+            if (!normalized.ok || !normalized.scene) {
+              throw projectsError(500, 'invalid_scene', '生成的作品未通过校验');
+            }
+            const scene = { ...normalized.scene, id: task.sceneId };
+            publishGeneratedScene(db, {
+              userId: job.user_id,
+              projectId: job.project_id,
+              scene,
+              taskId: task.id,
+              nowMs: nowMs(),
+            });
+          } catch (error) {
+            markTaskFailed(
+              db,
+              task.id,
+              { code: error?.code ?? 'publish_failed', message: error?.message ?? '保存生成的作品失败' },
+              nowMs(),
+            );
+          }
         }
       } else {
         markTaskFailed(
@@ -346,6 +495,62 @@ export function createBatchQueue({
     }
 
     finalize(jobId, { cancelledReason, interruptedReason });
+    // Unfinished scenario tasks never keep their promised slots: reservations
+    // bound to non-done tasks of this job are released (matching attempt only)
+    // so an explicit retry or an MCP submission can resume those case keys.
+    if (scenarioGeneration) {
+      try {
+        scenarioGeneration.releaseJobReservations({
+          userId: job.user_id,
+          jobId,
+          reason: cancelledReason ?? interruptedReason ?? '任务未完成',
+          code: cancelledReason ? 'cancelled' : interruptedReason ? 'interrupted' : 'failed',
+        });
+      } catch (error) {
+        logger.warn?.('[imstage-projects] reservation release failed:', error?.message ?? error);
+      }
+    }
+    // Durable chunk driver: release the next chunk of the parent generation
+    // (never browser-scheduled) and refresh its status.
+    try {
+      onJobFinished?.(getJobRowById(db, job.user_id, jobId) ?? job);
+    } catch (error) {
+      logger.warn?.('[imstage-projects] job hook failed:', error?.message ?? error);
+    }
+    return 'finalized';
+  }
+
+  /**
+   * Abandoned queued/deferred jobs (session revoked or expired while waiting)
+   * are cancelled here so their reservations are released without waiting for
+   * a claim that would only fail later. No provider call is ever made.
+   */
+  function sweepAbandonedJobs() {
+    try {
+      const rows = db
+        .prepare("SELECT id, user_id, session_id FROM batch_jobs WHERE status = 'queued'")
+        .all();
+      for (const row of rows) {
+        if (!row.session_id || sessionStillValid(db, row.user_id, row.session_id, nowMs())) continue;
+        markRemainingTasksCancelled(db, row.id, '登录已失效，任务已取消', nowMs());
+        finalizeJob(db, row.id, { status: 'cancelled', reason: '登录已失效，任务已取消' }, nowMs());
+        if (scenarioGeneration) {
+          scenarioGeneration.releaseJobReservations({
+            userId: row.user_id,
+            jobId: row.id,
+            reason: '登录已失效，任务已取消',
+            code: 'cancelled',
+          });
+        }
+        try {
+          onJobFinished?.(getJobRowById(db, row.user_id, row.id) ?? row);
+        } catch {
+          /* best effort */
+        }
+      }
+    } catch {
+      /* a transient DB error must not crash the worker */
+    }
   }
 
   async function loop() {
@@ -357,11 +562,13 @@ export function createBatchQueue({
         logger.error?.('[imstage-projects] claim failed:', error?.message ?? error);
       }
       if (!job) {
+        sweepAbandonedJobs();
         await waitForWork(pollMs);
         continue;
       }
       try {
-        await runJob(job);
+        const outcome = await runJob(job);
+        if (outcome === 'deferred') continue; // pacing defer: claim other work
       } catch (error) {
         logger.error?.('[imstage-projects] batch job failed:', error?.stack ?? error);
         try {
@@ -398,6 +605,9 @@ export function createBatchQueue({
       await loopPromise?.catch(() => {});
       try {
         markInterruptedJobs(db, nowMs());
+        // Includes deferred jobs and future chunks; committed cases remain
+        // consumed while every unfinished reservation and parent converges.
+        scenarioGeneration?.recoverInterrupted();
       } catch {
         /* best effort on shutdown */
       }

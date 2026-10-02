@@ -125,16 +125,18 @@ test('created template + watermark defaults survive reload and reach new scenes 
   expect(projectId).toBeTruthy();
 
   // Detail page shows the stored defaults with a selected card + check.
-  await expect(page.getByRole('radio', { name: 'WhatsApp' })).toBeChecked();
-  await expect(page.locator('.project-template-card.is-selected .project-template-radio')).toHaveCSS('background-color', 'rgb(182, 58, 34)');
-  await expect(page.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true })).not.toBeChecked();
+  // Scoped to the settings form: the scenario panel reuses the same picker.
+  const settings = page.locator('.project-form');
+  await expect(settings.getByRole('radio', { name: 'WhatsApp' })).toBeChecked();
+  await expect(settings.locator('.project-template-card.is-selected .project-template-radio')).toHaveCSS('background-color', 'rgb(182, 58, 34)');
+  await expect(settings.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true })).not.toBeChecked();
   await expect(page.getByText('已保存的作品保持自己的设置', { exact: false })).toBeVisible();
 
   // Reload: the created defaults are really persisted server-side.
   await page.reload();
   await expect(page.getByRole('heading', { name: '水印关闭项目', exact: true })).toBeVisible();
-  await expect(page.getByRole('radio', { name: 'WhatsApp' })).toBeChecked();
-  await expect(page.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true })).not.toBeChecked();
+  await expect(page.locator('.project-form').getByRole('radio', { name: 'WhatsApp' })).toBeChecked();
+  await expect(page.locator('.project-form').getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true })).not.toBeChecked();
 
   // Mobile 390 on the detail page keeps everything inside the viewport.
   await page.setViewportSize({ width: 390, height: 900 });
@@ -225,7 +227,7 @@ test('new creation waits for acknowledged project settings instead of using stal
     if (route.request().method() === 'PUT') { observed(); await held; }
     await route.continue();
   });
-  await page.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true }).uncheck();
+  await page.locator('.project-form').getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true }).uncheck();
   const create = page.getByRole('link', { name: '用这个项目新建创作' });
   await expect(create).toHaveAttribute('aria-disabled', 'true');
   await create.click({ force: true });
