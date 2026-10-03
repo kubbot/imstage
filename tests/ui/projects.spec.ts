@@ -151,7 +151,7 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await expect(page.locator('.scene-view[data-layout="custom"] .scene-header')).toHaveCSS('background-color', 'rgb(16, 20, 24)');
   // The platform selector is back with real bilingual brand names, and the
   // custom layout keeps applying over the selected platform skin.
-  const platformSelect = page.getByLabel('目标聊天平台', { exact: true });
+  const platformSelect = page.locator('.editor-inspector').getByLabel('目标聊天平台', { exact: true });
   await expect(platformSelect).toHaveCount(1);
   await expect(platformSelect).toHaveValue('whatsapp');
   const platformNames = (await platformSelect.locator('option').allInnerTexts()).join(' ');
@@ -170,6 +170,16 @@ test('custom declarative layout can be created, edited and survives reload', asy
   await page.getByRole('button', { name: '编辑设备状态' }).click();
   await page.locator('.property-advanced > summary', { hasText: '自定义布局' }).click();
   await expect(page.getByLabel('布局名称')).toHaveValue('中性格');
+  // The prominent canvas picker chooses the canonical skin and undo restores
+  // both the previous platform and the authored custom layout.
+  const canvasPlatform=page.locator('.agent-render-toolbar').getByLabel('目标聊天平台',{exact:true});
+  await canvasPlatform.selectOption('wechat');
+  await expect(page.locator('.scene-view')).toHaveAttribute('data-platform','wechat');
+  await expect(page.locator('.scene-view[data-layout="custom"]')).toHaveCount(0);
+  await expect(page.locator('.scene-row.is-self .scene-bubble').first()).toHaveCSS('background-color','rgb(149, 236, 105)');
+  await page.getByRole('button',{name:'撤销上次修改',exact:true}).click();
+  await expect(page.locator('.scene-view[data-layout="custom"]')).toHaveAttribute('data-platform','whatsapp');
+  await expect(page.locator('.scene-view .scene-messages')).toHaveCSS('background-color','rgb(238, 242, 247)');
   // Reset returns to the platform skin.
   await page.getByRole('button', { name: '恢复平台皮肤', exact: true }).click();
   await expect(page.locator('.scene-view[data-layout="custom"]')).toHaveCount(0);
