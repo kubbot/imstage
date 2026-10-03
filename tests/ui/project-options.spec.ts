@@ -287,6 +287,20 @@ test('resumed local blank drafts keep an explicit watermark choice when selectin
   await page.goto('/#/create?new=1');
   await page.getByRole('button', { name: '元素编辑', exact: true }).click();
   await page.getByLabel('显示水印（AI生成 / 虚构标识）', { exact: true }).uncheck();
+  // The status label can still describe the previous save until React's effect
+  // runs. Wait for this edit's durable transaction before testing a reload.
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open('imstage-creation-sessions', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('drafts');
+      const rows = tx.objectStore('drafts').getAll();
+      const active = new Set(Object.keys(sessionStorage).filter(key => key.startsWith('imstage.sessions.active.')).map(key => sessionStorage.getItem(key)));
+      tx.oncomplete = () => { db.close(); resolve(rows.result.some(row => active.has(row.id) && row.draft.scene.watermarkEnabled === false)); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  }))).toBe(true);
   await expect(page.getByRole('button', { name: '管理创作会话' })).toContainText('已保存到本机');
   await page.reload();
   const phone = page.locator('.agent-phone .scene-view');
