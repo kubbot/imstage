@@ -15,6 +15,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -39,7 +40,7 @@ import { buildProviderRequestBody, renderExpectedDataset, runDataset, safeErrorC
 
 const TEST_ROOT = process.env.IMSTAGE_EVAL_TEST_DIR
   ? path.resolve(process.env.IMSTAGE_EVAL_TEST_DIR)
-  : '/private/tmp/ai-test-imstage-screenshot-dataset.p75qqS';
+  : path.join(os.tmpdir(), 'imstage-screenshot-dataset');
 const BENCHMARK_CLI = path.join(PACKAGE_DIR, 'benchmark.mjs');
 
 let seq = 0;
