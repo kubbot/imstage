@@ -6,8 +6,8 @@
  * unit-tested directly.
  *
  * Scope note: a Project is account-owned metadata (name, rules, default
- * platform). It never stores credentials and its `rules` field is ordinary
- * user-authored text, not a secret.
+ * platform, watermark switch). It never stores credentials and its `rules`
+ * field is ordinary user-authored text, not a secret.
  */
 
 import { createScene, validateScene, PLATFORMS } from '../../apps/web/src/studio/model.ts';
@@ -17,6 +17,8 @@ export const MAX_PROJECT_NAME_CHARS = 80;
 export const MAX_PROJECT_RULES_CHARS = 4000;
 export const MAX_PROJECTS_PER_USER = 50;
 export const DEFAULT_PROJECT_PLATFORM = 'imstage';
+/** New and legacy projects keep the watermark unless the user opts out. */
+export const DEFAULT_PROJECT_WATERMARK = true;
 
 export const MAX_BATCH_PROMPTS = 10;
 export const MAX_BATCH_VARIANTS = 10;
@@ -79,6 +81,20 @@ export function validateProjectPlatform(raw, fallback = DEFAULT_PROJECT_PLATFORM
   if (raw === undefined || raw === null || raw === '') return fallback;
   if (!isPlatform(raw)) {
     throw projectsError(400, 'invalid_platform', '默认平台不受支持');
+  }
+  return raw;
+}
+
+/**
+ * Project watermark switch. `undefined` returns the fallback unchanged (used
+ * for "omitted update fields keep their old value" and for legacy rows
+ * defaulting to on); `null` and any other non-boolean value are rejected
+ * loudly instead of being coerced — the same strictness as the Scene flag.
+ */
+export function validateProjectWatermarkEnabled(raw, fallback = DEFAULT_PROJECT_WATERMARK) {
+  if (raw === undefined) return fallback;
+  if (typeof raw !== 'boolean') {
+    throw projectsError(400, 'invalid_watermark', 'watermarkEnabled 必须是布尔值');
   }
   return raw;
 }
@@ -296,8 +312,10 @@ export function buildTaskPrompt(rules, prompt) {
  * A validated blank scene for one generated work item. It reuses the shared
  * `createScene` contract and clears the template content so the model builds
  * the conversation from scratch while the canonical validator still accepts it.
+ * The project's watermark switch is frozen onto the scene so the run (and any
+ * later retry) keeps the user's choice even if the project changes meanwhile.
  */
-export function blankScene(platform, id) {
+export function blankScene(platform, id, watermarkEnabled = DEFAULT_PROJECT_WATERMARK) {
   const base = createScene('weekend');
   const candidate = {
     ...base,
@@ -309,6 +327,7 @@ export function blankScene(platform, id) {
     participants:base.participants.map(p=>p.id===base.selfId?{...p,name:'我',avatar:undefined}:p),
     messages: [],
     watermark: '',
+    ...(typeof watermarkEnabled === 'boolean' ? { watermarkEnabled } : {}),
   };
   const result = validateScene(candidate);
   if (!result.ok || !result.scene) {

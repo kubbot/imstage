@@ -43,6 +43,8 @@ export interface ProjectSettings {
   name: string;
   rules: string;
   platform: Platform;
+  /** User watermark switch; drafts cached before this field default to on. */
+  watermarkEnabled: boolean;
 }
 
 export interface ProjectDraft {
@@ -57,7 +59,7 @@ export interface ProjectDraft {
 
 /** The server stores `name.trim()`, so equality must use the same contract. */
 export function normalizeProjectSettings(settings: ProjectSettings): ProjectSettings {
-  return { name: settings.name.trim(), rules: settings.rules, platform: settings.platform };
+  return { name: settings.name.trim(), rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false };
 }
 
 /** Stable content identity for "same project settings on the server". */
@@ -67,7 +69,7 @@ export function projectContent(settings: ProjectSettings): string {
 
 /** Exact local content identity; used to ignore truly no-op edits. */
 export function projectRawContent(settings: ProjectSettings): string {
-  return JSON.stringify({ name: settings.name, rules: settings.rules, platform: settings.platform });
+  return JSON.stringify({ name: settings.name, rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false });
 }
 
 export function projectDraftKey(userId: string, projectId: string): string {
@@ -84,7 +86,10 @@ function readSettings(raw: unknown): ProjectSettings | null {
   if (typeof settings.name !== 'string' || settings.name.length > 80) return null;
   if (typeof settings.rules !== 'string' || settings.rules.length > 4000) return null;
   if (!isPlatform(settings.platform)) return null;
-  return { name: settings.name, rules: settings.rules, platform: settings.platform };
+  // Backwards compatible: a draft cached before the watermark switch existed
+  // keeps its old content and simply defaults to on.
+  if (settings.watermarkEnabled !== undefined && typeof settings.watermarkEnabled !== 'boolean') return null;
+  return { name: settings.name, rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false };
 }
 
 /** Parse and validate a cached draft; anything malformed is ignored. */
@@ -144,6 +149,7 @@ export interface ProjectAutosave {
   setName: (value: string) => void;
   setRules: (value: string) => void;
   setPlatform: (value: Platform) => void;
+  setWatermarkEnabled: (value: boolean) => void;
   status: ProjectSaveStatus;
   dirty: boolean;
   conflict: boolean;
@@ -159,7 +165,7 @@ export interface ProjectAutosave {
 }
 
 export function useProjectAutosave({ userId, projectId, remote, onReload }: ProjectAutosaveOptions): ProjectAutosave {
-  const [settings, setSettingsState] = useState<ProjectSettings>({ name: '', rules: '', platform: 'wechat' });
+  const [settings, setSettingsState] = useState<ProjectSettings>({ name: '', rules: '', platform: 'wechat', watermarkEnabled: true });
   const settingsRef = useRef(settings);
   const [revision, setRevisionState] = useState(0);
   const confirmedRevision = useRef(0);
@@ -226,7 +232,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
       if (current && current.token === sent.token) {
         // No newer edit arrived during the PUT: adopt the canonical server value
         // (the server trims the name) and stop being dirty.
-        commitSettings({ name: item.name, rules: item.rules, platform: item.platform });
+        commitSettings({ name: item.name, rules: item.rules, platform: item.platform, watermarkEnabled: item.watermarkEnabled !== false });
         removeDraft(sent);
       } else if (current) {
         // Keep the newer edit, rebase it on the acknowledged revision and persist.
@@ -258,7 +264,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
           if (mounted.current) setRevisionState(data.item.revision);
           if (projectContent(latest.settings) === serverContent) {
             // The unresolved write matches the latest draft: it is acknowledged.
-            if (mounted.current) commitSettings({ name: data.item.name, rules: data.item.rules, platform: data.item.platform });
+            if (mounted.current) commitSettings({ name: data.item.name, rules: data.item.rules, platform: data.item.platform, watermarkEnabled: data.item.watermarkEnabled !== false });
             removeDraft(latest);
           } else {
             const rebased: ProjectDraft = { ...latest, baseRevision: data.item.revision, uncertain: undefined };
@@ -320,6 +326,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
               name: outboundSettings.name,
               rules: outboundSettings.rules,
               platform: outboundSettings.platform,
+              watermarkEnabled: outboundSettings.watermarkEnabled,
               revision: sent.baseRevision,
             },
           });
@@ -409,7 +416,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     confirmedRevision.current = 0;
     setConflict(false); setDeleted(false); setDirty(false); setPhase('idle');
     setError(''); setCacheFailed(false); setRecovered(false); setRevisionState(0);
-    commitSettings({ name: '', rules: '', platform: 'wechat' });
+    commitSettings({ name: '', rules: '', platform: 'wechat', watermarkEnabled: true });
     if (userId) {
       const cached = readCachedDraft(userId, projectId);
       if (cached.failed) setCacheFailed(true);
@@ -449,7 +456,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
           savedContentRef.current = serverContent;
           if (mounted.current) setRevisionState(remote.revision);
           if (projectContent(draft.settings) === serverContent) {
-            if (mounted.current) commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform });
+            if (mounted.current) commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
             draftRef.current = null;
             setDirty(false); setRecovered(false);
             setConflict(false); conflictRef.current = false;
@@ -487,7 +494,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
         setDirty(false);
         setRecovered(false);
         setConflict(false); conflictRef.current = false;
-        commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform });
+        commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
         setRevisionState(remote.revision);
         setPhase('idle');
         removeExactDraft(draft.userId, draft.projectId, draft.token);
@@ -511,7 +518,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     // No local draft: adopt the server snapshot as the baseline.
     confirmedRevision.current = remote.revision;
     savedContentRef.current = serverContent;
-    commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform });
+    commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
     setRevisionState(remote.revision);
     setRecovered(false);
     setDirty(false);
@@ -549,6 +556,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
   const setName = useCallback((value: string) => applyEdit({ name: value }), [applyEdit]);
   const setRules = useCallback((value: string) => applyEdit({ rules: value }), [applyEdit]);
   const setPlatform = useCallback((value: Platform) => applyEdit({ platform: value }), [applyEdit]);
+  const setWatermarkEnabled = useCallback((value: boolean) => applyEdit({ watermarkEnabled: value }), [applyEdit]);
 
   let status: ProjectSaveStatus;
   if (conflict || deleted) status = 'conflict';
@@ -562,6 +570,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     setName,
     setRules,
     setPlatform,
+    setWatermarkEnabled,
     status,
     dirty,
     conflict,

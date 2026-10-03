@@ -1,11 +1,14 @@
 /**
- * Safety-policy browser regression (2026-09-30 change).
+ * Safety-policy browser regression.
  *
- * Real behavior coverage for the mandatory disclosure (including actual
- * downloaded PNG pixels), the consent gate at registration, the always-on mark
- * (no UI switch), the removed payment capabilities and the honest commercial
- * enquiry state. Assertions here must reflect the safety contract — the app is
- * never relaxed to satisfy an old expectation.
+ * Real behavior coverage for the default-on watermark disclosure (including
+ * actual downloaded PNG pixels), the consent gate at registration, the
+ * preference/API surface (no hidden toggle alias), the removed payment
+ * capabilities and the honest commercial enquiry state. Since 2026-10-02 the
+ * watermark is a user project/scene switch (default on) — see
+ * `tests/ui/project-options.spec.ts` for the on/off behavior. Assertions here
+ * must reflect the safety contract — the app is never relaxed to satisfy an old
+ * expectation.
  */
 import { test, expect } from '@playwright/test';
 import { assertDisclosureInPng } from './pngEvidence';
@@ -35,7 +38,7 @@ test('registration requires explicit terms consent and links the notices', async
   await expect(page).toHaveURL(/\/welcome/);
 });
 
-test('the mandatory mark has no UI switch and the API cannot disable it', async ({ page }) => {
+test('the watermark is on by default and no preference or API alias can switch it off', async ({ page }) => {
   await page.goto('/#/register');
   const origin = new URL(page.url()).origin;
   const response = await page.request.post('/api/auth/register', {
@@ -46,15 +49,20 @@ test('the mandatory mark has no UI switch and the API cannot disable it', async 
   await page.reload();
   await page.goto('/#/welcome');
   await expect(page.locator('.prefs-preview .imstage-disclosure')).toContainText('AI生成 / 虚构');
+  // Creator preferences never gain a hidden toggle for the mark: the user
+  // watermark switch lives on projects/scenes (default on), not in the
+  // account defaults.
   await expect(page.getByLabel('显示「虚构对话」标记')).toHaveCount(0);
-  // API-level attempts to switch the mark off are rejected.
+  // API-level attempts to switch the mark off through the obsolete alias are
+  // still rejected outright.
   const prefs = (await (await page.request.get('/api/preferences')).json()).item;
   const off = await page.request.put('/api/preferences', {
     headers: { Origin: origin, 'X-IMStage-Request': '1' },
     data: { revision: prefs.revision, showFictionalMark: false },
   });
   expect(off.status()).toBe(400);
-  // …and an import with disclosure-override fields still renders the mark.
+  // A fresh scene renders the watermark by default, with no import able to
+  // strip it through an obsolete alias.
   await page.goto('/#/studio');
   await expect(page.locator('.studio-canvas .imstage-disclosure')).toContainText('AI生成 / 虚构');
 });

@@ -7,17 +7,20 @@ import {renderStudioHtml} from '../services/mcp/studio-html.mjs';
 import {EXAMPLE_CREATE_SCENE,prepareCreateScene} from '../services/mcp/scene.mjs';
 import {PLATFORMS} from '../apps/web/src/studio/model.ts';
 
-test('shared Web render is the generic IMStage UI with the mandatory disclosure on every platform',async()=>{
+test('shared Web render is the platform-template UI with the default watermark on every platform',async()=>{
  for(const platform of PLATFORMS){
   const scene=prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),platform,background:'#dceeff',messages:[{id:'voice',participantId:'p-ayuan',type:'voice',text:'12 秒',time:'09:41'}]});
   const html=await renderStudioHtml(scene,{width:390,height:844,outputKind:'screenshot'});
-  assert.ok(html.includes('data-skin="imstage-generic"'));
-  assert.ok(html.includes('AI生成 / 虚构'),'mandatory disclosure on every preview/export');
+  assert.ok(html.includes(`data-platform="${platform}"`),'the platform template is really selected');
+  assert.ok(html.includes('AI生成 / 虚构'),'default-on watermark on every preview/export');
   assert.ok(html.includes('12 秒'));assert.ok(html.includes('#dceeff'));
-  assert.equal(/data-platform|scene-transfer/.test(html),false,'no platform chrome or payment cards');
+  assert.equal(/scene-transfer/.test(html),false,'no payment cards');
   assert.equal(/<script/i.test(html),false);
-  assert.equal(/wechat|whatsapp|telegram|微信|WhatsApp|Telegram|Instagram|Slack/i.test(html),false,'no brand names or clones in public output');
  }
+ // A user-chosen watermark-free scene really suppresses the mark.
+ const off=prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),watermarkEnabled:false});
+ const offHtml=await renderStudioHtml(off,{width:390,height:844,outputKind:'screenshot'});
+ assert.equal(offHtml.includes('AI生成 / 虚构'),false,'watermarkEnabled=false hides the mark');
  // Payment / transfer / red-packet messages are rejected, never rendered.
  assert.throws(()=>prepareCreateScene({...structuredClone(EXAMPLE_CREATE_SCENE),messages:[{id:'transfer',participantId:'p-linxiaoman',type:'transfer',text:'演示卡片',time:'09:42'}]}),/transfer|不支持|已移除|只能是/);
 });

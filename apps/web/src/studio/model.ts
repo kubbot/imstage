@@ -18,9 +18,10 @@ import { deviceProfileError } from './device-profiles.ts';
  */
 
 /**
- * Platform identifiers are *legacy schema ids kept for migration only*. The
- * public product renders one generic IMStage chat UI for every value, so old
- * stored scenes keep loading while no brand chrome is ever drawn.
+ * Platform identifiers select a chat-template skin. The IMStage generic skin
+ * is one option alongside the platform templates (WeChat, WhatsApp, iMessage,
+ * Instagram, Xiaohongshu, Slack); each renders an approximate style preview of
+ * synthetic content — never a pixel clone and never a brand logo.
  */
 export type Platform = 'imstage' | 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram';
 export type TemplateId = 'weekend' | 'launch' | 'welcome';
@@ -69,6 +70,13 @@ export interface Scene {
   participants: Participant[];
   messages: Message[];
   watermark: string;
+  /**
+   * Optional watermark switch. Absent means enabled (legacy scenes keep their
+   * watermark). `false` suppresses the AI生成/虚构 disclosure *and* any custom
+   * `watermark` text on every preview and export. A user preference: the
+   * Agent model can never change it.
+   */
+  watermarkEnabled?: boolean;
   reference?: ReferenceDocument;
   /** Frozen reference for relative labels such as 今天. */
   referenceDate?: string;
@@ -95,22 +103,22 @@ export const PLATFORMS: readonly Platform[] = [
   'instagram',
 ];
 
-/** Legacy identifiers accepted on import for migration; never rendered as brands. */
+/** Legacy identifiers accepted on import for migration. */
 export const LEGACY_PLATFORMS: readonly Platform[] = PLATFORMS.slice(1);
 
 export const TEMPLATE_IDS: readonly TemplateId[] = ['weekend', 'launch', 'welcome'];
 
 export const MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album'];
 
-/** Generic labels only. No messaging-platform brand names anywhere in the UI. */
+/** Real platform template names, bilingual on purpose: exports travel. */
 export const PLATFORM_LABELS: Record<Platform, string> = {
-  imstage: 'IMStage 通用聊天',
-  wechat: '聊天样式 A（兼容旧数据）',
-  xiaohongshu: '聊天样式 B（兼容旧数据）',
-  imessage: '聊天样式 C（兼容旧数据）',
-  whatsapp: 'Chat style D (legacy data)',
-  slack: '聊天样式 E（兼容旧数据）',
-  instagram: '聊天样式 F（兼容旧数据）',
+  imstage: 'IMStage 通用聊天 / IMStage generic',
+  wechat: '微信 / WeChat',
+  xiaohongshu: '小红书 / Xiaohongshu',
+  imessage: 'iMessage',
+  whatsapp: 'WhatsApp',
+  slack: 'Slack',
+  instagram: 'Instagram',
 };
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
@@ -355,9 +363,10 @@ export function validateScene(input: unknown): ValidationResult {
   if (!isRecord(input)) {
     return { ok: false, errors: ['场景数据必须是一个对象'] };
   }
-  // The mandatory AI生成 / 虚构 disclosure cannot be disabled by import/API:
-  // any attempt is silently dropped before validation, the mark is rendered
-  // unconditionally on every preview and export.
+  // The AI生成 / 虚构 disclosure cannot be disabled by obsolete import aliases:
+  // any legacy toggle key is silently dropped before validation. The supported
+  // `watermarkEnabled` boolean (default on) is validated below and is the only
+  // way a user turns the watermark off for a scene.
   const value: Record<string, unknown> = stripDisclosureOverrides(input);
 
   const errors: string[] = [];
@@ -496,9 +505,14 @@ export function validateScene(input: unknown): ValidationResult {
   }
 
   // A missing watermark means "none"; a present one must be a string. The
-  // mandatory disclosure is rendered separately and never depends on this.
+  // disclosure/watermark switch is separate: absent means enabled.
   const watermark = typeof value.watermark === 'string' ? value.watermark : '';
   if (value.watermark !== undefined && typeof value.watermark !== 'string') errors.push('水印必须是字符串');
+  let watermarkEnabled: boolean | undefined;
+  if (value.watermarkEnabled !== undefined) {
+    if (typeof value.watermarkEnabled !== 'boolean') errors.push('watermarkEnabled 必须是布尔值');
+    else watermarkEnabled = value.watermarkEnabled;
+  }
 
   const extras: Record<string, unknown> = {};
   if (value.referenceDate !== undefined) { if (!isCalendarDate(value.referenceDate)) errors.push('参考日期必须是有效 YYYY-MM-DD'); else extras.referenceDate = value.referenceDate; }
@@ -541,7 +555,7 @@ export function validateScene(input: unknown): ValidationResult {
   return {
     ok: true,
     errors: [],
-    scene: { id, title, platform, deviceTime, date, selfId, participants, messages, watermark, ...extras },
+    scene: { id, title, platform, deviceTime, date, selfId, participants, messages, watermark, ...extras, ...(watermarkEnabled === undefined ? {} : { watermarkEnabled }) },
   };
 }
 

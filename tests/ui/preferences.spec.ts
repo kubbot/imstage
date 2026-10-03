@@ -283,7 +283,7 @@ test('late account defaults do not overwrite edits in manual Studio', async ({ p
     await route.fulfill({ json: { item: { revision: 1, myAvatar: null, otherAvatar: null, showFictionalMark: true, markLabel: '虚构对话', onboardingStatus: 'completed', onboardingVersion: 1, onboardingShown: true, updatedAt: null } } });
   });
   await page.goto('/#/studio');
-  const watermark = page.getByLabel('水印（默认关闭）');
+  const watermark = page.getByLabel('自定义水印文字（可选）');
   await watermark.evaluate((element) => { element.closest('details')!.open = true; });
   await watermark.fill('用户编辑');
   await watermark.fill('');

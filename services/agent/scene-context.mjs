@@ -79,6 +79,8 @@ export function buildSceneContext(scene, maxChars, targetId = null) {
     date: truncate(scene.date, AGENT_MAX_SCENE_DATE_CHARS), referenceDate: scene.referenceDate,
     selfId: scene.selfId,
     watermark: truncate(scene.watermark, AGENT_MAX_SCENE_WATERMARK_CHARS),
+    // User preference; preserved across create_scene, never editable by tools.
+    watermarkEnabled: scene.watermarkEnabled,
     participants: scene.participants.map(markParticipant),
   };
 

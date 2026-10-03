@@ -76,3 +76,31 @@
 .project-variant-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
 .project-variant-image { display: flex; flex-direction: column; gap: 5px; }
 .project-variant-image input[type='file'] { font-size: 11px; }
+
+/* Platform template cards: every supported chat template is a real, selectable
+   card with a scaled preview of the shared synthetic sample. */
+.project-templates { border: 0; padding: 0; margin: 0 0 12px; min-width: 0; }
+.project-templates legend { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.project-template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.project-template-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border: 1px solid var(--line, #e4e2dd); border-radius: 12px; background: var(--surface, #fff); cursor: pointer; overflow: hidden; }
+.project-template-card.is-selected { border-color: var(--accent, #ff7a45); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #ff7a45) 28%, transparent); }
+.project-template-card:focus-within { outline: 3px solid var(--accent, #ff7a45); outline-offset: 2px; }
+.project-template-head { display: flex; align-items: center; gap: 7px; font-size: 12px; line-height: 1.25; }
+/* The radio *is* the selected check: a real, visible, keyboard-focusable
+   control (appearance-none keeps the circular check styling here). */
+.project-template-card .project-template-radio { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 18px; height: 18px; padding:0; margin: 0; border: 1px solid var(--line, #c9c6c0); border-radius: 50%; background: var(--surface, #fff); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.project-template-card.is-selected .project-template-radio { background: var(--accent, #ff7a45); border-color: var(--accent, #ff7a45); }
+.project-template-card.is-selected .project-template-radio::after { content: '\2713'; color: #fff; font-size: 11px; line-height: 1; }
+.project-template-preview { display: block; height: 210px; overflow: hidden; border-radius: 10px; }
+.project-template-preview .mark-phone-frame { border-radius: 16px; box-shadow: none; }
+.project-template-preview .mark-phone-frame::after { display: none; }
+.project-template-preview .mark-phone-frame .scene-view { border-radius: 13px; }
+.project-create .project-watermark-toggle,.project-form .project-watermark-toggle { display: flex; flex-direction:row; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0 6px; cursor: pointer; }
+.project-watermark-toggle input { width:18px; height:18px; padding:0; margin:0; flex:0 0 18px; accent-color:var(--accent); }
+.project-template-grid .project-template-card { margin:0; }
+.project-template-head { min-height:30px; }
+.project-template-head strong { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:590px){.project-template-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); } .project-template-preview { height: 190px; }}
+
+.project-new-scene[aria-disabled="true"] { opacity:.55; cursor:not-allowed; }
+.project-new-scene-note { display:block; margin-top:8px; color:var(--muted); font-size:13px; }

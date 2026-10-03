@@ -12,7 +12,9 @@ async function open(page:Page){await page.getByRole('button',{name:'管理创作
 async function rename(page:Page,from:string,to:string){await open(page);await page.getByRole('button',{name:`重命名：${from}`,exact:true}).click();await page.getByLabel('会话名称',{exact:true}).fill(to);await page.getByRole('button',{name:'保存名称',exact:true}).click();await expect(page.getByRole('button',{name:`打开会话：${to}`,exact:true})).toBeVisible();await page.getByRole('button',{name:'关闭会话列表'}).click();}
 
 test('migrates legacy, isolates full drafts and transcript, persists rename and switches without losing latest typing',async({page})=>{
-  await seed(page);await rename(page,'周末计划','计划 A');
+  await seed(page);
+  expect(await page.evaluate(() => [sessionStorage.getItem('imstage.agent.guest.draft'), sessionStorage.getItem('imstage.agent.guest.draft.chat')])).toEqual([null, null]);
+  await rename(page,'周末计划','计划 A');
   await page.getByLabel('描述想生成的聊天',{exact:true}).fill('A 最新的未发送内容');
   await page.getByRole('button',{name:'新建会话',exact:true}).click();
   await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('');await expect(page.locator('.agent-attachments img')).toHaveCount(0);await expect(page.locator('.agent-transcript')).not.toContainText('A 的创作记录');

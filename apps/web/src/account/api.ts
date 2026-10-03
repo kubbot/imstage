@@ -2,7 +2,7 @@ import type { Platform, Scene } from '../studio/model';
 export type User = { id: string; email: string; name: string };
 export type SceneSummary = { id: string; title: string; platform: Scene['platform']; messageCount: number; updatedAt: string; revision: number };
 export type SavedScene = { projectIds?:string[]; id: string; scene: Scene; updatedAt: string; revision: number };
-export type Project = { id: string; name: string; rules: string; platform: Platform; revision: number; updatedAt: string; sceneCount: number };
+export type Project = { id: string; name: string; rules: string; platform: Platform; watermarkEnabled: boolean; revision: number; updatedAt: string; sceneCount: number };
 export type BatchTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted';
 export type BatchJobStatus = 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
 export type BatchTask = { id: string; ordinal: number; prompt: string; platform: Platform; status: BatchTaskStatus; sceneId: string | null; error: string | null; errorCode: string | null; detail: string; updatedAt: string; name?: string; values?: Record<string, string> };

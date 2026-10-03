@@ -141,6 +141,15 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       const createTool = tools.find((tool) => tool.name === 'imstage_create_scene');
       assert.equal(createTool.annotations.readOnlyHint, false);
       assert.equal(createTool.inputSchema.additionalProperties, false);
+      // The advertised schemas must accept the supported `watermarkEnabled`
+      // boolean that the implementation validates — and keep rejecting
+      // everything else.
+      const sceneSchema = createTool.inputSchema.properties.scene;
+      assert.equal(sceneSchema.properties.watermarkEnabled.type, 'boolean');
+      assert.equal(sceneSchema.additionalProperties, false);
+      const updateTool = tools.find((tool) => tool.name === 'imstage_update_scene');
+      assert.equal(updateTool.inputSchema.properties.patch.properties.set.properties.watermarkEnabled.type, 'boolean');
+      assert.equal(updateTool.inputSchema.properties.patch.properties.set.additionalProperties, false);
     });
 
     await t.test('imstage_get_capabilities documents the real supported subset and examples', async () => {
@@ -227,6 +236,36 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.equal(result.structuredContent.scene.messages.length, 3);
       assert.equal(result.structuredContent.scene.messages[2].id, 'm-3');
       latestRevision = result.structuredContent.revision;
+    });
+
+    await t.test('watermarkEnabled round-trips through create/get and targeted set updates', async () => {
+      // create accepts the optional boolean and stores it verbatim…
+      const created = await client.callTool({
+        name: 'imstage_create_scene',
+        arguments: { scene: createSceneArgument({ watermarkEnabled: false }) },
+      });
+      assert.notEqual(created.isError, true, JSON.stringify(created.structuredContent));
+      const id = created.structuredContent.sceneId;
+      assert.equal(created.structuredContent.scene.watermarkEnabled, false);
+      const read = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: id } });
+      assert.equal(read.structuredContent.scene.watermarkEnabled, false, 'the flag survives storage');
+      // …targeted set updates flip it…
+      const flipped = await client.callTool({
+        name: 'imstage_update_scene',
+        arguments: { sceneId: id, expectedRevision: 1, patch: { set: { watermarkEnabled: true } } },
+      });
+      assert.notEqual(flipped.isError, true, JSON.stringify(flipped.structuredContent));
+      assert.equal(flipped.structuredContent.scene.watermarkEnabled, true);
+      // …and a non-boolean is rejected without mutating stored state.
+      const bad = toolError(
+        await client.callTool({
+          name: 'imstage_update_scene',
+          arguments: { sceneId: id, expectedRevision: 2, patch: { set: { watermarkEnabled: 'no' } } },
+        }),
+      );
+      assert.equal(bad.code, 'invalid_request');
+      const after = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: id } });
+      assert.equal(after.structuredContent.scene.watermarkEnabled, true, 'rejected patch never mutates');
     });
 
     await t.test('stale expectedRevision returns an actionable revision_conflict and does not mutate', async () => {
@@ -383,7 +422,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       // The renderer version must move whenever output/policy changes, so
       // pre-policy cached PNGs can be identified and blocked.
       assert.equal(result.structuredContent.rendererVersion, STUDIO_RENDERER_VERSION);
-      assert.match(STUDIO_RENDERER_VERSION, /20260930/, 'renderer version carries the current policy revision');
+      assert.match(STUDIO_RENDERER_VERSION, /20261002/, 'renderer version carries the current policy revision');
       assert.equal(result.structuredContent.widgetUri, WIDGET_RESOURCE_URI);
       assert.match(result.structuredContent.downloadUri, /^imstage:\/\/renders\/rnd_[0-9a-f]{32}\.png$/);
       assert.match(result._meta.preview.dataUri, /^data:image\/png;base64,/);

@@ -124,13 +124,13 @@ export const DOCS_COPY: Record<Locale, DocsCopy> = {
     },
     templates: {
       title: '通用界面，合成内容',
-      body: '所有模板渲染为通用 IMStage 聊天界面，不复刻任何真实平台的商标或界面；模板内容全部为合成虚构文本与素材。',
+      body: '可选择微信、WhatsApp 等平台风格或 IMStage 通用聊天模板；模板内容全部为合成虚构文本与素材，与对应平台无隶属或背书关系。',
       steps: [
         { title: '从合成剧本开始', detail: '先写虚构人物与对白，明确这是测试/评测样本，不引用真实聊天记录。' },
         { title: '按组件组织样本', detail: '拆分状态栏、头像、消息、时间和卡片，便于批量生成可对照的评测数据集。' },
-        { title: '同场景对照渲染', detail: '固定字体与尺寸，逐项检查布局、文本和关键状态，导出时保留 AI生成/虚构 标识。' },
+        { title: '同场景对照渲染', detail: '固定字体与尺寸，逐项检查布局、文本和关键状态，导出遵循作品的水印设置。' },
       ],
-      callout: '图像生成适合制作聊天里的图片素材。整张聊天界面由程序渲染，保证修改可控、文字准确，并始终带合成标识。',
+      callout: '图像生成适合制作聊天里的图片素材。整张聊天界面由程序渲染，保证修改可控、文字准确，水印默认开启且可关闭。',
       link: '查看使用条款',
     },
     privacy: {
@@ -180,13 +180,13 @@ export const DOCS_COPY: Record<Locale, DocsCopy> = {
     },
     templates: {
       title: 'Generic UI, synthetic content',
-      body: 'Every template renders as the generic IMStage chat UI — never a clone of a real platform — and all template content is synthetic fiction.',
+      body: 'Choose platform styles such as WeChat and WhatsApp or the generic IMStage chat template. All content is synthetic fiction; IMStage is independent of and not endorsed by those platforms.',
       steps: [
         { title: 'Start from a synthetic script', detail: 'Write fictional people and dialogue first; state that this is a test/evaluation sample, not a real conversation.' },
         { title: 'Organise samples by component', detail: 'Separate status bar, avatars, messages, times and cards so evaluation datasets stay comparable across batches.' },
-        { title: 'Render the same scene side by side', detail: 'Fix fonts and sizes, check layout, text and key states item by item, and keep the AI-generated / fictional label in every export.' },
+        { title: 'Render the same scene side by side', detail: 'Fix fonts and sizes, check layout, text and key states item by item, and export with the scene’s watermark setting.' },
       ],
-      callout: 'Image generation is good for media inside a chat. The chat interface itself is rendered by code so edits stay controllable, text stays accurate and the synthetic label is always present.',
+      callout: 'Image generation is good for media inside a chat. The chat interface itself is rendered by code so edits stay controllable, text stays accurate and the watermark is on by default and configurable.',
       link: 'Read the terms of use',
     },
     privacy: {

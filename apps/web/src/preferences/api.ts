@@ -102,8 +102,8 @@ export async function generatePortrait(seed: string): Promise<string> {
 /**
  * Apply the account defaults to a *brand new* scene. Existing scenes must never
  * be passed here: the returned scene is a new object and stored scenes are
- * never rewritten by a preferences change. The mandatory AI生成 / 虚构
- * disclosure is rendered unconditionally, so no preference touches it.
+ * never rewritten by a preferences change. Project/scene watermark settings
+ * are independent of account avatar defaults and remain unchanged here.
  */
 export function applyNewSceneDefaults(scene: Scene, userId?: string | null): Scene {
   const prefs = cachedPreferences(userId);

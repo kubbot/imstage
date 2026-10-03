@@ -408,8 +408,12 @@ export function createApp({
       if (!res.writableEnded) controller.abort(new Error('client_disconnect'));
     };
     res.on('close', onClientClose);
+    // close may have fired while loading the store or recovery ledger. Node
+    // does not replay it for this late listener; observe the response state.
+    if (res.destroyed) onClientClose();
 
     try {
+      if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
       let rawContent;
       let model;
       if (entry?.status === 'model_ready') {
@@ -420,6 +424,7 @@ export function createApp({
         // Persist attempt-start BEFORE the provider call so an interrupted run
         // is never silently re-paid.
         await generationLedger.begin(requestId, request.inputHash);
+        if (controller.signal.aborted) fail('request_aborted', '请求已取消', 499);
         const generated = await callGenerate({ config, request, signal: controller.signal });
         rawContent = generated?.rawContent;
         model = generated?.model ?? config.model;

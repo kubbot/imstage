@@ -146,7 +146,7 @@ MCP 服务器使用**独立的** `IMSTAGE_MCP_DATA_DIR` SQLite 与 Bearer 实例
 5. `imstage_get_batch` 读取各 `sceneId`，再用 `imstage_render_scene` 渲染。
 
 ## 7. 当前限制
-- Web 和 MCP 均不接受 `Scene.reference`（保留原截图）；所有公开输出使用通用聊天界面并携带固定 AI生成 / 虚构 标识。
+- Web 和 MCP 均不接受 `Scene.reference`（保留原截图）；所有公开输出使用所选聊天模板皮肤（IMStage 通用/微信/WhatsApp/iMessage/Instagram/小红书/Slack，均为合成内容风格预览）并默认携带 AI生成 / 虚构 水印（`Scene.watermarkEnabled: false` 可关闭）。
 - 模板实例化不会自动调用模型；需要在创作会话里继续用 Agent 生成/改写。
 - screenshot 重建是“近似版式”，不是像素级还原。
 - 批次条目图片若显式提供，需为内嵌 data URL 且受请求体上限约束（Web 端 16 MiB 请求体、单条目 values 1.5 MB 上限）。

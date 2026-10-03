@@ -1,21 +1,28 @@
-# IMStage safety & positioning policy (2026-09-30)
+# IMStage safety & positioning policy
 
-This document records the implementation of the 2026-09-30 user-authorized
-safety + positioning change. It supersedes conflicting historical plans in
-`docs/product-brief.md` and `design/BRIEF.md`. The machine-readable single
-source of truth is `packages/schema/policy.mjs` (`POLICY_VERSION`).
+This document records the safety + positioning rules of the product. The
+2026-09-30 change established them; the 2026-10-02 user decision then made the
+disclosure a **user watermark switch** (default on) and restored the platform
+template skins. The machine-readable single source of truth is
+`packages/schema/policy.mjs` (`POLICY_VERSION`).
 
-## 1. Mandatory disclosure
+## 1. Watermark / disclosure (default on)
 
-- Every hosted preview and **every** PNG export (studio export, Agent export,
-  marketing export, crops, MCP renders and widgets) shows
-  `AI生成 / 虚构 · AI-generated / Fictional`.
+- Every preview and **every** PNG export (studio export, Agent export, marketing
+  export, crops, MCP renders and widgets) shows
+  `AI生成 / 虚构 · AI-generated / Fictional` **by default**.
+- Since 2026-10-02 the user chooses: `Project.watermarkEnabled` (default `true`
+  for new and legacy projects) seeds new scenes, and
+  `Scene.watermarkEnabled?:boolean` (absent = on) suppresses the disclosure
+  **and** any custom `watermark` text in both the React and the deterministic
+  HTML/PNG renderers when `false`. `Scene.watermark` text is retained for
+  compatibility. Turning the watermark off never rewrites existing scenes.
+- The switch is a *user* preference: `create_scene` preserves the context
+  scene's flag, `update_element` rejects it, and obsolete toggle aliases
+  (`showFictionalMark`, `hideDisclosure`, `disclosure`, …) are still stripped on
+  import by `validateScene` / `stripDisclosureOverrides`.
 - The label is drawn by the renderer (`apps/web/src/studio/SceneView.tsx`,
-  `packages/renderer/renderSceneHtml.mjs`), never stored in scene data, so it
-  cannot be turned off through the UI, the Agent, an import or the API.
-- `validateScene` strips disclosure-override fields (`showFictionalMark`,
-  `hideDisclosure`, `disclosure`, …) on import; `PUT /api/preferences` rejects
-  `showFictionalMark: false`; `update_element` cannot patch `watermark`.
+  `packages/renderer/renderSceneHtml.mjs`), never stored in scene data.
 
 ## 2. Payment capabilities removed
 
@@ -38,11 +45,17 @@ source of truth is `packages/schema/policy.mjs` (`POLICY_VERSION`).
   `tools/eval` (internal offline evaluation) sets it. `extract_image` is
   internal-only.
 
-## 4. Generic IMStage chat UI
+## 4. Platform template skins
 
-- All platform identifiers render one generic IMStage skin (`data-skin
-  "imstage-generic"`); legacy schema ids survive only for migration. No
-  messaging-platform names, logos or interface clones appear in public output.
+- Each supported chat platform renders its own template chrome (bubbles,
+  avatars, composer): IMStage generic plus WeChat, WhatsApp, iMessage,
+  Instagram, Xiaohongshu and Slack — chosen per project/scene and shown as
+  selectable preview cards. They are approximate *style previews* for synthetic
+  content: no brand logos and no pixel-level interface clones.
+- The deterministic renderer (`packages/renderer/renderSceneHtml.mjs`) mirrors
+  the same per-platform differences, and manual appearance overrides
+  (`appearance.fontSize/color/background/radius/spacing`) win over template
+  defaults on every surface.
 
 ## 5. Terms, privacy and the generation audit
 
@@ -68,8 +81,8 @@ source of truth is `packages/schema/policy.mjs` (`POLICY_VERSION`).
 - **Retention:** rows older than 90 days are deleted by the real cleanup job
   (`cleanupGenerationAudit`, run at server start and every 6 hours). Operational backups retain 14 versions separately.
 - **Precise limitation:** anonymous local editing and PNG export never reach a
-  server, so **no server audit record exists for them**. The mandatory label is
-  the client-side guarantee for those flows.
+  server, so **no server audit record exists for them**. The default-on watermark
+  is the client-side guarantee for those flows.
 
 ## 6. License & commercial use
 
