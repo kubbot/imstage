@@ -20,6 +20,7 @@ import http from 'node:http';
 import { isIP } from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -68,10 +69,11 @@ import {
   markConnectionDiscovery,
   revokeAllForUser,
   validateTokenName,
+  validateTokenScopes,
 } from '../integrations/connections.mjs';
 import { createOAuthIntegration } from '../integrations/oauth.mjs';
 import { createAccountMcpServer } from '../integrations/account-mcp.mjs';
-import { REQUIRED_SCOPE, RECENT_SESSION_MS } from '../integrations/scopes.mjs';
+import { REQUIRED_SCOPE, RECENT_SESSION_MS, SUPPORTED_SCOPES } from '../integrations/scopes.mjs';
 import { createRenderService, resolveChromiumExecutable } from '../mcp/render.mjs';
 
 const scryptAsync = promisify(crypto.scrypt);
@@ -458,6 +460,13 @@ function openDatabase(dbPath) {
   // Projects add tables only (no data reset, no scene migration required for
   // existing accounts): scenes associate through `scene_projects`.
   projects.installProjectSchema(db);
+
+  // Project automation: scenarios, planned cases and caller content batches.
+  // Additive only — legacy projects migrate to the custom recipe v1 defaults.
+  projects.installAutomationSchema(db);
+
+  // Scenario AI generation: parent queue + case reservations (capacity ledger).
+  projects.installScenarioGenerationSchema(db);
 
   // Account-scoped contact library. Additive migration only; existing accounts
   // simply read the empty default until they PUT a library.
@@ -1116,12 +1125,8 @@ async function handleScenePut(ctx, req, res, sceneId) {
       if (existing) {
         throw new HttpError(409, 'conflict', '场景已存在，请重新加载');
       }
-      const count = ctx.db
-        .prepare('SELECT COUNT(*) AS total FROM scenes WHERE user_id = ?')
-        .get(userId);
-      if (Number(count.total) >= MAX_SCENES_PER_USER) {
-        throw new HttpError(409, 'scene_limit_reached', `每个用户最多保存 ${MAX_SCENES_PER_USER} 个场景`);
-      }
+      // Shared capacity guard: real scenes + active generation reservations.
+      projects.assertSceneCapacity(ctx.db, userId, 1);
       try {
         ctx.db
           .prepare(
@@ -1351,21 +1356,15 @@ async function handleProjectCreate(ctx, req, res) {
   const session = requireSession(ctx, req);
   requireJsonContentType(req);
   const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
-  const name = projects.validateProjectName(body.name);
-  const rules = projects.validateProjectRules(body.rules, '');
-  const platform = projects.validateProjectPlatform(body.platform, projects.DEFAULT_PROJECT_PLATFORM);
-  const watermarkEnabled = projects.validateProjectWatermarkEnabled(body.watermarkEnabled, projects.DEFAULT_PROJECT_WATERMARK);
   recheckSession(ctx, req, session);
-  const item = projects.createProject(ctx.db, {
+  // The account automation application service owns validation, type/brief
+  // handling and idempotency; the MCP tools call the same function.
+  const result = ctx.automation.createProject({
     userId: session.user.id,
-    projectId: crypto.randomUUID(),
-    name,
-    rules,
-    platform,
-    watermarkEnabled,
-    nowMs: ctx.nowMs(),
+    input: body,
+    idempotencyKey: body.idempotencyKey ?? null,
   });
-  sendJson(req, res, 200, { item });
+  sendJson(req, res, 200, { item: result.item, deduplicated: result.deduplicated === true });
 }
 
 function handleProjectGet(ctx, req, res, projectId) {
@@ -1382,32 +1381,17 @@ async function handleProjectUpdate(ctx, req, res, projectId) {
   requireJsonContentType(req);
   const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
   const revision = projects.parseRevision(body.revision);
-  const existing = projects.getProjectRow(ctx.db, session.user.id, projectId);
-  if (!existing) throw new HttpError(404, 'not_found', '项目不存在');
-  const name = body.name === undefined ? existing.name : projects.validateProjectName(body.name);
-  const rules = body.rules === undefined
-    ? existing.rules
-    : projects.validateProjectRules(body.rules, existing.rules);
-  const platform = body.platform === undefined
-    ? existing.platform
-    : projects.validateProjectPlatform(body.platform, existing.platform);
-  // Omitted fields preserve the stored value (the store keeps the old switch);
-  // `null` and other non-booleans are rejected, never coerced.
-  const watermarkEnabled = body.watermarkEnabled === undefined
-    ? undefined
-    : projects.validateProjectWatermarkEnabled(body.watermarkEnabled);
   recheckSession(ctx, req, session);
-  const item = projects.updateProject(ctx.db, {
+  // Omitted fields keep their stored values (including the watermark switch
+  // and the recipe type/brief) — see the automation service.
+  const result = ctx.automation.updateProject({
     userId: session.user.id,
     projectId,
-    name,
-    rules,
-    platform,
-    watermarkEnabled,
-    revision,
-    nowMs: ctx.nowMs(),
+    expectedRevision: revision,
+    input: body,
+    idempotencyKey: body.idempotencyKey ?? null,
   });
-  sendJson(req, res, 200, { item });
+  sendJson(req, res, 200, { item: result.item, deduplicated: result.deduplicated === true });
 }
 
 async function handleProjectDelete(ctx, req, res, projectId) {
@@ -1429,6 +1413,8 @@ async function handleProjectDelete(ctx, req, res, projectId) {
     nowMs: ctx.nowMs(),
   });
   for (const job of activeJobs) ctx.projects.queue.cancel(job.id);
+  // Project deletion cancels and purges every own export, ticket and file.
+  await ctx.exports.purgeProject({ userId: session.user.id, projectId });
   sendJson(req, res, 200, { ok: true, detachedScenes: result.detachedScenes });
 }
 
@@ -1616,6 +1602,291 @@ async function handleBatchRetry(ctx, req, res, projectId, jobId) {
   ctx.projects.queue.start();
   ctx.projects.queue.wake();
   sendJson(req, res, 200, { item });
+}
+
+/* ------------------------------------------------------------------ */
+/* Project automation routes (scenarios / content batches / status)    */
+/* ------------------------------------------------------------------ */
+
+function handleProjectTypes(ctx, req, res) {
+  sendJson(req, res, 200, ctx.automation.listProjectTypes());
+}
+
+function handleScenarioList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.listScenarios({ userId: session.user.id, projectId }));
+}
+
+async function handleScenarioCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  // Accept both `{scenario: {...}}` and a bare scenario body.
+  const input = isPlainObject(body.scenario) ? body.scenario : body;
+  const result = ctx.automation.createScenario({
+    userId: session.user.id,
+    projectId,
+    input,
+    idempotencyKey: body.idempotencyKey ?? null,
+  });
+  sendJson(req, res, 200, result);
+}
+
+function handleScenarioGet(ctx, req, res, projectId, scenarioId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.getScenario({ userId: session.user.id, projectId, scenarioId }));
+}
+
+function handleContentBatchList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  const url = new URL(req.url, 'http://internal');
+  const rawLimit = Number(url.searchParams.get('limit'));
+  sendJson(req, res, 200, ctx.automation.listContentBatches({
+    userId: session.user.id,
+    projectId,
+    limit: Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 20,
+  }));
+}
+
+async function handleContentBatchCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, BATCH_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const receipt = await ctx.automation.createContentBatch({
+    userId: session.user.id,
+    projectId,
+    input: body,
+    idempotencyKey: body.clientIdempotencyKey ?? body.idempotencyKey ?? null,
+    origin: 'http',
+    principal: { kind: 'session', id: session.sessionId },
+    // Re-checked after the async defaults gate and immediately before the
+    // transactional write: a session that expired mid-await never commits.
+    authorizeCheck: () => recheckSession(ctx, req, session),
+  });
+  sendJson(req, res, 200, { item: receipt, deduplicated: receipt.deduplicated === true });
+}
+
+function handleContentBatchGet(ctx, req, res, projectId, batchId) {
+  const session = requireSession(ctx, req);
+  const item = ctx.automation.getContentBatch({ userId: session.user.id, projectId, batchId });
+  sendJson(req, res, 200, { item });
+}
+
+function handleProjectStatus(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.automation.getProjectStatus({ userId: session.user.id, projectId }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario AI generation (existing paid Web generator, persisted jobs) */
+/* ------------------------------------------------------------------ */
+
+function handleScenarioGenerationStatus(ctx, req, res, projectId, scenarioId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.scenarioGeneration.status({ userId: session.user.id, projectId, scenarioId }));
+}
+
+async function handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, action) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  if (action === 'cancel') {
+    if (typeof body.generationId !== 'string' || body.generationId === '') {
+      throw new HttpError(400, 'invalid_request', '缺少 generationId');
+    }
+    const result = ctx.scenarioGeneration.cancel({
+      userId: session.user.id,
+      projectId,
+      scenarioId,
+      generationId: body.generationId,
+      reason: '用户已取消',
+    });
+    ctx.projects.queue.wake();
+    sendJson(req, res, 200, result);
+    return;
+  }
+  // Explicit user action only: the server never starts paid generation on page
+  // open. Unconfigured models fail truthfully while caller content + the
+  // deterministic export stay usable.
+  if (!ctx.agent.runtime.capabilities.configured) {
+    throw new HttpError(503, 'ai_not_configured', 'AI 服务未配置，无法生成案例；调用方内容提交（MCP）与确定性导出仍然可用。');
+  }
+  const result = action === 'retry'
+    ? ctx.scenarioGeneration.retry({
+        userId: session.user.id,
+        projectId,
+        scenarioId,
+        sessionId: session.sessionId,
+        generationId: typeof body.generationId === 'string' && body.generationId !== '' ? body.generationId : null,
+        idempotencyKey: body.idempotencyKey ?? null,
+      })
+    : ctx.scenarioGeneration.enqueue({
+        userId: session.user.id,
+        projectId,
+        scenarioId,
+        sessionId: session.sessionId,
+        idempotencyKey: body.idempotencyKey ?? null,
+      });
+  ctx.projects.queue.start();
+  ctx.projects.queue.wake();
+  sendJson(req, res, 200, result);
+}
+
+/* ------------------------------------------------------------------ */
+/* Project export delivery routes                                      */
+/* ------------------------------------------------------------------ */
+
+const EXPORT_BODY_KEYS = new Set(['expectedRevision', 'idempotencyKey', 'scenarioId', 'sceneIds', 'renderOptions', 'allowPartial']);
+
+function handleExportList(ctx, req, res, projectId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, ctx.exports.list({ userId: session.user.id, projectId }));
+}
+
+async function handleExportCreate(ctx, req, res, projectId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  for (const key of Object.keys(body)) {
+    if (!EXPORT_BODY_KEYS.has(key)) throw new HttpError(400, 'invalid_request', `未知字段：${key}`);
+  }
+  recheckSession(ctx, req, session);
+  const result = ctx.exports.enqueue({
+    userId: session.user.id,
+    projectId,
+    principal: { kind: 'session', id: session.sessionId },
+    origin: 'http',
+    input: {
+      expectedRevision: body.expectedRevision,
+      idempotencyKey: body.idempotencyKey ?? null,
+      scenarioId: body.scenarioId,
+      sceneIds: body.sceneIds,
+      renderOptions: body.renderOptions,
+      allowPartial: body.allowPartial === true,
+    },
+  });
+  sendJson(req, res, 200, { item: result.export, deduplicated: result.deduplicated === true });
+}
+
+function handleExportGet(ctx, req, res, projectId, exportId) {
+  const session = requireSession(ctx, req);
+  sendJson(req, res, 200, { item: ctx.exports.get({ userId: session.user.id, projectId, exportId }).export });
+}
+
+async function handleExportAction(ctx, req, res, projectId, exportId, action) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  const body = await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const result =
+    action === 'retry'
+      ? ctx.exports.retry({
+          userId: session.user.id,
+          projectId,
+          exportId,
+          principal: { kind: 'session', id: session.sessionId },
+          idempotencyKey: body.idempotencyKey ?? null,
+        })
+      : ctx.exports.cancel({
+          userId: session.user.id,
+          projectId,
+          exportId,
+          idempotencyKey: body.idempotencyKey ?? null,
+        });
+  sendJson(req, res, 200, {
+    item: result.export,
+    ...(action === 'cancel' ? { cancelled: result.cancelled === true } : {}),
+    deduplicated: result.deduplicated === true,
+  });
+}
+
+/** Owner download auth: Cookie session OR Bearer token carrying both scopes. */
+async function exportOwnerAuth(ctx, req) {
+  const session = loadSession(ctx, req);
+  if (session) return { userId: session.user.id };
+  const header = req.headers.authorization;
+  const match = typeof header === 'string' ? /^Bearer\s+(.+)$/i.exec(header.trim()) : null;
+  if (match) {
+    try {
+      const auth = await ctx.oauth.provider.verifyAccessToken(match[1]);
+      const scopes = Array.isArray(auth?.scopes) ? auth.scopes : [];
+      if (typeof auth?.extra?.userId === 'string' && scopes.includes('imstage.scenes') && scopes.includes('imstage.projects')) {
+        return { userId: auth.extra.userId };
+      }
+    } catch {
+      /* fall through to 401 */
+    }
+  }
+  throw new HttpError(401, 'unauthorized', '请先登录或提供有效 Bearer 授权');
+}
+
+function sendExportZip(req, res, target) {
+  let stat;
+  try {
+    stat = fs.statSync(target.filePath);
+  } catch {
+    // The file may have been purged between check and open — never leak the
+    // private path, just report the bounded expiry error.
+    throw new HttpError(410, 'download_expired', '导出文件已过期或不存在，请重新导出');
+  }
+  res.writeHead(200, {
+    ...API_SECURITY_HEADERS,
+    'Content-Type': 'application/zip',
+    'Content-Length': stat.size,
+    // Server-generated filename only; never user input or filesystem paths.
+    'Content-Disposition': `attachment; filename="${target.fileName}"`,
+    'Cache-Control': 'no-store',
+  });
+  const stream = fs.createReadStream(target.filePath);
+  stream.on('error', () => {
+    // Mid-stream failure (cleanup/delete race): destroy the response instead of
+    // throwing an unhandled ENOENT or writing a second response.
+    res.destroy();
+  });
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
+
+async function handleExportDownload(ctx, req, res, projectId, exportId) {
+  const url = new URL(req.url, 'http://internal');
+  // Ticket is a query secret: never logged, never echoed back.
+  const ticket = url.searchParams.get('ticket');
+  if (typeof ticket === 'string' && ticket !== '') {
+    // Anonymous bounded capability: one ZIP, revocable, expiring.
+    sendExportZip(req, res, ctx.exports.resolveDownloadTicket({ ticket, projectId, exportId }));
+    return;
+  }
+  const auth = await exportOwnerAuth(ctx, req);
+  sendExportZip(req, res, ctx.exports.openDownload({ userId: auth.userId, projectId, exportId }));
+}
+
+async function handleExportTicket(ctx, req, res, projectId, exportId) {
+  guardMutation(req, ctx.config);
+  const session = requireSession(ctx, req);
+  requireJsonContentType(req);
+  await readJsonBody(req, PROJECT_BODY_LIMIT, AUTH_DEADLINE_MS);
+  recheckSession(ctx, req, session);
+  const ticket = ctx.exports.issueDownloadTicket({
+    userId: session.user.id,
+    projectId,
+    exportId,
+    principal: { kind: 'session', id: session.sessionId },
+  });
+  // The plaintext ticket exists only in this response; only its hash is stored.
+  sendJson(req, res, 200, {
+    ticket: ticket.ticket,
+    ticketUrl: ticket.ticketUrl,
+    exportId: ticket.exportId,
+    expiresAt: ticket.expiresAt,
+  }, { 'Cache-Control': 'no-store' });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1823,12 +2094,16 @@ async function handleConnectionTokenCreate(ctx, req, res) {
   requireJsonContentType(req);
   const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
   const name = validateTokenName(body.name);
+  // Explicit scope selection: omitted scopes adopt the full supported set
+  // (scenes + projects); legacy scenes-only tokens are opt-in.
+  const scopes = validateTokenScopes(body.scopes);
   throttleBucket(ctx, 'connections', `connections:${session.user.id}`);
   recheckSession(ctx, req, session);
   const { token, connection } = createPersonalToken(ctx.db, {
     userId: session.user.id,
     name,
     resource: ctx.oauth.resourceUrl.href,
+    scopes,
     nowMs: ctx.nowMs(),
   });
   // The plaintext token is returned exactly once and never logged or stored.
@@ -2015,6 +2290,10 @@ async function handleAccountMcp(ctx, req, res) {
     });
     return;
   }
+  const grantedScopes = [...auth.scopes];
+  const grantRef = typeof auth.extra?.grantId === 'string' ? auth.extra.grantId : null;
+  const scopesStillValid = (scopes) =>
+    typeof scopes?.includes === 'function' && grantedScopes.every((scope) => scopes.includes(scope));
   const userId = auth.extra?.userId;
   if (typeof userId !== 'string' || userId === '') {
     sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
@@ -2055,7 +2334,7 @@ async function handleAccountMcp(ctx, req, res) {
   // in flight must still block the delayed request.
   try {
     const rechecked = await ctx.oauth.provider.verifyAccessToken(presentedToken);
-    if (rechecked.extra?.userId !== userId || !rechecked.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+    if (rechecked.extra?.userId !== userId || !rechecked.scopes.includes(REQUIRED_SCOPE) || !scopesStillValid(rechecked.scopes)) throw new InvalidTokenError('access token 授权已变化');
   } catch (error) {
     if (error instanceof InvalidTokenError) {
       sendMcpJsonRpcError(req, res, 401, -32001, 'unauthorized', {
@@ -2083,11 +2362,15 @@ async function handleAccountMcp(ctx, req, res) {
   }
 
   const mcpServer = ctx.mcp.createServer(userId, {
+    // Granted scopes filter tools/list and guard every handler; the grant
+    // reference is recorded as content-batch provenance (never a raw token).
+    scopes: grantedScopes,
+    grantId: grantRef,
     // Also re-checked after the slow render step completes, so an in-flight
     // render cannot persist or return a PNG for a now-revoked account.
     authorizeCheck: async () => {
       const info = await ctx.oauth.provider.verifyAccessToken(presentedToken);
-      if (info.extra?.userId !== userId || !info.scopes.includes(REQUIRED_SCOPE)) throw new InvalidTokenError('access token 授权已变化');
+      if (info.extra?.userId !== userId || !info.scopes.includes(REQUIRED_SCOPE) || !scopesStillValid(info.scopes)) throw new InvalidTokenError('access token 授权已变化');
     },
   });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
@@ -2237,6 +2520,12 @@ async function route(ctx, req, res) {
     return;
   }
 
+  if (pathname === '/api/project-types') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleProjectTypes(ctx, req, res);
+    return;
+  }
+
   if (pathname === '/api/projects') {
     if (method === 'GET') {
       handleProjectList(ctx, req, res);
@@ -2283,6 +2572,112 @@ async function route(ctx, req, res) {
       return;
     }
     throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+  }
+
+  const projectScenarioGenerationMatch = /^\/api\/projects\/([^/]+)\/scenarios\/([^/]+)\/generation(?:\/(retry|cancel))?$/.exec(pathname);
+  if (projectScenarioGenerationMatch) {
+    const projectId = projects.validateProjectId(projectScenarioGenerationMatch[1]);
+    const scenarioId = projectScenarioGenerationMatch[2];
+    const action = projectScenarioGenerationMatch[3];
+    if (action === undefined) {
+      if (method === 'GET') {
+        handleScenarioGenerationStatus(ctx, req, res, projectId, scenarioId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, 'generate');
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleScenarioGenerationAction(ctx, req, res, projectId, scenarioId, action);
+    return;
+  }
+
+  const projectScenariosMatch = /^\/api\/projects\/([^/]+)\/scenarios(?:\/([^/]+))?$/.exec(pathname);
+  if (projectScenariosMatch) {
+    const projectId = projects.validateProjectId(projectScenariosMatch[1]);
+    const scenarioId = projectScenariosMatch[2];
+    if (scenarioId === undefined) {
+      if (method === 'GET') {
+        handleScenarioList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleScenarioCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleScenarioGet(ctx, req, res, projectId, scenarioId);
+    return;
+  }
+
+  const projectContentBatchesMatch = /^\/api\/projects\/([^/]+)\/content-batches(?:\/([^/]+))?$/.exec(pathname);
+  if (projectContentBatchesMatch) {
+    const projectId = projects.validateProjectId(projectContentBatchesMatch[1]);
+    const batchId = projectContentBatchesMatch[2];
+    if (batchId === undefined) {
+      if (method === 'GET') {
+        handleContentBatchList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleContentBatchCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleContentBatchGet(ctx, req, res, projectId, batchId);
+    return;
+  }
+
+  const projectStatusMatch = /^\/api\/projects\/([^/]+)\/status$/.exec(pathname);
+  if (projectStatusMatch) {
+    const projectId = projects.validateProjectId(projectStatusMatch[1]);
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleProjectStatus(ctx, req, res, projectId);
+    return;
+  }
+
+  const projectExportsMatch = /^\/api\/projects\/([^/]+)\/exports(?:\/([^/]+)(?:\/(retry|cancel|download|download-ticket))?)?$/.exec(pathname);
+  if (projectExportsMatch) {
+    const projectId = projects.validateProjectId(projectExportsMatch[1]);
+    const exportId = projectExportsMatch[2];
+    const action = projectExportsMatch[3];
+    if (exportId === undefined) {
+      if (method === 'GET') {
+        handleExportList(ctx, req, res, projectId);
+        return;
+      }
+      if (method === 'POST') {
+        await handleExportCreate(ctx, req, res, projectId);
+        return;
+      }
+      throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    }
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(exportId)) throw new HttpError(404, 'not_found', '导出不存在');
+    if (action === 'retry' || action === 'cancel') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportAction(ctx, req, res, projectId, exportId, action);
+      return;
+    }
+    if (action === 'download') {
+      if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportDownload(ctx, req, res, projectId, exportId);
+      return;
+    }
+    if (action === 'download-ticket') {
+      if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+      await handleExportTicket(ctx, req, res, projectId, exportId);
+      return;
+    }
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleExportGet(ctx, req, res, projectId, exportId);
+    return;
   }
 
   const projectScenesMatch = /^\/api\/projects\/([^/]+)\/scenes(?:\/([^/]+))?$/.exec(pathname);
@@ -2676,17 +3071,34 @@ export function createApp(options = {}) {
       }
     },
   });
+  // Durable scenario generation (Web AI cases): freezes stable case keys,
+  // drives 20/20/10 persisted chunks through the same batch worker and fences
+  // every case publish by reservation/attempt. The auto-export hook and the
+  // queue handle are wired lazily because both services are created below.
+  let autoExportHook = null;
+  const scenarioGeneration = projects.createScenarioGenerationService({
+    db,
+    nowMs: config.nowMs,
+    logger: config.logger,
+    queue: { wake: () => batchQueue?.wake?.() },
+    onScenarioContentReady: (args) => autoExportHook?.(args),
+    readPreferences: (userId) => preferencesReader.get(userId),
+  });
   const batchQueue = projects.createBatchQueue({
     db,
     agent: { runtime: auditedAgentRuntime('batch'), limiter: agentLimiter },
     nowMs: config.nowMs,
     logger: config.logger,
+    scenarioGeneration,
+    onJobFinished: (job) => scenarioGeneration.onChunkJobSettled(job),
     ...(options.projects ?? {}),
   });
   // Truthful restart recovery runs before the worker may claim any job: a
   // queued/running job from a previous process is marked interrupted, never
-  // silently resumed as if it had succeeded.
+  // silently resumed as if it had succeeded. Scenario parents + their case
+  // reservations are recovered the same way (released for explicit retry).
   projects.markInterruptedJobs(db, config.nowMs());
+  scenarioGeneration.recoverInterrupted();
   batchQueue.start();
 
   // Real 90-day audit retention: purge expired rows now and on an interval.
@@ -2711,6 +3123,45 @@ export function createApp(options = {}) {
   const renderService =
     options.renderService ?? createRenderService({ executablePath, maxConcurrent: 1 });
   const preferencesReader = preferences.createPreferencesReader(db);
+  // Deterministic project file delivery: one shared export service per process.
+  // Dedicated dir: IMSTAGE_PROJECT_EXPORT_DIR, default <db dir>/project-exports.
+  // A memory database requires an explicit dir or uses its own temporary dir
+  // that is removed on close() — never a permanent orphan location.
+  let resolvedExportDir = options.exportDir ?? (options.env ?? process.env).IMSTAGE_PROJECT_EXPORT_DIR ?? null;
+  let ownsExportDir = false;
+  if (!resolvedExportDir) {
+    if (config.dbPath === ':memory:') {
+      resolvedExportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imstage-project-exports-'));
+      ownsExportDir = true;
+    } else {
+      resolvedExportDir = path.join(path.dirname(config.dbPath), 'project-exports');
+    }
+  }
+  const projectExports = projects.createProjectExportService({
+    db,
+    renderService,
+    exportDir: resolvedExportDir,
+    nowMs: config.nowMs,
+    logger: config.logger,
+    appOrigin: config.appOrigin,
+    // Test seam for the slow FS boundary (publish-race tests); production uses
+    // the real fs.promises operations.
+    ...(options.exportFileOps ? { fileOps: options.exportFileOps } : {}),
+  });
+  // Truthful restart recovery + real retention sweep run before serving.
+  projectExports.start();
+  // One account automation application service shared by the HTTP routes and
+  // the account MCP tools, so both surfaces enforce the same rules. The export
+  // service hooks in here so auto-export/status stay consistent across both.
+  const projectAutomation = projects.createProjectAutomation({
+    db,
+    nowMs: config.nowMs,
+    readPreferences: (userId) => preferencesReader.get(userId),
+    exportService: projectExports,
+    onScenarioContentReady: (args) => projectExports.enqueueAutoScenario(args),
+  });
+  // Shared auto-export hook for scenario generation (runs AFTER commit).
+  autoExportHook = (args) => projectExports.enqueueAutoScenario(args);
   const oauth = createOAuthIntegration({
     db,
     appOrigin: config.appOrigin,
@@ -2728,11 +3179,14 @@ export function createApp(options = {}) {
     logger: config.logger,
     agent: { config: agentConfig, runtime: auditedAgentRuntime('agent'), limiter: agentLimiter },
     projects: { queue: batchQueue },
+    automation: projectAutomation,
+    scenarioGeneration,
+    exports: projectExports,
     preferences: preferencesReader,
     oauth,
     mcp: {
       renderService,
-      createServer: (userId, { authorizeCheck = null } = {}) =>
+      createServer: (userId, { authorizeCheck = null, scopes = SUPPORTED_SCOPES, grantId = null } = {}) =>
         createAccountMcpServer({
           db,
           userId,
@@ -2740,6 +3194,15 @@ export function createApp(options = {}) {
           logger: config.logger,
           appOrigin: config.appOrigin,
           authorizeCheck,
+          // Granted scopes + grant reference flow through the API factory: the
+          // tool list is filtered per credential and batch receipts record the
+          // grant as provenance. No ephemeral token is ever created or stored.
+          scopes,
+          grantId,
+          // Same shared services as the HTTP routes: one export queue, one set
+          // of hooks and preferences for both surfaces.
+          automation: projectAutomation,
+          exportService: projectExports,
           // Default fill resolves account avatars/mark on the server, so the
           // model never has to send them and only sees a small summary. Note:
           // scene-bearing tool results still return the stored scene verbatim
@@ -2769,6 +3232,7 @@ export function createApp(options = {}) {
   const close = async () => {
     if (closed) return;
     closed = true;
+    await projectExports.stop();
     await batchQueue.stop();
     await new Promise((resolve) => {
       if (!server.listening) {
@@ -2788,6 +3252,9 @@ export function createApp(options = {}) {
       /* already closed */
     }
     clearInterval(auditTimer);
+    if (ownsExportDir) {
+      await fs.promises.rm(resolvedExportDir, { recursive: true, force: true }).catch(() => {});
+    }
   };
 
   return { server, close, db, config };

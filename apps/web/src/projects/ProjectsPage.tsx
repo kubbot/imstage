@@ -22,93 +22,18 @@ import {
   type BatchJob,
   type BatchTask,
   type Project,
+  type ProjectBrief,
+  type ProjectType,
+  type ProjectTypeSummary,
   type SceneSummary,
   type TemplateDetail,
   type TemplateSummary,
 } from '../account/api';
-import { PLATFORMS, createScene, type Platform, type Scene } from '../studio/model';
-import { SceneView } from '../studio/SceneView';
-import { ScaledSceneFrame } from '../marketing/DeviceFrame';
-
-/**
- * Every supported chat template is offered as a real, selectable card: the
- * IMStage generic skin plus WeChat, WhatsApp, iMessage, Instagram, Xiaohongshu
- * and Slack. Previews render the shared synthetic sample locally (no network,
- * no model calls, no reference images) and react to the watermark switch.
- */
-const TEMPLATE_PREVIEW_DEVICE = { width: 402, height: 470 };
-
-function platformPreviewScene(platform: Platform, watermarkEnabled: boolean): Scene {
-  return {
-    ...createScene('weekend'),
-    id: `template-preview-${platform}`,
-    platform,
-    title: '',
-    ...(watermarkEnabled ? {} : { watermarkEnabled: false }),
-  };
-}
-
-function TemplateOption({ group, platform, label, selected, watermarkEnabled, onSelect, previewLabel }: {
-  group: string;
-  platform: Platform;
-  label: string;
-  selected: boolean;
-  watermarkEnabled: boolean;
-  onSelect: () => void;
-  previewLabel: string;
-}) {
-  const scene = useMemo(() => platformPreviewScene(platform, watermarkEnabled), [platform, watermarkEnabled]);
-  return (
-    <label className={`project-template-card${selected ? ' is-selected' : ''}`}>
-      <span className="project-template-head">
-        <input
-          type="radio"
-          name={group}
-          className="project-template-radio"
-          aria-label={label}
-          value={platform}
-          checked={selected}
-          onChange={onSelect}
-        />
-        <strong>{label}</strong>
-      </span>
-      <span className="project-template-preview" aria-label={previewLabel}>
-        <ScaledSceneFrame size={TEMPLATE_PREVIEW_DEVICE}>
-          <SceneView scene={scene} exportMode />
-        </ScaledSceneFrame>
-      </span>
-    </label>
-  );
-}
-
-function PlatformCards({ group, value, watermarkEnabled, onChange, copy }: {
-  group: string;
-  value: Platform;
-  watermarkEnabled: boolean;
-  onChange: (platform: Platform) => void;
-  copy: { templateLegend: string; templatePreview: (name: string) => string };
-}) {
-  const labels = useCopy().platforms;
-  return (
-    <fieldset className="project-templates">
-      <legend>{copy.templateLegend}</legend>
-      <div className="project-template-grid">
-        {PLATFORMS.map((platform) => (
-          <TemplateOption
-            key={platform}
-            group={group}
-            platform={platform}
-            label={labels[platform]}
-            selected={value === platform}
-            watermarkEnabled={watermarkEnabled}
-            onSelect={() => onChange(platform)}
-            previewLabel={copy.templatePreview(labels[platform])}
-          />
-        ))}
-      </div>
-    </fieldset>
-  );
-}
+import { PLATFORMS, type Platform } from '../studio/model';
+import { PlatformCards } from './PlatformTemplatePicker';
+import { ProjectBriefFields, ProjectTypePicker } from './ProjectTypePicker';
+import { ProjectScenarioPanel } from './ProjectScenarioPanel';
+import { useLocale } from '../marketing/LocaleContext';
 import { readImageFile } from '../studio/storage';
 import { useAuth } from '../account/Auth';
 import { useCopy } from '../i18n';
@@ -149,6 +74,9 @@ function ProjectList() {
   const [rules, setRules] = useState('');
   const [platform, setPlatform] = useState<Platform>('wechat');
   const [watermarkEnabled, setWatermarkEnabled] = useState(true);
+  const [type, setType] = useState<ProjectType>('custom');
+  const [brief, setBrief] = useState<ProjectBrief>({});
+  const [types, setTypes] = useState<ProjectTypeSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -174,6 +102,14 @@ function ProjectList() {
   }, [reload]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    api<{ items: ProjectTypeSummary[] }>('/project-types', { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setTypes(data.items); })
+      .catch(() => { /* recipe list is optional metadata */ });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     if (selected) dialog.current?.showModal();
     else dialog.current?.close();
   }, [selected]);
@@ -186,7 +122,7 @@ function ProjectList() {
     try {
       const data = await api<{ item: Project }>('/projects', {
         method: 'POST',
-        body: { name: name.trim(), rules, platform, watermarkEnabled },
+        body: { name: name.trim(), rules, platform, watermarkEnabled, type, brief },
       });
       location.hash = `/projects?project=${encodeURIComponent(data.item.id)}`;
     } catch (err) {
@@ -241,6 +177,8 @@ function ProjectList() {
         </label>
         <p className="project-muted">{p.watermarkHelp}</p>
         <PlatformCards group="project-create-template" value={platform} watermarkEnabled={watermarkEnabled} onChange={setPlatform} copy={p} />
+        <ProjectTypePicker types={types} value={type} onChange={setType} />
+        <ProjectBriefFields brief={brief} onChange={setBrief} />
         <label>
           {p.rulesLabel}
           <textarea
@@ -341,6 +279,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const [detachingId, setDetachingId] = useState('');
 
   const [jobs, setJobs] = useState<BatchJob[]>([]);
+  const [types, setTypes] = useState<ProjectTypeSummary[]>([]);
   const [job, setJob] = useState<BatchJob | null>(null);
   const [promptsText, setPromptsText] = useState('');
   const [batchMode, setBatchMode] = useState<'prompts' | 'variants'>('prompts');
@@ -358,6 +297,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   const [retryBusy,setRetryBusy]=useState(false);
   const p = useCopy().projects;
   const a = useCopy().account;
+  const { locale } = useLocale();
   const autosave = useProjectAutosave({
     userId: user?.id,
     projectId,
@@ -365,6 +305,8 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     onReload: () => setReload((value) => value + 1),
   });
   const projectKey = item?.id ?? projectId;
+  const currentType = autosave.settings.type ?? item?.type ?? 'custom';
+  const recipeLabel = types.find((entry) => entry.type === currentType)?.name?.[locale] ?? currentType;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -388,6 +330,14 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       });
     return () => controller.abort();
   }, [projectId, reload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api<{ items: ProjectTypeSummary[] }>('/project-types', { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setTypes(data.items); })
+      .catch(() => { /* recipe list is optional metadata */ });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -669,6 +619,20 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
       {error && <div role="alert" className="account-error projects-error">{error}</div>}
 
+      {/* Primary workflow first: Project → Scenario → Cases. */}
+      <ProjectScenarioPanel
+        projectId={projectKey}
+        recipeType={currentType}
+        recipeLabel={recipeLabel}
+        syncBlocked={autosave.syncBlocked}
+        projectDefaults={{
+          platform: autosave.settings.platform,
+          watermarkEnabled: autosave.settings.watermarkEnabled,
+          language: (autosave.settings.brief ?? item?.brief)?.language,
+        }}
+        onContentChange={() => setReload((value) => value + 1)}
+      />
+
       <div className="projects-columns">
         <section className="project-panel">
           <h2><IconSettings size={18} /> {p.detailRules}</h2>
@@ -693,6 +657,17 @@ function ProjectDetail({ projectId }: { projectId: string }) {
             </label>
             <p className="project-muted">{p.watermarkHelp}</p>
             <PlatformCards group="project-detail-template" value={autosave.settings.platform} watermarkEnabled={autosave.settings.watermarkEnabled} onChange={autosave.setPlatform} copy={p} />
+            <ProjectTypePicker
+              types={types}
+              value={autosave.settings.type ?? item?.type ?? 'custom'}
+              onChange={autosave.setType}
+              disabled={autosave.conflict || autosave.deleted}
+            />
+            <ProjectBriefFields
+              brief={autosave.settings.brief ?? item?.brief ?? {}}
+              onChange={autosave.setBrief}
+              disabled={autosave.conflict || autosave.deleted}
+            />
             <label>
               {p.rulesLabel}
               <textarea

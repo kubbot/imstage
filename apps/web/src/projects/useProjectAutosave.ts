@@ -31,7 +31,7 @@
  *   write into a new owner's state.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, errorText, type Project } from '../account/api';
+import { api, ApiError, errorText, type Project, type ProjectBrief, type ProjectBriefCastMember, type ProjectType } from '../account/api';
 import { PLATFORMS, type Platform } from '../studio/model';
 
 export const PROJECT_AUTOSAVE_DELAY = 800;
@@ -45,6 +45,15 @@ export interface ProjectSettings {
   platform: Platform;
   /** User watermark switch; drafts cached before this field default to on. */
   watermarkEnabled: boolean;
+  /**
+   * Omission marker: `undefined` means the draft never carried this field
+   * (legacy cache). It inherits the value from the FIRST remote GET instead of
+   * defaulting to `custom`/`{}` and erasing remote story/cast/avatar data. An
+   * explicitly present value (including `brief: {}`) is deliberate.
+   */
+  type?: ProjectType;
+  /** Structured brief object (language/platform/cast); never free text. */
+  brief?: ProjectBrief;
 }
 
 export interface ProjectDraft {
@@ -57,19 +66,100 @@ export interface ProjectDraft {
   uncertain?: ProjectSettings;
 }
 
-/** The server stores `name.trim()`, so equality must use the same contract. */
+/**
+ * The server stores `name.trim()`, so equality must use the same contract.
+ * `type`/`brief` are included ONLY when actually present: an omitted field
+ * must never be compared (or PUT) as `custom`/`{}`, because that would erase
+ * remote cast/avatar/story metadata restored by another client.
+ */
 export function normalizeProjectSettings(settings: ProjectSettings): ProjectSettings {
-  return { name: settings.name.trim(), rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false };
+  const normalized: ProjectSettings = {
+    name: settings.name.trim(),
+    rules: settings.rules,
+    platform: settings.platform,
+    watermarkEnabled: settings.watermarkEnabled !== false,
+  };
+  if (settings.type !== undefined) normalized.type = settings.type;
+  if (settings.brief !== undefined) normalized.brief = { ...settings.brief };
+  return normalized;
+}
+
+/**
+ * Canonical brief shape mirroring the server's `validateProjectBrief` storage
+ * contract: key order `language, platform, cast`, cast member key order
+ * `name, role, avatar?`, name/role trimmed (language is NOT trimmed). Used only
+ * for content identity/acknowledgement comparisons — the draft itself keeps
+ * the caller's object verbatim so cast/avatar and unknown restored content are
+ * never erased.
+ */
+function canonicalBriefValue(brief: ProjectBrief): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (brief.language !== undefined) out.language = brief.language;
+  if (brief.platform !== undefined) out.platform = brief.platform;
+  if (brief.cast !== undefined) {
+    out.cast = (brief.cast ?? []).map((member) => {
+      const entry: Record<string, unknown> = {
+        name: String((member as ProjectBriefCastMember)?.name ?? '').trim(),
+        role: String((member as ProjectBriefCastMember)?.role ?? '').trim(),
+      };
+      const avatar = (member as ProjectBriefCastMember)?.avatar;
+      if (avatar !== undefined) entry.avatar = avatar;
+      return entry;
+    });
+  }
+  return out;
+}
+
+/** Server-canonical content identity (fixed key order, canonical brief). */
+function canonicalContent(settings: ProjectSettings): Record<string, unknown> {
+  const normalized = normalizeProjectSettings(settings);
+  const out: Record<string, unknown> = {
+    name: normalized.name,
+    rules: normalized.rules,
+    platform: normalized.platform,
+    watermarkEnabled: normalized.watermarkEnabled !== false,
+  };
+  if (normalized.type !== undefined) out.type = normalized.type;
+  if (normalized.brief !== undefined) out.brief = canonicalBriefValue(normalized.brief);
+  return out;
 }
 
 /** Stable content identity for "same project settings on the server". */
 export function projectContent(settings: ProjectSettings): string {
-  return JSON.stringify(normalizeProjectSettings(settings));
+  return JSON.stringify(canonicalContent(settings));
+}
+
+/**
+ * Field-aware acknowledgement: true when every field the local snapshot
+ * actually sent matches the server item. Fields left out (omission marker)
+ * are intentionally ignored — a write that omits `type`/`brief` can still be
+ * acknowledged even though the server holds richer metadata. Brief comparison
+ * uses the server's canonical form so reordered keys or trimmed name/role can
+ * never turn a landed write into a false conflict.
+ */
+export function projectContentAcknowledges(sent: ProjectSettings, item: Project): boolean {
+  const mine = canonicalContent(sent);
+  const theirs = canonicalContent({
+    name: item.name,
+    rules: item.rules,
+    platform: item.platform,
+    watermarkEnabled: item.watermarkEnabled,
+    type: item.type,
+    brief: item.brief,
+  });
+  return Object.keys(mine).every((key) => JSON.stringify(mine[key]) === JSON.stringify(theirs[key]));
 }
 
 /** Exact local content identity; used to ignore truly no-op edits. */
 export function projectRawContent(settings: ProjectSettings): string {
-  return JSON.stringify({ name: settings.name, rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false });
+  return JSON.stringify({
+    name: settings.name,
+    rules: settings.rules,
+    platform: settings.platform,
+    watermarkEnabled: settings.watermarkEnabled !== false,
+    ...(settings.type !== undefined ? { type: settings.type } : {}),
+    ...(settings.brief !== undefined ? { brief: settings.brief } : {}),
+  });
 }
 
 export function projectDraftKey(userId: string, projectId: string): string {
@@ -78,6 +168,21 @@ export function projectDraftKey(userId: string, projectId: string): string {
 
 function isPlatform(value: unknown): value is Platform {
   return typeof value === 'string' && (PLATFORMS as readonly string[]).includes(value);
+}
+
+const PROJECT_TYPES: readonly string[] = ['training', 'demo', 'story', 'evaluation_dataset', 'custom'];
+
+function readBrief(raw: unknown): ProjectBrief | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const brief: Record<string, unknown> = { ...record };
+  if (brief.language !== undefined && typeof brief.language !== 'string') return null;
+  if (brief.platform !== undefined && !isPlatform(brief.platform)) return null;
+  if (brief.cast !== undefined) {
+    if (!Array.isArray(brief.cast)) return null;
+    if (brief.cast.some((member) => !member || typeof member !== 'object')) return null;
+  }
+  return brief as ProjectBrief;
 }
 
 function readSettings(raw: unknown): ProjectSettings | null {
@@ -89,7 +194,27 @@ function readSettings(raw: unknown): ProjectSettings | null {
   // Backwards compatible: a draft cached before the watermark switch existed
   // keeps its old content and simply defaults to on.
   if (settings.watermarkEnabled !== undefined && typeof settings.watermarkEnabled !== 'boolean') return null;
-  return { name: settings.name, rules: settings.rules, platform: settings.platform, watermarkEnabled: settings.watermarkEnabled !== false };
+  // Omission markers: legacy drafts without type/brief keep `undefined` so the
+  // first remote GET can fill them in; explicit values are validated.
+  let type: ProjectType | undefined;
+  if (settings.type !== undefined) {
+    if (typeof settings.type !== 'string' || !PROJECT_TYPES.includes(settings.type)) return null;
+    type = settings.type as ProjectType;
+  }
+  let brief: ProjectBrief | undefined;
+  if (settings.brief !== undefined) {
+    const parsed = readBrief(settings.brief);
+    if (!parsed) return null;
+    brief = parsed;
+  }
+  return {
+    name: settings.name,
+    rules: settings.rules,
+    platform: settings.platform,
+    watermarkEnabled: settings.watermarkEnabled !== false,
+    ...(type !== undefined ? { type } : {}),
+    ...(brief !== undefined ? { brief } : {}),
+  };
 }
 
 /** Parse and validate a cached draft; anything malformed is ignored. */
@@ -150,6 +275,9 @@ export interface ProjectAutosave {
   setRules: (value: string) => void;
   setPlatform: (value: Platform) => void;
   setWatermarkEnabled: (value: boolean) => void;
+  setType: (value: ProjectType) => void;
+  /** Patch the structured brief; unknown/cast/avatar data is preserved. */
+  setBrief: (patch: ProjectBrief) => void;
   status: ProjectSaveStatus;
   dirty: boolean;
   conflict: boolean;
@@ -188,6 +316,8 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
   const inFlight = useRef(false);
   const onReloadRef = useRef(onReload);
   onReloadRef.current = onReload;
+  const remoteRef = useRef(remote);
+  remoteRef.current = remote;
 
   const commitSettings = useCallback((next: ProjectSettings) => {
     settingsRef.current = next;
@@ -232,7 +362,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
       if (current && current.token === sent.token) {
         // No newer edit arrived during the PUT: adopt the canonical server value
         // (the server trims the name) and stop being dirty.
-        commitSettings({ name: item.name, rules: item.rules, platform: item.platform, watermarkEnabled: item.watermarkEnabled !== false });
+        commitSettings({ name: item.name, rules: item.rules, platform: item.platform, watermarkEnabled: item.watermarkEnabled !== false, type: item.type, brief: item.brief });
         removeDraft(sent);
       } else if (current) {
         // Keep the newer edit, rebase it on the acknowledged revision and persist.
@@ -257,14 +387,13 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
         const latest = draftRef.current;
         if (!latest || latest.userId !== current.userId || latest.projectId !== current.projectId
           || !latest.uncertain || projectContent(latest.uncertain) !== projectContent(uncertain)) return 'retry';
-        const serverContent = projectContent(data.item);
-        if (serverContent === projectContent(uncertain)) {
+        if (projectContentAcknowledges(uncertain, data.item)) {
           confirmedRevision.current = data.item.revision;
-          savedContentRef.current = serverContent;
+          savedContentRef.current = projectContent(data.item);
           if (mounted.current) setRevisionState(data.item.revision);
-          if (projectContent(latest.settings) === serverContent) {
+          if (projectContentAcknowledges(latest.settings, data.item)) {
             // The unresolved write matches the latest draft: it is acknowledged.
-            if (mounted.current) commitSettings({ name: data.item.name, rules: data.item.rules, platform: data.item.platform, watermarkEnabled: data.item.watermarkEnabled !== false });
+            if (mounted.current) commitSettings({ name: data.item.name, rules: data.item.rules, platform: data.item.platform, watermarkEnabled: data.item.watermarkEnabled !== false, type: data.item.type, brief: data.item.brief });
             removeDraft(latest);
           } else {
             const rebased: ProjectDraft = { ...latest, baseRevision: data.item.revision, uncertain: undefined };
@@ -323,10 +452,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
           const data = await api<{ item: Project }>(`/projects/${encodeURIComponent(projectId)}`, {
             method: 'PUT',
             body: {
-              name: outboundSettings.name,
-              rules: outboundSettings.rules,
-              platform: outboundSettings.platform,
-              watermarkEnabled: outboundSettings.watermarkEnabled,
+              ...outboundSettings,
               revision: sent.baseRevision,
             },
           });
@@ -445,18 +571,32 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     if (ownerRef.current !== userId || !mounted.current) return;
     if (inFlight.current) return; // the running PUT settles this draft
     if (remote.revision < confirmedRevision.current) return; // stale snapshot
+    // Legacy draft omission markers: inherit type/brief from the FIRST remote
+    // GET instead of defaulting to custom/{} and erasing remote cast/avatar.
+    const draft0 = draftRef.current;
+    if (draft0 && (draft0.settings.type === undefined || draft0.settings.brief === undefined)) {
+      const filled: ProjectSettings = {
+        ...draft0.settings,
+        ...(draft0.settings.type === undefined ? { type: remote.type } : {}),
+        ...(draft0.settings.brief === undefined ? { brief: remote.brief } : {}),
+      };
+      const rebasedFill: ProjectDraft = { ...draft0, settings: filled, uncertain: draft0.uncertain };
+      draftRef.current = rebasedFill;
+      commitSettings(filled);
+      persist(rebasedFill);
+    }
     const serverContent = projectContent(remote);
     const draft = draftRef.current;
     if (draft) {
       const uncertain = draft.uncertain;
       if (uncertain) {
-        if (serverContent === projectContent(uncertain)) {
+        if (projectContentAcknowledges(uncertain, remote)) {
           // The ambiguous write is confirmed by content: adopt its revision.
           confirmedRevision.current = remote.revision;
           savedContentRef.current = serverContent;
           if (mounted.current) setRevisionState(remote.revision);
-          if (projectContent(draft.settings) === serverContent) {
-            if (mounted.current) commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
+          if (projectContentAcknowledges(draft.settings, remote)) {
+            if (mounted.current) commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false, type: remote.type, brief: remote.brief });
             draftRef.current = null;
             setDirty(false); setRecovered(false);
             setConflict(false); conflictRef.current = false;
@@ -486,7 +626,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
         setPhase('idle');
         return;
       }
-      if (serverContent === projectContent(draft.settings)) {
+      if (projectContentAcknowledges(draft.settings, remote)) {
         // The cloud already holds this edit (for example a lost ack): adopt it.
         confirmedRevision.current = remote.revision;
         savedContentRef.current = serverContent;
@@ -494,7 +634,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
         setDirty(false);
         setRecovered(false);
         setConflict(false); conflictRef.current = false;
-        commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
+        commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false, type: remote.type, brief: remote.brief });
         setRevisionState(remote.revision);
         setPhase('idle');
         removeExactDraft(draft.userId, draft.projectId, draft.token);
@@ -518,7 +658,7 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     // No local draft: adopt the server snapshot as the baseline.
     confirmedRevision.current = remote.revision;
     savedContentRef.current = serverContent;
-    commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false });
+    commitSettings({ name: remote.name, rules: remote.rules, platform: remote.platform, watermarkEnabled: remote.watermarkEnabled !== false, type: remote.type, brief: remote.brief });
     setRevisionState(remote.revision);
     setRecovered(false);
     setDirty(false);
@@ -557,6 +697,23 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
   const setRules = useCallback((value: string) => applyEdit({ rules: value }), [applyEdit]);
   const setPlatform = useCallback((value: Platform) => applyEdit({ platform: value }), [applyEdit]);
   const setWatermarkEnabled = useCallback((value: boolean) => applyEdit({ watermarkEnabled: value }), [applyEdit]);
+  const setType = useCallback((value: ProjectType) => applyEdit({ type: value }), [applyEdit]);
+  // Brief edits merge onto the current structured brief so cast/avatar data
+  // restored by another client is preserved verbatim (including when the local
+  // draft still carries the legacy omission marker).
+  const setBrief = useCallback((patch: ProjectBrief) => {
+    const current = draftRef.current?.settings ?? settingsRef.current;
+    const base = current.brief ?? remoteRef.current?.brief ?? {};
+    const merged: Record<string, unknown> = { ...base };
+    // An explicit `undefined` in the patch CLEARS that key (e.g. removing the
+    // language) — it must not resurrect the old value — while all other keys
+    // (cast/avatar/unknown restored content) stay untouched.
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) delete merged[key];
+      else merged[key] = value;
+    }
+    applyEdit({ brief: merged as ProjectBrief });
+  }, [applyEdit]);
 
   let status: ProjectSaveStatus;
   if (conflict || deleted) status = 'conflict';
@@ -571,6 +728,8 @@ export function useProjectAutosave({ userId, projectId, remote, onReload }: Proj
     setRules,
     setPlatform,
     setWatermarkEnabled,
+    setType,
+    setBrief,
     status,
     dirty,
     conflict,

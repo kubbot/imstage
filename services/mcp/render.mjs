@@ -217,7 +217,10 @@ export async function renderScenePng({ scene, assets = [], surface, width, heigh
             status: 422,
           });
         }
-        await page.setViewportSize({ width, height: contentHeight });
+        // Playwright fullPage + clip captures the validated document rectangle
+        // beyond the viewport WITHOUT resizing it: a
+        // long-shot viewport resize can leave stale compositor pixels (e.g. a
+        // duplicated status bar/header at the bottom) in the first capture.
       } else if (contentHeight > height + 1 || await page.locator('.scene-messages').evaluate(el => el.scrollHeight > el.clientHeight + 1)) {
         fail('output_too_tall', `内容高度 ${contentHeight}px 超过视口 ${height}px`, {
           details: { contentHeight, viewportHeight: height },
@@ -227,7 +230,21 @@ export async function renderScenePng({ scene, assets = [], surface, width, heigh
       }
 
       abortIfDeadline(deadline);
-      const buffer = await page.screenshot({ type: 'png', animations: 'disabled', timeout: Math.max(1000, deadline - Date.now()) });
+      // Capture exactly the validated .device rectangle. page.route / no-JS /
+      // timeout restrictions above are unchanged.
+      const clip = {
+        x: Math.max(0, Math.floor(box.x)),
+        y: Math.max(0, Math.floor(box.y)),
+        width: Math.max(1, Math.ceil(box.width)),
+        height: contentHeight,
+      };
+      const buffer = await page.screenshot({
+        type: 'png',
+        animations: 'disabled',
+        fullPage: outputKind === 'long-screenshot',
+        clip,
+        timeout: Math.max(1000, deadline - Date.now()),
+      });
       if (buffer.length > RENDER_LIMITS.maxPngBytes) {
         fail('output_too_large', `PNG 超过 ${RENDER_LIMITS.maxPngBytes} 字节上限`, {
           details: { bytes: buffer.length, maxBytes: RENDER_LIMITS.maxPngBytes },
@@ -236,6 +253,14 @@ export async function renderScenePng({ scene, assets = [], surface, width, heigh
         });
       }
       const header = parsePngHeader(buffer);
+      // DOM bounds can contain a fractional final CSS pixel; Chromium rounds
+      // the document height down. Only that single-pixel difference is valid.
+      if (header.width !== clip.width || header.height < clip.height - 1 || header.height > clip.height) {
+        fail('render_failed', '截图尺寸与完整内容范围不一致', {
+          details: { expectedWidth: clip.width, expectedHeight: clip.height, width: header.width, height: header.height },
+          status: 500,
+        });
+      }
       if (width * header.height > RENDER_LIMITS.maxPixels) {
         fail('output_too_large', '渲染像素超过上限', {
           details: { width: header.width, height: header.height, maxPixels: RENDER_LIMITS.maxPixels },

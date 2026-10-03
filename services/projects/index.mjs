@@ -7,6 +7,38 @@
  */
 
 export { ProjectsError, projectsError, isTerminalJobStatus, isRetryableTaskStatus } from './errors.mjs';
+export { createProjectAutomation } from './automation.mjs';
+export {
+  assertSceneCapacity,
+  countActiveReservations,
+  countSceneRows,
+  installSceneReservations,
+  sceneCapacityUsage,
+} from './capacity.mjs';
+export {
+  createScenarioGenerationService,
+  installScenarioGenerationSchema,
+  buildCaseTaskPrompt,
+} from './scenario-generation.mjs';
+export { AUTOMATION_SCHEMA_SQL, installAutomationSchema } from './automation-store.mjs';
+export {
+  DEFAULT_RENDER_OPTIONS,
+  EXPORT_LIMITS,
+  EXPORT_SCHEMA_SQL,
+  createProjectExportService,
+  installExportSchema,
+} from './exports/index.mjs';
+export {
+  PROJECT_RECIPE_VERSION,
+  PROJECT_TYPES,
+  SCENARIO_PRESETS,
+  SCENARIO_LIMITS,
+  buildCasePlan,
+  caseItemKey,
+  projectTypeSummaries,
+  scenarioPresetSummaries,
+  suggestedBatchRanges,
+} from '../../packages/schema/project-recipes.mjs';
 export {
   MAX_PROJECT_NAME_CHARS,
   MAX_PROJECT_RULES_CHARS,
@@ -79,5 +111,7 @@ export {
   createRetryJob,
   publishGeneratedScene,
   markInterruptedJobs,
+  createProjectRow,
+  updateProjectRow,
 } from './store.mjs';
 export { createBatchQueue } from './batch.mjs';

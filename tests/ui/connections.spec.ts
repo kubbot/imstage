@@ -230,3 +230,31 @@ test('disabled loopback redirects steer native clients to the advanced token', a
   await expect(page.getByText(/未开启本地回环回调/)).toBeVisible();
   await expect(page.getByText('高级接入：个人访问令牌', { exact: true })).toBeVisible();
 });
+
+test('Claude is a first-class manual connector with truthful OAuth and scope guidance', async ({ page }) => {
+  await config(page);
+  await signedIn(page);
+  await page.goto('/?lang=zh#/connect?client=claude');
+  await expect(page.getByRole('radio', { name: 'Claude' })).toBeChecked();
+  // Official remote MCP guide + real endpoint, manual steps only (no fake one-click).
+  await expect(page.getByRole('link', { name: /官方连接指南/ }))
+    .toHaveAttribute('href', /11175166-get-started-with-custom-connectors-using-remote-mcp/);
+  await expect(page.getByLabel('连接地址', { exact: true })).toHaveValue(/\/api\/mcp$/);
+  await expect(page.getByText(/不是你本机的 localhost/)).toBeVisible();
+  // DCR reality: register automatically, not a published Claude identity.
+  await page.getByText('如果 Claude 询问 OAuth 客户端模式').click();
+  await expect(page.getByText(/自动注册 \/ Register automatically/)).toBeVisible();
+  await expect(page.getByText(/未在真实 Claude 客户端宿主做过验收/)).toBeVisible();
+
+  // A scenes-only legacy credential keeps working and gets upgrade guidance.
+  await page.route('**/api/connections', route => route.fulfill({ json: {
+    items: [{
+      id: 'legacy-scenes-only', clientName: '旧的作品连接', createdAt: new Date().toISOString(),
+      lastUsedAt: null, scopes: ['imstage.scenes'], kind: 'oauth',
+    }],
+  } }));
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Claude' })).toBeChecked();
+  await expect(page.getByText(/只授权了作品权限/)).toBeVisible();
+  await expect(page.getByText(/不会被静默删除或降级/)).toBeVisible();
+});
