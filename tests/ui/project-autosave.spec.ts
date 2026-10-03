@@ -1,6 +1,6 @@
 import { test, expect, request, type Page, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { createScene } from '../../apps/web/src/studio/model';
-import { completeOnboarding } from './prefs';
+import { completeOnboarding, markOnboarded } from './prefs';
 
 test.use({ locale: 'zh-CN' });
 
@@ -22,6 +22,9 @@ async function registerViaApi(page: Page, name: string): Promise<Session> {
     data: { name, email: `project-autosave-${crypto.randomUUID()}@example.test`, password: PASSWORD },
   });
   expect(response.ok()).toBe(true);
+  // These project tests seed accounts through the API and do not exercise
+  // registration onboarding. Complete it before AuthProvider can redirect.
+  await markOnboarded(page);
   return { headers };
 }
 
