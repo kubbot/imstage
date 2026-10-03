@@ -185,8 +185,12 @@ export function useContactLibrary(userId?: string) {
 
   async function capture(people: Participant[]): Promise<boolean> {
     if (!userId) return false;
+    const mine = epoch.current;
     if (!current.current) await load();
-    if (!current.current?.autoSave) return true;
+    // After any await: an owner switch, unmount or replaced state must not write.
+    if (!same(mine)) return false;
+    // Explicit manual capture is independent of the automatic retention switch.
+    if (!current.current) return false;
     // No fresh GET can replace the edits already queued in this tab.
     edit(base => retainContacts(base, people));
     return flush();

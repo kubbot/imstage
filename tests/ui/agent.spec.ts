@@ -121,18 +121,67 @@ test('unsaved Agent request in an account scene is protected when recovery stora
   await expect.poll(()=>dialogs).toBe(1);await expect(page).toHaveURL(before);await expect(page.getByLabel('描述想生成的聊天',{exact:true})).toHaveValue('这条创作需求还没有提交');
 });
 
-test('one conversation renders the generic IMStage skin and exports with the disclosure',async({page})=>{
+test('a fresh blank creation starts on WeChat with a visible 7-platform selector',async({page})=>{
+  await ready(page);
+  const phone=page.locator('.agent-phone');
+  // Brand-new blank standalone creations now start on the WeChat skin.
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-wechat');
+  const platform=page.getByLabel('目标聊天平台',{exact:true});
+  await expect(platform).toBeVisible();
+  await expect(platform).toHaveValue('wechat');
+  // All seven skins are offered and the control works on a 390px viewport.
+  const values=await platform.locator('option').evaluateAll(options=>options.map(o=>(o as HTMLOptionElement).value));
+  expect(values).toEqual(['imstage','wechat','xiaohongshu','imessage','whatsapp','slack','instagram']);
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:/渲染画面/}).click();
+  await expect(platform).toBeVisible();
+  await expect(platform).toBeEnabled();
+  expect(await platform.evaluate(el=>{const r=(el as HTMLElement).getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;})).toBeTruthy();
+});
+
+test('the platform selector switches skins live and survives undo/reload with PNG equality',async({page})=>{
   await ready(page);await generate(page);
   const phone=page.locator('.agent-phone');
-  // Safety behavior: no brand/platform selector exists in the public editor.
-  await expect(page.getByLabel('目标聊天平台',{exact:true})).toHaveCount(0);
-  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-generic');
-  await expect(phone).toContainText('周末一起去看展吗？');await expect(phone).toContainText('好呀，上海见！');
-  expect(await phone.locator('.scene-row').count()).toBe(2);
-  await expect(phone.locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
+  const platform=page.getByLabel('目标聊天平台',{exact:true});
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-wechat');
   await page.getByLabel('导出图片范围').selectOption('standard');
-  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
-  const file=await(await downloaded).path();const info=await sharp(file!).metadata();expect([info.width,info.height]).toEqual([1206,2622]);
-  // Real exported PNG evidence: the mandatory label is visible in the file.
-  await assertDisclosureInPng(file!);
+  const before=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+  const beforeFile=await (await before).path();
+  // Switching skins preserves messages, participants, device and watermark.
+  await platform.selectOption('imstage');
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-generic');
+  await expect(phone).toContainText('周末一起去看展吗？');
+  await expect(phone).toContainText('好呀，上海见！');
+  await expect(page.getByLabel('截图设备',{exact:true})).toHaveValue('iphone-17-pro');
+  await expect(phone.locator('.imstage-disclosure')).toContainText('AI生成 / 虚构');
+  // Undo restores the previous skin (with its content); redo reapplies.
+  await page.getByRole('button',{name:'撤销上次修改'}).click();
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-wechat');
+  await expect(phone).toContainText('周末一起去看展吗？');
+  await page.getByRole('button',{name:'重做上次修改'}).click();
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-generic');
+  // WhatsApp too, then the chosen WeChat skin is persisted in the draft.
+  await platform.selectOption('whatsapp');
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-whatsapp');
+  await platform.selectOption('wechat');
+  await expect(phone.locator('.scene-view')).toHaveAttribute('data-skin','imstage-wechat');
+  await page.reload();
+  await expect(page.getByRole('button',{name:'开始生成',exact:true})).toBeVisible();
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin','imstage-wechat');
+  await expect(page.getByLabel('目标聊天平台',{exact:true})).toHaveValue('wechat');
+  await expect(page.locator('.agent-phone')).toContainText('周末一起去看展吗？');
+  // Real PNG equality across the reload: same scene + skin renders identically.
+  const after=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+  const afterFile=await (await after).path();
+  const beforeRaw=await sharp(beforeFile!).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  const afterRaw=await sharp(afterFile!).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  expect([afterRaw.info.width,afterRaw.info.height]).toEqual([beforeRaw.info.width,beforeRaw.info.height]);
+  expect(afterRaw.data.equals(beforeRaw.data)).toBeTruthy();
+  await assertDisclosureInPng(afterFile!);
+  // The real PNG reflects the selected skin: another skin exports different pixels.
+  await page.getByLabel('目标聊天平台',{exact:true}).selectOption('whatsapp');
+  const other=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG'}).click();
+  const otherFile=await (await other).path();
+  const otherRaw=await sharp(otherFile!).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  expect(otherRaw.data.equals(beforeRaw.data)).toBeFalsy();
 });

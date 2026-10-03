@@ -42,15 +42,35 @@ test('a handoff instruction is pre-filled, bounded, and never auto-sent', () => 
   assert.equal(long.prompt.length, MAX_HANDOFF_PROMPT);
 });
 
-test('an unknown scenario falls back to a blank localized conversation', () => {
+test('an unknown scenario falls back to a blank localized conversation on WeChat', () => {
   const draft = emptyDraft('', { locale: 'en', scenario: 'not-a-scenario' });
   assert.equal(draft.scene.messages.length, 0);
-  assert.equal(draft.scene.platform, 'imstage');
+  // Brand-new blank standalone creations start on the WeChat skin.
+  assert.equal(draft.scene.platform, 'wechat');
   assert.equal(draft.scene.participants.find((participant) => participant.id === 'other').name, 'Ava');
 
   const zh = emptyDraft();
-  assert.equal(zh.scene.platform, 'imstage');
+  assert.equal(zh.scene.platform, 'wechat');
   assert.equal(zh.scene.messages.length, 0);
+});
+
+test('fresh blank, seeded, legacy and project inheritance stay distinct', () => {
+  // Fresh blank (zh/en) → WeChat.
+  assert.equal(emptyDraft('', { locale: 'zh' }).scene.platform, 'wechat');
+  assert.equal(emptyDraft('', { locale: 'en' }).scene.platform, 'wechat');
+  // Marketing seeded scenarios keep the authored generic IMStage skin.
+  assert.equal(emptyDraft('', { locale: 'zh', scenario: 'wukang' }).scene.platform, 'imstage');
+  assert.equal(emptyDraft('', { locale: 'en', scenario: 'coffee' }).scene.platform, 'imstage');
+  // Legacy/saved drafts and imports keep their own platform on recovery.
+  const legacy = emptyDraft('', { locale: 'zh' });
+  legacy.scene.platform = 'imstage';
+  assert.equal(recoverDraft(legacy, emptyDraft()).scene.platform, 'imstage');
+  const saved = emptyDraft('', { locale: 'zh' });
+  saved.scene.platform = 'whatsapp';
+  assert.equal(recoverDraft(saved, emptyDraft()).scene.platform, 'whatsapp');
+  // Project-linked blank inheritance is applied by the editor on top of the
+  // blank scene; the seed itself must not override a project default.
+  assert.equal(emptyDraft('project-1', { locale: 'zh' }).scene.platform, 'wechat');
 });
 
 test('recovery keeps the handed-off scene and instruction and drops unsafe state', () => {

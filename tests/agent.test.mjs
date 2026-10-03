@@ -1826,3 +1826,37 @@ test('agent limiter enforces global, per-user active and rate limits', () => {
   // A denied rate attempt must not leak an active slot.
   assert.equal(rateLimiter.snapshot().globalActive, 0);
 });
+
+/* ------------------------------------------------------------------ */
+/* Platform skin preservation                                         */
+/* ------------------------------------------------------------------ */
+
+test('a mismatched imstage recreate keeps the chosen WeChat/WhatsApp skin and only update_element switches it', async () => {
+  const { executeTool } = await import('../services/agent/tools.mjs');
+  for (const platform of ['wechat', 'whatsapp']) {
+    const original = { ...createScene(), platform, surface: 'ios', deviceProfileId: 'iphone-15-pro' };
+    // The model rebuilds with the generic imstage skin although the user has
+    // chosen another platform: the rebuild must keep the user's selection.
+    const candidate = { ...createScene(), id: original.id, platform: 'imstage', title: `${platform} 重建` };
+    const result = await executeTool('create_scene', { scene: candidate }, { scene: original });
+    assert.equal(result.ok, true, `create_scene for ${platform} succeeds`);
+    assert.equal(result.scene.platform, platform, 'create_scene keeps the chosen platform');
+    assert.equal(result.scene.title, `${platform} 重建`, 'the rebuild itself still applies');
+    assert.equal(result.scene.deviceProfileId, 'iphone-15-pro');
+    // An explicit platform switch remains available through update_element.
+    const switched = await executeTool('update_element', { targetId: '@scene', patch: { platform: 'imstage' } }, { scene: result.scene });
+    assert.equal(switched.ok, true);
+    assert.equal(switched.scene.platform, 'imstage', 'update_element still switches platform');
+  }
+});
+
+test('agent guidance preserves the selected platform and never recommends imstage over it', async () => {
+  const { buildSystemPrompt } = await import('../services/agent/prompt.mjs');
+  const prompt = buildSystemPrompt({});
+  assert.equal(/imstage（推荐）/.test(prompt), false, 'no skin is recommended over the current selection');
+  assert.match(prompt, /platform.*保留/, 'the prompt states the platform is preserved on rebuild');
+  assert.match(prompt, /update_element 修改 platform/, 'explicit switches go through update_element');
+  const schemas = JSON.stringify(AGENT_TOOL_SCHEMAS);
+  assert.equal(/imstage（推荐）/.test(schemas), false, 'the tool schema drops the imstage recommendation');
+  assert.match(schemas, /保留当前场景已选皮肤/, 'the create_scene schema states platform preservation');
+});

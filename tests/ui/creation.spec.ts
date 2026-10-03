@@ -25,9 +25,9 @@ test('a scenario handoff opens the English WhatsApp scene and keeps the previous
   await expect(page.getByRole('button', { name: '打开会话：不能被覆盖的会话', exact: true })).toBeVisible();
 });
 
-test('a plain English handoff starts a blank WhatsApp session instead of fabricating content', async ({ page }) => {
+test('a plain English handoff starts a blank WeChat session instead of fabricating content', async ({ page }) => {
   await page.goto('/#/create?new=1&lang=en');
-  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
+  await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-wechat');
   await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
   await expect(page.getByLabel('Describe the chat to generate', { exact: true })).toHaveValue('');
   await expect(page.locator('.agent-phone .scene-header-name')).toHaveText('Ava');

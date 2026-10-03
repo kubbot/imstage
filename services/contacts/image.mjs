@@ -19,8 +19,8 @@ import {
 
 const AVATAR_DATA_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 
-function decodeDataUri(avatar) {
-  if (typeof avatar !== 'string' || avatar.length > MAX_AVATAR_ENCODED_CHARS) {
+function decodeDataUri(avatar, maxChars = MAX_AVATAR_ENCODED_CHARS) {
+  if (typeof avatar !== 'string' || avatar.length > maxChars) {
     throw contactsError(400, 'invalid_avatar', '头像数据无效或超过单张 2 MiB 上限');
   }
   const match = AVATAR_DATA_RE.exec(avatar);
@@ -87,4 +87,77 @@ export async function validateContactAvatars(contacts,{trustedAvatars=new Set()}
     decoded.add(contact.avatar);
   }
   return totalBytes;
+}
+
+/**
+ * Contact-library thumbnail normalization.
+ *
+ * A generated avatar may be a valid 1024px PNG whose data URI exceeds the
+ * 2 MiB per-contact ceiling. The Scene keeps those bytes untouched; only the
+ * contact-library *copy* is normalized to a deterministic PNG thumbnail
+ * (max 256px inside the aspect ratio, no upscale) before `retainContacts`, so
+ * oversized-but-valid people still save and repeated saves of the same
+ * original deduplicate through byte-identical thumbnails.
+ */
+export const MAX_AVATAR_SOURCE_ENCODED_CHARS = 6 * 1024 * 1024;
+export const THUMBNAIL_MAX_EDGE = 256;
+
+/**
+ * Return a contact-library-bounded avatar for one participant avatar.
+ * Already bounded data URIs pass through byte-identical; oversized valid
+ * images become deterministic PNG thumbnails. Remote URLs, SVG, forged MIME
+ * headers and corrupt decodes are rejected exactly like direct uploads.
+ */
+export async function normalizeContactAvatar(avatar) {
+  if (avatar == null) return avatar;
+  if (typeof avatar !== 'string' || avatar.length > MAX_AVATAR_SOURCE_ENCODED_CHARS) {
+    throw contactsError(400, 'invalid_avatar', '头像数据无效或超过生成图片上限');
+  }
+  // Already bounded thumbnails stay byte-identical, keeping dedup exact.
+  if (avatar.length <= MAX_AVATAR_ENCODED_CHARS) {
+    await assertDecodableAvatar(avatar);
+    return avatar;
+  }
+  const bytes = decodeDataUri(avatar, MAX_AVATAR_SOURCE_ENCODED_CHARS);
+  try {
+    const metadata = await sharp(bytes, {
+      limitInputPixels: MAX_AVATAR_PIXELS,
+      failOn: 'warning',
+    }).metadata();
+    const declared = avatar.slice(11, avatar.indexOf(';'));
+    if (!['png', 'jpeg', 'webp'].includes(metadata.format) || metadata.format !== declared) {
+      throw new Error('image format mismatch');
+    }
+    if (!metadata.width || !metadata.height) throw new Error('missing dimensions');
+    const thumbnail = await sharp(bytes, { limitInputPixels: MAX_AVATAR_PIXELS, failOn: 'warning' })
+      .resize({ width: THUMBNAIL_MAX_EDGE, height: THUMBNAIL_MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    const dataUrl = `data:image/png;base64,${thumbnail.toString('base64')}`;
+    if (dataUrl.length > MAX_AVATAR_ENCODED_CHARS) throw new Error('thumbnail still too large');
+    return dataUrl;
+  } catch (error) {
+    if (error instanceof ContactsError) throw error;
+    throw contactsError(400, 'invalid_avatar', '头像图片无法解码或尺寸过大');
+  }
+}
+
+/**
+ * Normalize only the contact-library thumbnail copies of a participant list.
+ * The Scene itself is never modified: participants with bounded (or missing)
+ * avatars keep their exact objects.
+ */
+export async function normalizeContactPeople(people, signal) {
+  const normalized = [];
+  for (const person of people) {
+    if (signal?.aborted) {
+      const abort = new Error('aborted');
+      abort.name = 'AbortError';
+      throw abort;
+    }
+    if (person?.avatar == null) { normalized.push(person); continue; }
+    const avatar = await normalizeContactAvatar(person.avatar);
+    normalized.push(avatar === person.avatar ? person : { ...person, avatar });
+  }
+  return normalized;
 }
