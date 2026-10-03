@@ -1043,7 +1043,7 @@ test('P1: a corrupt recovery ledger fails closed and is never overwritten', asyn
   assert.equal(env.store.revision, 0);
 });
 
-test('P1: the recovery ledger is written with 0600 permissions', async (t) => {
+test('P1: the recovery ledger is written with 0600 permissions', { skip: process.platform === 'win32' }, async (t) => {
   const env = await launchGen({ generateScene: makeFakeGenerate(() => validScene()), renderScene: makeFakeRender() });
   t.after(() => env.close());
   const res = await env.request('POST', '/api/generate', {

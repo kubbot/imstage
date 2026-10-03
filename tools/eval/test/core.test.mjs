@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { comparePngBuffers } from '../src/compare.mjs';
 import { encodePng } from '../src/png.mjs';
 import { buildReport, evaluateGolden, validateActualManifest, writeErrorReport } from '../src/core.mjs';
@@ -112,7 +113,7 @@ test('evaluateGolden closes the loop on the harness fixtures', async () => {
 });
 
 function pathForTest() {
-  return new URL('../../.local/eval-test/core-out', import.meta.url).pathname;
+  return fileURLToPath(new URL('../../.local/eval-test/core-out', import.meta.url));
 }
 
 test('safe ids and safeJoin block path escapes', () => {
@@ -121,7 +122,7 @@ test('safe ids and safeJoin block path escapes', () => {
   assert.equal(isSafeId('a/b'), false);
   assert.throws(() => assertSafeId('../evil'), /不合法/);
   assert.throws(() => safeJoin('/base', '..', 'escape.png'), /超出/);
-  assert.equal(safeJoin('/base', 'diffs', 'ok.png'), '/base/diffs/ok.png');
+  assert.equal(safeJoin('/base', 'diffs', 'ok.png'), path.resolve('/base', 'diffs', 'ok.png'));
 });
 
 test('numeric and case validation enforce bounds', () => {
@@ -236,7 +237,7 @@ test('evaluateGolden reports extra actual ids that the golden set does not refer
 });
 
 test('writeErrorReport always writes JSON and Markdown diagnostics', async () => {
-  const dir = new URL('../../.local/eval-test/core-err', import.meta.url).pathname;
+  const dir = fileURLToPath(new URL('../../.local/eval-test/core-err', import.meta.url));
   await fs.promises.rm(dir, { recursive: true, force: true });
   try {
     const report = await writeErrorReport({ outDir: dir, error: 'boom' });
