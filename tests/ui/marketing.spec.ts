@@ -280,11 +280,11 @@ test.describe('refinements', () => {
     await expect(page.locator('.journey-device .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
     await page.getByRole('banner').getByRole('link', { name: 'Start creating' }).click();
     await expect(page).toHaveURL(/#\/create/);
-    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
+    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-wechat');
 
     // The in-app "New session" button also follows the current language.
     await page.getByRole('button', { name: 'New session', exact: true }).click();
-    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-generic');
+    await expect(page.locator('.agent-phone .scene-view')).toHaveAttribute('data-skin', 'imstage-wechat');
     await expect(page.locator('.agent-phone .scene-row')).toHaveCount(0);
 
     // The pre-existing Chinese draft is still there and opens unchanged.

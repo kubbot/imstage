@@ -1,7 +1,7 @@
 import {applySelfDefault,retainContacts} from '../../apps/web/src/contacts/model.ts';
 import {getContactLibrary,putContactLibrary} from './store.mjs';
 import {normalizeContactLibraryInput} from './model.mjs';
-import {validateContactAvatars,assertAvatarByteBudget} from './image.mjs';
+import {validateContactAvatars,assertAvatarByteBudget,normalizeContactPeople} from './image.mjs';
 
 /** Same identity lifecycle for interactive and batch Agent calls. */
 export function withContactLibrary(runtime,{db,nowMs}) {
@@ -23,12 +23,16 @@ export function withContactLibrary(runtime,{db,nowMs}) {
     // contact edit/default change is never overwritten by the Agent result.
     const beforeSave=getContactLibrary(db,input.userId);
     if(beforeSave.autoSave){
-     const proposed=normalizeContactLibraryInput(retainContacts(beforeSave,final.participants));
+     // Only the contact-library thumbnail copies are normalized; the Scene
+     // keeps its original avatar bytes and repeated saves dedup on identical
+     // deterministic thumbnails.
+     const people=await normalizeContactPeople(final.participants,input.signal);
+     const proposed=normalizeContactLibraryInput(retainContacts(beforeSave,people));
      await validateContactAvatars(proposed.contacts,{trustedAvatars:new Set(beforeSave.contacts.map(c=>c.avatar))});
      if(input.signal?.aborted)throw new Error('aborted');
      const latest=getContactLibrary(db,input.userId);
      if(latest.autoSave){
-      const merged=normalizeContactLibraryInput(retainContacts(latest,final.participants));
+      const merged=normalizeContactLibraryInput(retainContacts(latest,people));
       assertAvatarByteBudget(merged.contacts);
       if(merged.contacts.length!==latest.contacts.length)putContactLibrary(db,{...merged,userId:input.userId,nowMs:nowMs()});
      }

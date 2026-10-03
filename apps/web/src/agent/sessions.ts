@@ -33,9 +33,11 @@ export function emptyDraft(projectId = '', seed: DraftSeed = {}): SessionDraft {
     // Seeded scenario: authored synthetic content on the generic IMStage skin.
     scene = { ...createScenario(seed.scenario, locale), id: crypto.randomUUID(), referenceDate: calendarToday() };
   } else if (locale === 'en') {
-    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'imstage', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
+    // Brand-new blank standalone creations start on the WeChat skin. Seeded
+    // marketing scenarios and saved/imported scenes keep their own platform.
+    scene = { ...base, id: crypto.randomUUID(), title: 'New conversation', platform: 'wechat', deviceTime: '09:41', date: 'Today', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: 'You' }, { id: 'other', name: 'Ava' }], messages: [] };
   } else {
-    scene = { ...base, id: crypto.randomUUID(), title: '新的对话', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
+    scene = { ...base, id: crypto.randomUUID(), title: '新的对话', platform: 'wechat', referenceDate: calendarToday(), surface: 'ios', deviceProfileId: 'iphone-17-pro', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [] };
   }
   return { scene, prompt: typeof seed.prompt === 'string' ? seed.prompt.slice(0, MAX_HANDOFF_PROMPT) : '', editPrompt:'', turns:[], attachments:[], selected:'', projectId, full:false, scopeSelected:false, viewportTop:0, generating:false, intent:null };
 }

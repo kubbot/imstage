@@ -59,7 +59,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 可选 imstage（推荐）或 wechat/xiaohongshu/imessage/whatsapp/slack/instagram，决定聊天模板皮肤（均为合成内容风格预览，不含品牌 logo）；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用 scene.platform 对应的聊天模板皮肤。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 会保留当前场景已选皮肤（不要改写；用户要求换肤时用 update_element 修改 platform），wechat/xiaohongshu/imessage/whatsapp/slack/instagram/imstage 均为合成内容风格预览，不含品牌 logo；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用 scene.platform 对应的聊天模板皮肤。',
           },
         },
         required: ['scene'],
@@ -189,6 +189,9 @@ function applyCreateScene(args, context) {
   const stripped = stripSceneAssets(args.scene);
   // A model-generated scene must not silently discard the selected output device.
   if(context.scene.deviceProfileId) { stripped.deviceProfileId=context.scene.deviceProfileId;stripped.surface=context.scene.surface; }
+  // The chosen chat-platform skin is a user selection: a full rebuild keeps the
+  // current context platform (an explicit switch goes through update_element).
+  stripped.platform = context.scene.platform;
   // The image label / watermark belongs to the user: a rebuilt scene must not
   // silently change it, and no tool lets the model edit it. Both the watermark
   // text and the user's on/off switch are preserved from the starting scene.

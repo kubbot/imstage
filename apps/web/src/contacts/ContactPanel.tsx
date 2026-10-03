@@ -10,16 +10,32 @@ import type { useContactLibrary } from './useContactLibrary';
 
 type Props={userId:string;scene:Scene;store:ReturnType<typeof useContactLibrary>;locked:boolean;onChange:(s:Scene)=>void;onBusy:(b:boolean)=>void};
 
+/** Canvas-scale one local image data URI inside its aspect ratio; never enlarges. */
+async function scaleAvatarDataUrl(dataUrl:string,maxEdge:number):Promise<string> {
+  if(dataUrl.length>6*1024*1024||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl))throw new Error('头像必须是有界的本地图片');
+  const image=new Image();image.src=dataUrl;await image.decode();
+  if(!image.width||!image.height||image.width*image.height>4_000_000)throw new Error('头像图片尺寸过大');
+  const canvas=document.createElement('canvas');
+  const ratio=Math.min(1,maxEdge/Math.max(image.width,image.height));
+  canvas.width=Math.max(1,Math.round(image.width*ratio));canvas.height=Math.max(1,Math.round(image.height*ratio));
+  canvas.getContext('2d')!.drawImage(image,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/png');
+}
+
 /** Downscale any accepted image to a bounded avatar data URL. */
 async function prepareAvatar(file:File):Promise<string> {
   const result=await readImageFile(file);
   if(!result.ok)throw new Error(result.error);
-  const image=new Image();image.src=result.dataUrl;await image.decode();
-  const canvas=document.createElement('canvas');
-  const ratio=Math.min(1,512/Math.max(image.width,image.height));
-  canvas.width=Math.round(image.width*ratio);canvas.height=Math.round(image.height*ratio);
-  canvas.getContext('2d')!.drawImage(image,0,0,canvas.width,canvas.height);
-  return canvas.toDataURL('image/png');
+  return scaleAvatarDataUrl(result.dataUrl,512);
+}
+
+/** Manual capture bound: matches the server contact-thumbnail ceiling. */
+export const CAPTURE_AVATAR_MAX_EDGE=256;
+const CONTACT_AVATAR_MAX_CHARS=2*1024*1024;
+/** Only oversized local avatars are scaled, and only for the library copy. */
+async function prepareCaptureAvatar(avatar:string):Promise<string> {
+  if(avatar.length<=CONTACT_AVATAR_MAX_CHARS||!/^data:image\/(png|jpeg|webp);base64,/.test(avatar))return avatar;
+  return scaleAvatarDataUrl(avatar,CAPTURE_AVATAR_MAX_EDGE);
 }
 
 export default function ContactPanel({userId,scene,store,locked,onChange,onBusy}:Props) {
@@ -32,7 +48,14 @@ export default function ContactPanel({userId,scene,store,locked,onChange,onBusy}
   const [focusId,setFocusId]=useState('');
   const upload=useRef<HTMLInputElement>(null);const uploadFor=useRef('');
   const abort=useRef<AbortController|null>(null);
+  const captureToken=useRef(0);
+  const captureBusy=useRef(false);
   useEffect(()=>()=>abort.current?.abort(),[]);
+  useEffect(()=>()=>{
+    captureToken.current++;
+    // Release only this panel's capture lock; its late result remains fenced.
+    if(captureBusy.current){captureBusy.current=false;onBusy(false);}
+  },[onBusy]);
   useEffect(()=>{if(!scene.participants.some(p=>p.id===target))setTarget(scene.selfId);},[scene.participants,scene.selfId,target]);
   const blocked=locked||store.loading||generating;
   const library=store.library;
@@ -71,6 +94,21 @@ export default function ContactPanel({userId,scene,store,locked,onChange,onBusy}
     }catch(e){setError(ac.signal.aborted?copy.people.stopGenerating:errorText(e));}
     finally{clearTimeout(timeout);abort.current=null;setGenerating(false);onBusy(false);}
   }
+  /** Manual capture: bounded browser preparation, then one library write. */
+  async function captureScene() {
+    if(captureBusy.current)return;
+    const token=++captureToken.current;
+    captureBusy.current=true;onBusy(true);setError('');setNotice('');
+    try {
+      // Scaled copies are for the contact library only; the Scene keeps its bytes.
+      const people=await Promise.all(scene.participants.map(async p=>p.avatar?{...p,avatar:await prepareCaptureAvatar(p.avatar)}:p));
+      if(token!==captureToken.current)return;
+      const saved=await store.capture(people);
+      if(token!==captureToken.current)return;
+      if(saved)setNotice(copy.people.savedCurrent);
+    }catch(e){if(token===captureToken.current)setError(errorText(e));}
+    finally{if(token===captureToken.current){captureBusy.current=false;onBusy(false);}}
+  }
   function addPerson() {
     const contact:Contact={id:crypto.randomUUID(),name:copy.people.newMemberHint,avatar:null};
     edit(l=>({...l,contacts:[...l.contacts,contact]}));
@@ -102,7 +140,7 @@ export default function ContactPanel({userId,scene,store,locked,onChange,onBusy}
         </div>
       </article>)}</div>
       {!library.contacts.length&&<p className="contact-help">{copy.people.empty}</p>}
-      <div className="contact-row-actions"><button className="agent-button" disabled={blocked||library.contacts.length>=100} onClick={addPerson}><IconPlus size={15}/>{copy.people.addPerson}</button><button className="agent-button" disabled={blocked||!!scene.reference} onClick={()=>void store.capture(scene.participants)}><IconUser size={15}/>{copy.people.saveCurrent}</button></div>
+      <div className="contact-row-actions"><button className="agent-button" disabled={blocked||library.contacts.length>=100} onClick={addPerson}><IconPlus size={15}/>{copy.people.addPerson}</button><button className="agent-button" disabled={blocked||!!scene.reference} onClick={()=>void captureScene()}><IconUser size={15}/>{copy.people.saveCurrent}</button></div>
       {portraitFor&&library.contacts.some(c=>c.id===portraitFor)&&<div className="contact-portrait">
         <div className="contact-portrait-head"><strong>{copy.people.generateAvatar}</strong><button className="icon-btn" aria-label={copy.common.close} onClick={()=>setPortraitFor('')}><IconX size={16}/></button></div>
         <label>{copy.people.describePortrait}<textarea aria-label={copy.people.describePortrait} rows={2} maxLength={1200} value={portrait} onChange={e=>setPortrait(e.target.value)} disabled={generating}/></label>
