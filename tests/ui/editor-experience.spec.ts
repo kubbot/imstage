@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createScene } from '../../apps/web/src/studio/model';
+import { assertNoDisclosureInPng } from './pngEvidence';
 test.use({ locale: 'zh-CN' });
 
 async function ready(page: Page, long = false) {
@@ -19,6 +20,37 @@ async function ready(page: Page, long = false) {
   await page.route('**/api/agent/capabilities', r => r.fulfill({ json: { configured: true, model: '测试模型', imageConfigured: false } }));
   await page.reload(); await expect(page.locator('.agent-phone')).toContainText(long?'合成对话第 1 条':'周六有空吗');
 }
+
+test('watermark selection opens sidebar controls and can be disabled, exported and restored', async ({ page }, testInfo) => {
+  await ready(page);
+  const band = page.locator('.agent-phone .imstage-disclosure');
+  await expect(band).toHaveRole('button');
+  await band.click();
+  await expect(page.getByLabel('选中元素', { exact: true })).toHaveValue('@scene');
+  const toggle = page.getByLabel('显示水印（AI生成 / 虚构标识）', { exact: true });
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(band).toHaveCount(0);
+  await expect(page.locator('.agent-phone .scene-watermark')).toHaveCount(0);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 PNG', exact: true }).click();
+  const file = testInfo.outputPath('selected-watermark-off.png');
+  await (await download).saveAs(file);
+  await assertNoDisclosureInPng(file);
+  await page.getByRole('button', { name: '撤销上次修改' }).click();
+  await expect(band).toBeVisible();
+  await page.getByRole('button', { name: '关闭 AI 编辑', exact: true }).click();
+  await band.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toBeVisible();
+  await page.getByRole('button', { name: '关闭 AI 编辑', exact: true }).click();
+  await band.focus();
+  await page.keyboard.press('Space');
+  await expect(toggle).toBeVisible();
+  await toggle.uncheck();
+  await toggle.check();
+  await expect(band).toBeVisible();
+});
 
 test('canvas fits and properties, ordering, undo, redo and element navigator stay connected', async ({ page }) => {
   await ready(page);

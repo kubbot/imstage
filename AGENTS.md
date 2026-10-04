@@ -4,6 +4,8 @@
 
 The user authorized a runnable React frontend, website redesign, and publication to the existing GitHub/Vercel project on 2026-09-20. The frontend phase includes local editing/export and adaptive light/dark/system themes. Backend services and paid services require separate scope; publishing the frontend does not imply that planned AI/API capabilities are implemented.
 
+From 2026-10-04, requested changes include production publication and verification by default unless the user explicitly limits the task to local work. Complete review, applicable CI checks, merging, deployment readiness and verification of the changed behavior on the production site before reporting the change as delivered. Preserve unrelated concurrent changes and report any actual release blocker.
+
 Read `docs/product-brief.md` and `design/BRIEF.md` before future implementation. Distinguish accepted requirements, proposals, and unresolved decisions. Directory placeholders do not constitute architecture approval.
 
 ## Collaboration
