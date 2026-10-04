@@ -67,6 +67,7 @@ pin a run or its concurrency lease — the socket is finished/destroyed boundedl
 
 | Tool | Arguments | Effect |
 | --- | --- | --- |
+| `select_template` | `{platform}` | Select an explicitly requested platform before creation, clearing custom layout while retaining content and user settings. Scoped message/participant edits cannot switch templates. |
 | `create_scene` | `{scene}` | Replace the whole scene from a full Scene object. |
 | `upsert_message` | `{message}` | Insert or update one message by `id`. |
 | `delete_message` | `{id}` | Delete one message. |

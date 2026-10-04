@@ -359,6 +359,7 @@ test('POST /api/agent/run streams admitted NDJSON with the exact event union', a
   // The provider actually received the scene context and tool schemas.
   assert.equal(provider.calls.length, 2);
   assert.deepEqual(provider.calls[0].toolNames, [
+    'select_template',
     'update_element',
     'create_scene',
     'upsert_message',

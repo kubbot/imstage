@@ -203,7 +203,7 @@ test('runAgent performs a genuine multi-round tool sequence and feeds results ba
   assert.equal(JSON.parse(toolResult.content).ok, true);
 
   // The initial turn carries the tool schemas and no base64 asset from the scene.
-  assert.equal(provider.calls[0].toolNames.length, 5);
+  assert.equal(provider.calls[0].toolNames.length, TOOL_NAMES.length);
 });
 
 test('runAgent recovers from invalid tool arguments via truthful error feedback', async () => {
@@ -1405,7 +1405,7 @@ test('serializeAgentEvent emits exactly the documented union', () => {
 test('AGENT_TOOL_SCHEMAS exposes the scene tools with JSON schemas', () => {
   assert.deepEqual(
     AGENT_TOOL_SCHEMAS.map((tool) => tool.function.name),
-    ['update_element', 'create_scene', 'upsert_message', 'delete_message', 'generate_image'],
+    ['select_template', 'update_element', 'create_scene', 'upsert_message', 'delete_message', 'generate_image'],
   );
   for (const tool of AGENT_TOOL_SCHEMAS) {
     assert.equal(tool.type, 'function');
