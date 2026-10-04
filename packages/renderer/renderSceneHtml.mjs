@@ -183,7 +183,10 @@ function renderMessage(message, context) {
   const avatar = showRowAvatar(theme, isSelf, isGroup)
     ? `<span class="avatar" style="background:${avatarColor(message.participantId)}">${initials(name)}</span>`
     : '';
-  const meta = `<span class="meta">${isSelf ? '' : `<span class="meta-name">${escapeHtml(name)}</span>`}<time>${escapeHtml(message.time)}</time></span>`;
+  const whatsapp = theme.composer === 'whatsapp';
+  const receipt = whatsapp && isSelf ? '<svg class="read-receipt" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-label="Read"><path d="m3 12 4 4 10-10M12 16l9-9"/></svg>' : '';
+  const metadata = `<time>${escapeHtml(message.time)}</time>${receipt}`;
+  const meta = `<span class="meta">${!isSelf && (!whatsapp || isGroup) ? `<span class="meta-name">${escapeHtml(name)}</span>` : ''}${metadata}</span>`;
   const rowTime = theme.inlineTime ? '' : `<span class="row-time">${escapeHtml(message.time ?? '')}</span>`;
 
   if (message.type === 'image') {
@@ -192,13 +195,17 @@ function renderMessage(message, context) {
     const inner = uri
       ? `<img class="bubble-image" src="${escapeHtml(uri)}" alt="${escapeHtml(message.text || '图片消息')}" />`
       : `<div class="image-placeholder">[图片]${message.text ? ` ${escapeHtml(message.text)}` : ''}</div>`;
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${theme.inlineTime ? meta : ''}${inner}${caption}</div>${isSelf && avatar ? avatar : ''}</div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${!whatsapp && theme.inlineTime ? meta : ''}${inner}${caption}${whatsapp && theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
   if (message.type === 'location') {
     return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble"><span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
+  if (whatsapp && message.type === 'text') {
+    const footer = message.time || isSelf ? `<span class="meta-space" aria-hidden="true">${metadata}</span><span class="meta">${metadata}</span>` : '';
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble bubble-whatsapp-text">${!isSelf && isGroup ? `<span class="sender-name">${escapeHtml(name)}</span>` : ''}<span class="bubble-text">${escapeHtml(message.text)}</span>${footer}</div>${isSelf && avatar ? avatar : ''}</div>`;
+  }
   return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble${theme.bubbleTail ? ' bubble-tail' : ''}"><span class="bubble-text">${escapeHtml(message.text)}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
 }
 
@@ -401,6 +408,11 @@ export function renderSceneHtml(scene, options = {}) {
   .row-self .meta { justify-content: flex-end; }
   .meta-name { font-weight: 600; opacity: 0.9; }
   .meta time { opacity: 0.85; }
+  .bubble-whatsapp-text { display:block; padding-bottom:5px; }
+  .bubble-whatsapp-text .meta { position:absolute; right:8px; bottom:4px; white-space:nowrap; line-height:16px; }
+  .meta-space { display:inline-flex; align-items:center; gap:6px; padding-left:8px; font-size:10px; line-height:16px; height:16px; white-space:nowrap; visibility:hidden; }
+  .read-receipt { color:#219bfa; }
+  .sender-name { display:block; font-size:11px; color:${theme.metaFg}; margin-bottom:2px; }
   .row-time { flex: 0 0 auto; align-self: center; font-size: 10px; color: ${theme.metaFg}; opacity: 0.85; }
   .bubble-image-wrap { padding: 5px; gap: 5px; }
   .bubble-image { display: block; width: 100%; max-width: 220px; height: auto; border-radius: 6px; background: rgba(0,0,0,0.05); }

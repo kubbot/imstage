@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const compiled = new URL('../../.local/mcp-renderer/studio.mjs', import.meta.url);
 const styleFile = new URL('../../apps/web/src/studio/studio.css', import.meta.url);
 let runtime;
-export const STUDIO_RENDERER_VERSION = 'studio-20261002-device-clip-v8';
+export const STUDIO_RENDERER_VERSION = 'studio-20261002-policy-20261004-whatsapp-meta-v9';
 
 /** Shared Web component; generated markup contains no user executable code. */
 export async function renderStudioHtml(scene, { width, height, outputKind }) {

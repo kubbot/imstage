@@ -194,7 +194,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
           rendered by default in previews *and* every PNG export (standard,
           long, scrolled/cropped and MCP); only the user's own
           `watermarkEnabled: false` on the scene turns it off. */}
-      {watermarkOn ? <div className={DISCLOSURE_CLASS} {...{[DISCLOSURE_ATTRIBUTE]: 'true'}} role="note" style={{...DISCLOSURE_STYLE} as CSSProperties} aria-label={locale === 'en' ? 'AI-generated fictional content' : 'AI 生成的虚构内容'}>{DISCLOSURE_TEXT}</div> : null}
+      {watermarkOn ? <div className={DISCLOSURE_CLASS} {...{[DISCLOSURE_ATTRIBUTE]: 'true'}} role="note" aria-label={locale === 'en' ? 'AI-generated fictional content' : 'AI 生成的虚构内容'} {...elementProps(locale === 'en' ? 'Edit watermark' : '编辑水印')} style={{...DISCLOSURE_STYLE, pointerEvents: onSelectElement && !exportMode ? 'auto' : 'none'} as CSSProperties}>{DISCLOSURE_TEXT}</div> : null}
 
       {custom ? (
         <div className="scene-header scene-header-custom">
@@ -225,6 +225,10 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
           if (hidden && !dateLabel) return null;
           const participant = participantMap.get(message.participantId);
           const isSelf = message.type !== 'system' && message.participantId === scene.selfId;
+          const whatsappText = scene.platform === 'whatsapp' && !custom && message.type === 'text';
+          const hasMetadata = Boolean(message.time || isSelf);
+          const receipt = isSelf ? <IconChecks size={16} stroke={1.7} aria-label={locale === 'en' ? 'Read' : '已读'}/> : null;
+          const metadata = <><span>{message.time}</span>{receipt}</>;
           const rowClass = [
             'scene-row',
             isSelf ? 'is-self' : 'is-other',
@@ -244,8 +248,8 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
                   {message.quote && <div className="scene-quote">{message.quote}</div>}
-                  <MessageBody message={message} pending={pendingAssets} locale={locale} />
-                  {template.inlineTime && message.type !== 'system' && <div className="scene-message-meta"><span>{message.time}</span>{isSelf && <IconChecks size={16} stroke={1.7} aria-label={locale === 'en' ? 'Read' : '已读'}/>}</div>}
+                  {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} />}
+                  {!whatsappText && template.inlineTime && message.type !== 'system' && <div className="scene-message-meta">{metadata}</div>}
                 </Bubble>
                 {isSelf && showAvatar(true) ? avatar(participant) : null}
               </div>}

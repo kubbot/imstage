@@ -10,7 +10,7 @@ import { resolveTarget } from './targets.mjs';
  */
 
 import { assertDecodableImage } from './image-decode.mjs';
-import { validateScene } from '../../apps/web/src/studio/model.ts';
+import { validateScene, PLATFORMS, PLATFORM_LABELS } from '../../apps/web/src/studio/model.ts';
 import { AGENT_MAX_IMAGE_PROMPT_CHARS } from './config.mjs';
 import { isBoundedImageDataUrl } from './media.mjs';
 import { isAbortError } from './providers.mjs';
@@ -22,6 +22,7 @@ import {
 } from './scene-context.mjs';
 
 export const TOOL_NAMES = Object.freeze([
+  'select_template',
   'update_element',
   'create_scene',
   'upsert_message',
@@ -37,6 +38,7 @@ export const TOOL_NAMES = Object.freeze([
 export const INTERNAL_REFERENCE_TOOL_NAMES = Object.freeze(['extract_image']);
 
 export const RUNNING_DETAILS = Object.freeze({
+  select_template: '正在选择聊天模板…',
   update_element: '正在调整元素…',
   create_scene: '正在重建场景…',
   upsert_message: '正在更新消息…',
@@ -46,6 +48,11 @@ export const RUNNING_DETAILS = Object.freeze({
 });
 
 export const AGENT_TOOL_SCHEMAS = Object.freeze([
+  { type: 'function', function: {
+    name: 'select_template',
+    description: '选择聊天平台模板。当前用户明确要求用 WhatsApp、微信等平台时，首次创作也必须先调用本工具，再 create_scene；未指定平台则保留当前设置。只切换皮肤并清除遮盖皮肤的自定义 layout，保留内容、素材、设备和用户水印偏好。局部消息/人物编辑不可调用。',
+    parameters: { type: 'object', properties: { platform: { type: 'string', enum: [...PLATFORMS] } }, required: ['platform'], additionalProperties: false },
+  } },
   {type:'function', function:{name:'update_element',description:'调整场景设置或参与者。targetId 为 @scene 或 @participant:参与者id。patch 是要修改的字段，禁止提供图片数据。场景支持 surface,deviceProfileId,background,appearance,headerText,composerText,battery,title,date,referenceDate,deviceTime,platform,layout；参与者支持name,subtitle。watermarkEnabled/watermark 是用户偏好，不能通过任何工具修改。',parameters:{type:'object',properties:{targetId:{type:'string'},patch:{type:'object'}},required:['targetId','patch'],additionalProperties:false}}},
   {
     type: 'function',
@@ -59,7 +66,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
           scene: {
             type: 'object',
             description:
-              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 会保留当前场景已选皮肤（不要改写；用户要求换肤时用 update_element 修改 platform），wechat/xiaohongshu/imessage/whatsapp/slack/instagram/imstage 均为合成内容风格预览，不含品牌 logo；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用 scene.platform 对应的聊天模板皮肤。',
+              '完整 Scene 对象，字段：id,title,platform,deviceTime,date,selfId,participants[],messages[],watermark。platform 会保留当前场景已选皮肤（不要改写；本次用户明确指定平台时先用 select_template 选择模板，再重建场景；兼容 update_element 修改 platform），wechat/xiaohongshu/imessage/whatsapp/slack/instagram/imstage 均为合成内容风格预览，不含品牌 logo；message.type 只能是 text/image/location/system/contact/voice/video/link/album，禁止任何支付/转账/红包/余额类消息。可选surface(ios/android/desktop),background(#RRGGBB),appearance(fontSize,color,background,radius,spacing),headerText,composerText,battery,referenceDate(故事参考日期YYYY-MM-DD)；消息可选date(YYYY-MM-DD发送日期),subtitle,quote,width,height,appearance,items[{id,kind:image|video,caption}]。可选 layout 自定义中性布局：{kind:"custom",name,avatarShape,showAvatars,headerBackground,incomingBackground,outgoingBackground,background,textColor,bubbleRadius,messageSpacing,headerHeight,maxBubbleWidth,fontFamily}，不传则使用 scene.platform 对应的聊天模板皮肤。',
           },
         },
         required: ['scene'],
@@ -370,13 +377,26 @@ export async function executeTool(name, args, context) {
     internalReferenceResearch: context.internalReferenceResearch === true,
   };
   switch (name) {
+    case 'select_template': {
+      if (!isPlainObject(args) || !PLATFORMS.includes(args.platform) || Object.keys(args).some(key => key !== 'platform')) return fail(ctx, '请选择有效的聊天平台模板');
+      if (ctx.targetId && ctx.targetId !== '@scene') return fail(ctx, '局部编辑不能切换整个场景模板');
+      if (ctx.scene.platform === args.platform && !ctx.scene.layout) return fail(ctx, '当前已经使用该模板，没有实际修改');
+      const candidate = { ...ctx.scene, platform: args.platform };
+      delete candidate.layout;
+      return buildCandidate(ctx, candidate, `已选择 ${PLATFORM_LABELS[args.platform]} 模板`);
+    }
     case 'update_element': {
       const target = resolveTarget(ctx.scene,args.targetId);
       if (!target || target.kind === 'message' || !isPlainObject(args.patch)) return fail(ctx,'元素或 patch 无效');
       if (ctx.targetId && ctx.targetId !== args.targetId) return fail(ctx,'只能调整所选元素');
       const allowed = target.kind === 'scene' ? ['title','platform','deviceTime','date','referenceDate','surface','deviceProfileId','background','appearance','headerText','composerText','battery','layout'] : ['name','subtitle'];
       if (Object.keys(args.patch).some(k => !allowed.includes(k))) return fail(ctx,'patch 包含不允许的字段');
-      return buildCandidate(ctx,target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)},'元素已更新');
+      const candidate = target.kind === 'scene' ? {...ctx.scene,...args.patch} : {...ctx.scene,participants:ctx.scene.participants.map(p => p.id === target.id ? {...p,...args.patch} : p)};
+      if (target.kind === 'scene' && Object.hasOwn(args.patch, 'platform')) {
+        if (!PLATFORMS.includes(args.patch.platform)) return fail(ctx, '请选择有效的聊天平台模板');
+        delete candidate.layout;
+      }
+      return buildCandidate(ctx,candidate,'元素已更新');
     }
     case 'create_scene':
       return applyCreateScene(args, ctx);

@@ -881,7 +881,7 @@ const zh: AppCopy = {
     selectionPersonHint: '姓名、头像与人物资料', selectionFrameHint: '调整对话的内容与视觉细节', switchWhole: '切换为整个对话',
     inspectorTabs: '编辑方式', copyDialogLabel: '图片复制备选方式',
     loginHandoffFailed: '暂时无法保留登录前的输入，请先下载场景文件，并复制你的需求。',
-    toolLabels: { extract_image: '保留截图原图', update_element: '调整元素', read_text: '读取文字位置', inspect_region: '查看局部', set_edits: '修改编辑层', render_preview: '检查渲染', create_scene: '编排对话', upsert_message: '更新消息', delete_message: '移除消息', generate_image: '生成图片' },
+    toolLabels: { select_template: '选择聊天模板', extract_image: '保留截图原图', update_element: '调整元素', read_text: '读取文字位置', inspect_region: '查看局部', set_edits: '修改编辑层', render_preview: '检查渲染', create_scene: '编排对话', upsert_message: '更新消息', delete_message: '移除消息', generate_image: '生成图片' },
   },
   people: {
     help: '保存人物与头像，在每次创作时复用。应用到画面的是独立副本。',
@@ -1171,7 +1171,7 @@ const en: AppCopy = {
     selectionPersonHint: 'Name, avatar and profile', selectionFrameHint: 'Adjust the conversation content and visual detail', switchWhole: 'Switch to the whole conversation',
     inspectorTabs: 'Edit mode', copyDialogLabel: 'Image copy fallback',
     loginHandoffFailed: 'Your input could not be kept before sign-in. Download the scene file and copy your request first.',
-    toolLabels: { extract_image: 'Keep screenshot', update_element: 'Update element', read_text: 'Read text positions', inspect_region: 'Inspect region', set_edits: 'Update edit layers', render_preview: 'Check render', create_scene: 'Compose dialogue', upsert_message: 'Update message', delete_message: 'Remove message', generate_image: 'Create image' },
+    toolLabels: { select_template: 'Select chat template', extract_image: 'Keep screenshot', update_element: 'Update element', read_text: 'Read text positions', inspect_region: 'Inspect region', set_edits: 'Update edit layers', render_preview: 'Check render', create_scene: 'Compose dialogue', upsert_message: 'Update message', delete_message: 'Remove message', generate_image: 'Create image' },
   },
   people: {
     help: 'Save people and avatars to reuse them. Applying one copies it into the frame.',
