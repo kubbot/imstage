@@ -194,7 +194,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
           rendered by default in previews *and* every PNG export (standard,
           long, scrolled/cropped and MCP); only the user's own
           `watermarkEnabled: false` on the scene turns it off. */}
-      {watermarkOn ? <div className={DISCLOSURE_CLASS} {...{[DISCLOSURE_ATTRIBUTE]: 'true'}} role="note" style={{...DISCLOSURE_STYLE} as CSSProperties} aria-label={locale === 'en' ? 'AI-generated fictional content' : 'AI 生成的虚构内容'}>{DISCLOSURE_TEXT}</div> : null}
+      {watermarkOn ? <div className={DISCLOSURE_CLASS} {...{[DISCLOSURE_ATTRIBUTE]: 'true'}} role="note" aria-label={locale === 'en' ? 'AI-generated fictional content' : 'AI 生成的虚构内容'} {...elementProps(locale === 'en' ? 'Edit watermark' : '编辑水印')} style={{...DISCLOSURE_STYLE, pointerEvents: onSelectElement && !exportMode ? 'auto' : 'none'} as CSSProperties}>{DISCLOSURE_TEXT}</div> : null}
 
       {custom ? (
         <div className="scene-header scene-header-custom">
