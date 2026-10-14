@@ -21,9 +21,11 @@ No backend, provider, schema, licensing or billing change. Session persistence, 
 - Core tests: 634 passed, zero failures, with two test processes to control local resource use.
 - An initial 118-case browser run produced 116 passes and two failures in the new regressions. One exposed movement from the scroll-reveal transform; recorded before/after transforms changed while scroll position and element height remained identical. The second exposed an unavailable local OCR binary, so export verification now compares the actual decoded PNG pixels before/after the reply edit, validates disclosure pixels and checks the exact text in both preview and the continued workspace.
 - The final relevant browser rerun passed all 118 cases with one worker, including the three new design regressions and mobile keyboard navigation. It covers homepage/editing/export, responsive layouts, accessibility, account, preferences, project defaults, templates and connections.
-- Independent review, current-head CI, merge and production readback are pending.
+- Independent review approved `00e1739` after the two P2 fixes; the affected homepage and project suite passed 35/35. Current-head CI, merge and production readback remain pending.
 
 Independent review found two P2 regressions: the featured sample rebuilt its default scene while its continuation action used the edited scene, and a viewport-wide seven-column rule also squeezed platform cards in the half-width project detail panel. Both were reproduced with failing browser checks, then fixed by sharing the current Scene and restricting the seven-column layout to the full-width creation form. Added assertions cover the actual continuation and detail card widths.
+
+The final visual inspection also exposed an existing project-type radio rule that inherited full-width form input sizing and squeezed the titles. The existing platform radio treatment now also applies to type cards. A failing width regression was reproduced before the fix; the isolated browser then confirmed 18px controls and readable titles.
 
 ## Deployment limitation observed before this change
 

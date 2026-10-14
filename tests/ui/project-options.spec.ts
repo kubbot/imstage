@@ -57,6 +57,9 @@ test('project creation shows every template card with real previews and a live w
     }))).toBe(true);
   };
   await assertLabelsFit();
+  expect(await page.locator('.project-type-card input[type=radio]').evaluateAll(radios =>
+    radios.every(radio => radio.getBoundingClientRect().width <= 20),
+  ), 'type radios leave room for readable labels').toBe(true);
 
   // Real previews: each card renders its own platform chrome.
   await expect(page.locator('.project-template-card .scene-view[data-platform="wechat"]')).toHaveCount(1);
