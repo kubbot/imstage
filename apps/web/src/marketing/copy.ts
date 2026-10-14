@@ -24,7 +24,7 @@ export interface SiteCopy {
 export const SITE_COPY: Record<Locale, SiteCopy> = {
   zh: {
     skip: '跳到主要内容',
-    nav: { main: '主导航', home: 'IMStage 首页', projects: '项目', templates: '模板', docs: '使用与接入', openSource: 'GitHub 开源仓库', login: '登录', account: '账号', workspace: '我的作品', start: '开始创作' },
+    nav: { main: '主导航', home: 'IMStage 首页', projects: '项目', templates: '模板', docs: '使用与接入', openSource: 'GitHub 源码仓库', login: '登录', account: '账号', workspace: '我的作品', start: '开始创作' },
     theme: { group: '外观主题', light: '浅色', dark: '深色', system: '跟随系统' },
     locale: { group: '界面语言', zh: '中文', en: 'EN' },
     menu: { open: '打开导航', close: '关闭导航' },
