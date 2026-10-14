@@ -9,7 +9,7 @@ Design work began 2026-10-14. Implementation and verification continue on 2026-1
 - A fixed featured sample sits above eight stable scenario choices. Selecting a sample no longer moves the chosen control into another row. Scroll reveals fade without translating the interactive sections.
 - One adaptive semantic palette, typography, materials, borders and focus rules cover the website, AI creation workspace, manual editor, projects, platform choices, template library, saved works, account, preferences, connections and docs. Output chat skins remain independent of these outer UI rules.
 - Mobile navigation opens to its links; Escape closes it and restores focus. Login decoration uses the real synthetic renderer and follows Chinese/English. Consent and legal text are preserved.
-- Account/project/connection views load by route using [React lazy/Suspense](https://react.dev/reference/react/lazy). The measured main JS chunk changed from 546.61 kB (174.31 kB gzip) before this loading adjustment to 441.57 kB (144.49 kB gzip), including the route-load recovery UI. These are build sizes, not measured LCP/INP or real-device speed claims.
+- Account/project/connection views load by route using [React lazy/Suspense](https://react.dev/reference/react/lazy). The measured main JS chunk changed from 546.61 kB (174.31 kB gzip) before this loading adjustment to 441.63 kB (144.51 kB gzip), including the route-load recovery UI. These are build sizes, not measured LCP/INP or real-device speed claims.
 
 ## Product contracts
 
@@ -21,7 +21,7 @@ No backend, provider, schema, licensing or billing change. Session persistence, 
 - Core tests: 634 passed, zero failures, with two test processes to control local resource use.
 - An initial 118-case browser run produced 116 passes and two failures in the new regressions. One exposed movement from the scroll-reveal transform; recorded before/after transforms changed while scroll position and element height remained identical. The second exposed an unavailable local OCR binary, so export verification now compares the actual decoded PNG pixels before/after the reply edit, validates disclosure pixels and checks the exact text in both preview and the continued workspace.
 - The final relevant browser rerun passed all 118 cases with one worker, including the three new design regressions and mobile keyboard navigation. It covers homepage/editing/export, responsive layouts, accessibility, account, preferences, project defaults, templates and connections.
-- Independent review approved `00e1739` after the two P2 fixes; the affected homepage and project suite passed 35/35. Current-head CI, merge and production readback remain pending.
+- Independent review approved `a2bbbb6` with no unresolved P0/P1/P2. After the review fixes, the affected homepage/project suite passed 35/35, followed by 12/12 project cases after the radio fix. Current-head CI and merge state are linked in [PR #16](https://github.com/kubbot/imstage/pull/16); production readback is recorded with the release receipt.
 
 Independent review found two P2 regressions: the featured sample rebuilt its default scene while its continuation action used the edited scene, and a viewport-wide seven-column rule also squeezed platform cards in the half-width project detail panel. Both were reproduced with failing browser checks, then fixed by sharing the current Scene and restricting the seven-column layout to the full-width creation form. Added assertions cover the actual continuation and detail card widths.
 
