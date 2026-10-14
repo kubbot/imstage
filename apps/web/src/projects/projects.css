@@ -88,9 +88,9 @@
 .project-template-head { display: flex; align-items: center; gap: 7px; font-size: 12px; line-height: 1.25; }
 /* The radio *is* the selected check: a real, visible, keyboard-focusable
    control (appearance-none keeps the circular check styling here). */
-.project-template-card .project-template-radio { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 18px; height: 18px; padding:0; margin: 0; border: 1px solid var(--line, #c9c6c0); border-radius: 50%; background: var(--surface, #fff); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.project-template-card.is-selected .project-template-radio { background: var(--accent, #ff7a45); border-color: var(--accent, #ff7a45); }
-.project-template-card.is-selected .project-template-radio::after { content: '\2713'; color: #fff; font-size: 11px; line-height: 1; }
+:is(.project-template-card, .project-type-card) .project-template-radio { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 18px; height: 18px; padding:0; margin: 0; border: 1px solid var(--line, #c9c6c0); border-radius: 50%; background: var(--surface, #fff); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+:is(.project-template-card, .project-type-card).is-selected .project-template-radio { background: var(--accent, #ff7a45); border-color: var(--accent, #ff7a45); }
+:is(.project-template-card, .project-type-card).is-selected .project-template-radio::after { content: '\2713'; color: #fff; font-size: 11px; line-height: 1; }
 /* Keep miniature template text readable without changing exported skins. */
 .project-template-preview .scene-view[data-platform='imessage'] .scene-row.is-self .scene-bubble { background: #0073e6; }
 .project-template-preview .scene-view[data-platform='whatsapp'] .scene-message-meta { color: #596f60; }

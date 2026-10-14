@@ -81,6 +81,10 @@ function Reveal({ id, className, children }: { id?: string; className?: string; 
 /** Scenario thumbnails use the real renderer and the same loaded assets. */
 function ScenarioPreview({ kind, locale, avatars, photo }: { kind: SceneKind; locale: Locale; avatars: DemoAvatars | null; photo: string | undefined }) {
   const scene = useMemo(() => buildScene(kind, locale, avatars, photo), [kind, locale, avatars, photo]);
+  return <ScenePreview scene={scene} locale={locale} />;
+}
+
+function ScenePreview({ scene, locale }: { scene: Scene; locale: Locale }) {
   return (
     <div className="mark-crop" aria-hidden="true">
       <ScaledSceneFrame size={DEMO_DEVICE}>
@@ -372,6 +376,10 @@ export default function MarketingSite() {
     return result;
   }, [locale, avatars]);
   const exportDisabled = exporting || !exportReady;
+  // A dedicated busy flag: only an actual export capture or handoff staging
+  // locks editing. Asset loading must never block the visitor from trying.
+  const busy = exporting || staging;
+  const activeScenario = SCENARIOS.find((scenario) => scenario.kind === kind) ?? SCENARIOS[0];
   const resolution =
     preview.status === 'ready'
       ? `${preview.width} × ${preview.height}`
@@ -384,6 +392,7 @@ export default function MarketingSite() {
         onContinue={(event, source) => stageHandoff(event, source, 'evaluation')}
         onPhoto={() => setPhotoOpen(true)} onExport={() => void exportStory()}
         exportDisabled={exporting || !storyExportReady} photoReady={photoReady}
+        editLocked={busy}
         composer={<>
           <form className="mark-hero-composer" onSubmit={submitStory}>
             <label htmlFor="mark-instruction">{copy.promptLabel}</label>
@@ -393,7 +402,7 @@ export default function MarketingSite() {
               onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) submitStory(event); }} />
             <div className="journey-composer-bottom">
               <small>{copy.previewNote}</small>
-              <button className="mark-btn" type="submit" data-testid="hero-start" disabled={staging || exporting}>
+              <button className="mark-btn" type="submit" data-testid="hero-start" disabled={busy}>
                 {copy.primary}<IconArrowUpRight size={17} aria-hidden="true" />
               </button>
             </div>
@@ -414,6 +423,24 @@ export default function MarketingSite() {
             <h2 className="mark-h2">{copy.scenariosTitle}</h2>
             <p className="mark-lede">{copy.scenariosLede}</p>
           </div>
+          <div className="mark-feature">
+            <div className="mark-feature-art">
+              <ScenePreview scene={scene} locale={locale} />
+            </div>
+            <div className="mark-feature-copy">
+              <span className="mark-scenario-state">{copy.scenarioActive}</span>
+              <h3 className="mark-feature-name">{activeScenario.label[locale]}</h3>
+              <p className="mark-feature-caption">{activeScenario.caption[locale]}</p>
+              <a
+                className="mark-feature-use"
+                href={createHandoffHref(locale, kind)}
+                onClick={(event) => stageHandoff(event, scene, kind)}
+              >
+                {copy.scenarioUse}
+                <IconArrowUpRight size={15} aria-hidden="true" />
+              </a>
+            </div>
+          </div>
           <div className="mark-scenarios">
             {[...SCENARIOS].sort((a,b) => ['product','support','onboarding','event','wukang','coffee','weekend','evaluation'].indexOf(a.kind) - ['product','support','onboarding','event','wukang','coffee','weekend','evaluation'].indexOf(b.kind)).map((scenario) => {
               const active = scenario.kind === kind;
@@ -423,13 +450,13 @@ export default function MarketingSite() {
                     type="button"
                     className="mark-scenario-select"
                     aria-pressed={active}
-                    disabled={exporting}
+                    disabled={busy}
                     onClick={() => setKind(scenario.kind)}
                   >
                     <ScenarioPreview kind={scenario.kind} locale={locale} avatars={avatars} photo={storyPhoto} />
                     <span className="mark-scenario-name">{scenario.label[locale]}</span>
                     <span className="mark-scenario-caption">{scenario.caption[locale]}</span>
-                    <span className="mark-scenario-state">{active ? copy.scenarioActive : copy.scenarioUse}</span>
+                    <span className="mark-scenario-state">{active ? copy.scenarioActive : ''}</span>
                   </button>
                   <a
                     className="mark-scenario-use"
@@ -463,7 +490,7 @@ export default function MarketingSite() {
                 <input
                   value={participantName(scene, otherId)}
                   maxLength={24}
-                  disabled={exporting}
+                  disabled={busy}
                   placeholder={copy.personPlaceholder}
                   onChange={(event) => setScene((current) => setParticipantName(current, otherId, event.target.value))}
                 />
@@ -473,7 +500,7 @@ export default function MarketingSite() {
                 <input
                   value={messageText(scene, COMMENTARY_LINE_ID)}
                   maxLength={120}
-                  disabled={exporting}
+                  disabled={busy}
                   placeholder={copy.linePlaceholder}
                   onChange={(event) => setScene((current) => setMessageText(current, COMMENTARY_LINE_ID, event.target.value))}
                 />
@@ -483,7 +510,7 @@ export default function MarketingSite() {
                 <input
                   value={clock}
                   maxLength={8}
-                  disabled={exporting}
+                  disabled={busy}
                   placeholder={copy.clockPlaceholder}
                   onChange={(event) => setScene((current) => ({ ...current, deviceTime: event.target.value }))}
                 />
@@ -495,7 +522,7 @@ export default function MarketingSite() {
                 <IconDownload size={16} stroke={1.7} aria-hidden="true" />
                 {exporting ? copy.exporting : copy.exportAction}
               </button>
-              <button type="button" className="mark-btn mark-btn-band-ghost" onClick={resetScene} disabled={exporting}>
+              <button type="button" className="mark-btn mark-btn-band-ghost" onClick={resetScene} disabled={busy}>
                 <IconRefresh size={15} stroke={1.7} aria-hidden="true" />
                 {copy.reset}
               </button>
@@ -550,7 +577,6 @@ export default function MarketingSite() {
       <Reveal id="mark-faq">
         <div className="mark-shell mark-faq">
           <div>
-            <p className="mark-label">{copy.faqLabel}</p>
             <h2 className="mark-h2">{copy.faqTitle}</h2>
           </div>
           <div className="mark-faq-list">

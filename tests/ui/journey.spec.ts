@@ -16,8 +16,10 @@ test('scroll chapters expose real editing and controlled variants without an AI 
   await expect(page.locator('.mark-story-controls')).toHaveCount(0);
 
   // The actual hero headline is the evaluation/test positioning.
-  await expect(page.locator('.journey-intro h1')).toContainText('合成对话');
-  await expect(page.locator('.journey-intro h1')).toContainText('用于测试与评测');
+  await expect(page.locator('.journey-intro h1')).toContainText('把一句话，');
+  await expect(page.locator('.journey-intro h1 em')).toContainText('放进场景里。');
+  await expect(page.locator('.journey-position')).toContainText('合成对话');
+  await expect(page.locator('.journey-position')).toContainText('用于测试与评测');
 
   // The mandatory disclosure band is rendered inside the hero frame viewport.
   const device = page.locator('.journey-device');

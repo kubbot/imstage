@@ -10,25 +10,29 @@ import '@fontsource/syne/latin-700.css';
 import '@fontsource/ibm-plex-mono/latin-400.css';
 import './styles.css';
 import './account/account.css';
+import './atelier.css';
 import { canNavigate } from './account/navigation';
 import { useAuth } from './account/Auth';
 import { loginLink, safeNext } from './account/api';
-import AuthPage from './account/AuthPage';
-import Workspace from './account/Workspace';
-import AccountPage from './account/AccountPage';
-import ConnectionsPage from './connections/ConnectionsPage';
 import AccountEditor, { AccountSave } from './account/AccountEditor';
-import ProjectsPage from './projects/ProjectsPage';
-import TemplatesPage from './templates/TemplatesPage';
 import { LocaleProvider, useLocale } from './marketing/LocaleContext';
 import { useCopy } from './i18n';
 import { LocaleToggle } from './marketing/Controls';
 import { SITE_COPY } from './marketing/copy';
 import { createHandoffHref } from './marketing/locale';
+import RouteBoundary from './RouteBoundary';
 
 const AgentStudio = lazy(() => import('./agent/AgentWorkspace'));
 const Studio = lazy(() => import('./studio/Studio'));
 const Onboarding = lazy(() => import('./preferences/Onboarding'));
+// Load the operational views when their routes are opened, keeping their
+// forms, project logic and connection setup out of the landing bundle.
+const AuthPage = lazy(() => import('./account/AuthPage'));
+const Workspace = lazy(() => import('./account/Workspace'));
+const AccountPage = lazy(() => import('./account/AccountPage'));
+const ConnectionsPage = lazy(() => import('./connections/ConnectionsPage'));
+const ProjectsPage = lazy(() => import('./projects/ProjectsPage'));
+const TemplatesPage = lazy(() => import('./templates/TemplatesPage'));
 
 type Theme = 'system' | 'light' | 'dark';
 type Route = { page: string; template?: TemplateId; sceneId?: string; project?: string; caseId?: string; request?: string; from?: string; fresh: boolean; next: string };
@@ -49,11 +53,34 @@ function ThemePicker({ theme, setTheme, labels }: { theme: Theme; setTheme: (t: 
 }
 function Header({ route, theme, setTheme }: { route: Route; theme: Theme; setTheme: (t: Theme) => void }) {
   const [menu, setMenu] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const navigation = useRef<HTMLElement>(null);
   const { locale } = useLocale();
   const site = SITE_COPY[locale];
   const { user, loading } = useAuth();
   useEffect(() => setMenu(false), [route.page]);
-  return <header className="site-header"><div className="nav-wrap"><Brand label={site.nav.home} /><nav id="site-nav" className={menu ? 'main-nav open' : 'main-nav'} aria-label={site.nav.main}><div className="main-nav-links">{route.page !== '/' && <><a href="#/projects" aria-current={route.page === '/projects' ? 'page' : undefined}>{site.nav.projects}</a><a href="#/templates" aria-current={route.page === '/templates' ? 'page' : undefined}>{site.nav.templates}</a><a href="#/docs" aria-current={route.page === '/docs' ? 'page' : undefined}>{site.nav.docs}</a></>}<a className="nav-github" href={github} target="_blank" rel="noreferrer" aria-label={site.nav.openSource} title={site.nav.openSource}><IconBrandGithub size={24} aria-hidden="true" /></a></div><div className="main-nav-controls"><LocaleToggle /><ThemePicker theme={theme} setTheme={setTheme} labels={site.theme} /></div></nav><div className="nav-actions">{user ? <a href="#/workspace" className="nav-account" aria-label={site.nav.workspace}><span className="nav-account-avatar">{user.name.slice(0, 1)}</span><span className="nav-account-label">{site.nav.workspace}</span></a> : <a className="nav-login" href={loginLink()}>{loading ? site.nav.account : site.nav.login}</a>}<LinkButton href={createHandoffHref(locale)} className="nav-cta">{site.nav.start} <IconArrowUpRight size={16} /></LinkButton><button className="icon-btn menu-toggle" aria-label={menu ? site.menu.close : site.menu.open} aria-expanded={menu} aria-controls="site-nav" onClick={() => setMenu(!menu)}>{menu ? <IconX /> : <IconMenu2 />}</button></div></div></header>;
+  useEffect(() => {
+    if (!menu) return;
+    const frame = requestAnimationFrame(() => navigation.current?.querySelector<HTMLAnchorElement>('a')?.focus());
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMenu(false);
+      menuButton.current?.focus();
+    };
+    const outside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || navigation.current?.contains(event.target) || menuButton.current?.contains(event.target)) return;
+      setMenu(false);
+    };
+    document.addEventListener('keydown', escape);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', escape);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [menu]);
+  return <header className="site-header"><div className="nav-wrap"><Brand label={site.nav.home} /><nav ref={navigation} id="site-nav" className={menu ? 'main-nav open' : 'main-nav'} aria-label={site.nav.main}><div className="main-nav-links">{route.page !== '/' && <><a href="#/projects" aria-current={route.page === '/projects' ? 'page' : undefined}>{site.nav.projects}</a><a href="#/templates" aria-current={route.page === '/templates' ? 'page' : undefined}>{site.nav.templates}</a><a href="#/docs" aria-current={route.page === '/docs' ? 'page' : undefined}>{site.nav.docs}</a></>}<a className="nav-github" href={github} target="_blank" rel="noreferrer" aria-label={site.nav.openSource} title={site.nav.openSource}><IconBrandGithub size={24} aria-hidden="true" /></a></div><div className="main-nav-controls"><LocaleToggle /><ThemePicker theme={theme} setTheme={setTheme} labels={site.theme} /></div></nav><div className="nav-actions">{user ? <a href="#/workspace" className="nav-account" aria-label={site.nav.workspace}><span className="nav-account-avatar">{user.name.slice(0, 1)}</span><span className="nav-account-label">{site.nav.workspace}</span></a> : <a className="nav-login" href={loginLink()}>{loading ? site.nav.account : site.nav.login}</a>}<LinkButton href={createHandoffHref(locale)} className="nav-cta">{site.nav.start} <IconArrowUpRight size={16} /></LinkButton><button ref={menuButton} className="icon-btn menu-toggle" aria-label={menu ? site.menu.close : site.menu.open} aria-expanded={menu} aria-controls="site-nav" onClick={() => setMenu(!menu)}>{menu ? <IconX /> : <IconMenu2 />}</button></div></div></header>;
 }
 function Footer({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
   const { locale } = useLocale();
@@ -88,12 +115,12 @@ function AppShell() {
   }, [route.page, site]);
   const updateTheme = (t: Theme) => { setTheme(t); try { localStorage.setItem('imstage-theme', t); setThemeError(false); } catch { setThemeError(true); } };
   const valid = ['/', '/create', '/studio', '/templates', '/docs', '/terms', '/privacy', '/login', '/register', '/workspace', '/account', '/projects', '/welcome', '/connect', '/connect/authorize'].includes(route.page);
-  return <><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); mainRef.current?.focus(); }}>{site.skip}</a><Header route={route} theme={theme} setTheme={updateTheme} />{themeError && <div className="theme-notice" role="status">{site.storageNotice}</div>}<main id="main-content" tabIndex={-1} ref={mainRef} className={route.page === '/studio' || route.page === '/workspace' ? 'studio-main' : ''}>
+  return <><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); mainRef.current?.focus(); }}>{site.skip}</a><Header route={route} theme={theme} setTheme={updateTheme} />{themeError && <div className="theme-notice" role="status">{site.storageNotice}</div>}<main id="main-content" tabIndex={-1} ref={mainRef} className={route.page === '/studio' || route.page === '/workspace' ? 'studio-main' : ''}><RouteBoundary key={route.page} locale={locale}><Suspense fallback={<p className="page-loading" role="status">{site.loading}</p>}>
     {['/login', '/register'].includes(route.page) && <AuthPage key={route.page} mode={route.page === '/register' ? 'register' : 'login'} next={route.next} />}
     {['/workspace', '/account', '/projects'].includes(route.page) && <AccountRoute route={route} />}
     {route.page === '/welcome' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : user ? <Suspense fallback={<p className="page-loading" role="status">{site.loading}</p>}><Onboarding key={user.id} next={route.next} settings={route.from === 'settings'} /></Suspense> : <section className="account-gate"><h1>{copy.account.gateTitle}</h1><p>{copy.account.gateBody}</p><a className="text-link" href={loginLink('/welcome')}>{copy.account.toLogin}</a></section>)}
     {route.page.startsWith('/connect') && <ConnectionsPage key={`${user?.id || 'guest'}:${route.page}:${route.request || ''}`} requestId={route.page === '/connect/authorize' ? route.request : undefined} consent={route.page === '/connect/authorize'} />}{route.page === '/' && <Home />}{route.page === '/create' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : <Suspense fallback={<p className="page-loading">{site.loading}</p>}><AgentStudio key={`${user?.id || 'guest'}:${route.caseId || 'draft'}:${route.project || ''}:${route.fresh ? 'new' : 'resume'}`} accountAction={(scene, locked, projectId, sessionId) => <AccountSave autosave localSessionId={sessionId} projectId={projectId} key={user?.id || 'guest'} scene={scene} disabled={locked} />} /></Suspense>)}{route.page === '/templates' && (authLoading ? <p className="page-loading" role="status">{site.loading}</p> : user ? <AccountRoute route={route} /> : <Templates />)}{route.page === '/docs' && <Docs />}{route.page === '/terms' && <Terms />}{route.page === '/privacy' && <Privacy />}{route.page === '/studio' && <Suspense fallback={<div className="page-loading" role="status"><Mark />{site.loading}</div>}><Studio key={route.template || 'default'} initialTemplate={route.template} accountAction={scene => <AccountSave autosave key={user?.id || 'guest'} scene={scene} />} /></Suspense>}{!valid && <div className="not-found section-shell"><h1>{site.notFound.title}</h1><p>{site.notFound.body}</p><LinkButton href="#/">{site.notFound.back}</LinkButton></div>}
-  </main>{!['/studio', '/create', '/workspace', '/account', '/projects', '/login', '/register', '/welcome'].includes(route.page) && <Footer theme={theme} setTheme={updateTheme} />}</>;
+  </Suspense></RouteBoundary></main>{!['/studio', '/create', '/workspace', '/account', '/projects', '/login', '/register', '/welcome'].includes(route.page) && <Footer theme={theme} setTheme={updateTheme} />}</>;
 }
 export default function App() {
   return <LocaleProvider><AppShell /></LocaleProvider>;
