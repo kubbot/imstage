@@ -23,6 +23,8 @@ No backend, provider, schema, licensing or billing change. Session persistence, 
 - The final relevant browser rerun passed all 118 cases with one worker, including the three new design regressions and mobile keyboard navigation. It covers homepage/editing/export, responsive layouts, accessibility, account, preferences, project defaults, templates and connections.
 - Independent review, current-head CI, merge and production readback are pending.
 
+Independent review found two P2 regressions: the featured sample rebuilt its default scene while its continuation action used the edited scene, and a viewport-wide seven-column rule also squeezed platform cards in the half-width project detail panel. Both were reproduced with failing browser checks, then fixed by sharing the current Scene and restricting the seven-column layout to the full-width creation form. Added assertions cover the actual continuation and detail card widths.
+
 ## Deployment limitation observed before this change
 
 The existing production account API returned HTTP 421, and Agent capability reads failed. The configured upstream also presented a different SSH host identity and an HTTPS certificate that did not match the configured address. Host verification was not bypassed. A confirmed current upstream endpoint has been requested from the owner. Frontend preview and local acceptance can proceed; production account/AI acceptance requires this condition to be resolved or explicitly recorded as still unavailable.

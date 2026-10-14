@@ -67,3 +67,13 @@ test('choosing a scenario retains its button position and keyboard focus', async
   expect(Math.abs(after.height - before.height)).toBeLessThan(2);
   await expect(page.locator('.mark-feature-name')).toHaveText('周末看海');
 });
+
+test('the featured sample shows the same edited scene that its action continues', async ({ page }) => {
+  await page.goto('/?lang=en');
+  await expect(page.getByTestId('hero-export')).toBeEnabled();
+  const reply = 'The sample is confirmed for Friday.';
+  await page.getByLabel('Your line', { exact: true }).fill(reply);
+  await expect(page.locator('.mark-feature-art')).toContainText(reply);
+  await page.locator('.mark-feature-use').click();
+  await expect(page.locator('.agent-phone')).toContainText(reply);
+});

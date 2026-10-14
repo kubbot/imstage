@@ -128,6 +128,12 @@ test('created template + watermark defaults survive reload and reach new scenes 
   // Scoped to the settings form: the scenario panel reuses the same picker.
   const settings = page.locator('.project-form');
   await expect(settings.getByRole('radio', { name: 'WhatsApp' })).toBeChecked();
+  // A wide viewport can still contain a narrow settings panel. Keep the
+  // actual platform previews readable inside the two-column detail layout.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  expect(await settings.locator('.project-template-card').evaluateAll(cards =>
+    cards.every(card => card.getBoundingClientRect().width >= 140),
+  )).toBe(true);
   await expect(settings.locator('.project-template-card.is-selected .project-template-radio')).toHaveCSS('background-color', 'rgb(182, 58, 34)');
   await expect(settings.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true })).not.toBeChecked();
   await expect(page.getByText('已保存的作品保持自己的设置', { exact: false })).toBeVisible();

@@ -81,6 +81,10 @@ function Reveal({ id, className, children }: { id?: string; className?: string; 
 /** Scenario thumbnails use the real renderer and the same loaded assets. */
 function ScenarioPreview({ kind, locale, avatars, photo }: { kind: SceneKind; locale: Locale; avatars: DemoAvatars | null; photo: string | undefined }) {
   const scene = useMemo(() => buildScene(kind, locale, avatars, photo), [kind, locale, avatars, photo]);
+  return <ScenePreview scene={scene} locale={locale} />;
+}
+
+function ScenePreview({ scene, locale }: { scene: Scene; locale: Locale }) {
   return (
     <div className="mark-crop" aria-hidden="true">
       <ScaledSceneFrame size={DEMO_DEVICE}>
@@ -421,7 +425,7 @@ export default function MarketingSite() {
           </div>
           <div className="mark-feature">
             <div className="mark-feature-art">
-              <ScenarioPreview kind={kind} locale={locale} avatars={avatars} photo={storyPhoto} />
+              <ScenePreview scene={scene} locale={locale} />
             </div>
             <div className="mark-feature-copy">
               <span className="mark-scenario-state">{copy.scenarioActive}</span>
