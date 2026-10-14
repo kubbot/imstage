@@ -49,11 +49,34 @@ function ThemePicker({ theme, setTheme, labels }: { theme: Theme; setTheme: (t: 
 }
 function Header({ route, theme, setTheme }: { route: Route; theme: Theme; setTheme: (t: Theme) => void }) {
   const [menu, setMenu] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const navigation = useRef<HTMLElement>(null);
   const { locale } = useLocale();
   const site = SITE_COPY[locale];
   const { user, loading } = useAuth();
   useEffect(() => setMenu(false), [route.page]);
-  return <header className="site-header"><div className="nav-wrap"><Brand label={site.nav.home} /><nav id="site-nav" className={menu ? 'main-nav open' : 'main-nav'} aria-label={site.nav.main}><div className="main-nav-links">{route.page !== '/' && <><a href="#/projects" aria-current={route.page === '/projects' ? 'page' : undefined}>{site.nav.projects}</a><a href="#/templates" aria-current={route.page === '/templates' ? 'page' : undefined}>{site.nav.templates}</a><a href="#/docs" aria-current={route.page === '/docs' ? 'page' : undefined}>{site.nav.docs}</a></>}<a className="nav-github" href={github} target="_blank" rel="noreferrer" aria-label={site.nav.openSource} title={site.nav.openSource}><IconBrandGithub size={24} aria-hidden="true" /></a></div><div className="main-nav-controls"><LocaleToggle /><ThemePicker theme={theme} setTheme={setTheme} labels={site.theme} /></div></nav><div className="nav-actions">{user ? <a href="#/workspace" className="nav-account" aria-label={site.nav.workspace}><span className="nav-account-avatar">{user.name.slice(0, 1)}</span><span className="nav-account-label">{site.nav.workspace}</span></a> : <a className="nav-login" href={loginLink()}>{loading ? site.nav.account : site.nav.login}</a>}<LinkButton href={createHandoffHref(locale)} className="nav-cta">{site.nav.start} <IconArrowUpRight size={16} /></LinkButton><button className="icon-btn menu-toggle" aria-label={menu ? site.menu.close : site.menu.open} aria-expanded={menu} aria-controls="site-nav" onClick={() => setMenu(!menu)}>{menu ? <IconX /> : <IconMenu2 />}</button></div></div></header>;
+  useEffect(() => {
+    if (!menu) return;
+    const frame = requestAnimationFrame(() => navigation.current?.querySelector<HTMLAnchorElement>('a')?.focus());
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMenu(false);
+      menuButton.current?.focus();
+    };
+    const outside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || navigation.current?.contains(event.target) || menuButton.current?.contains(event.target)) return;
+      setMenu(false);
+    };
+    document.addEventListener('keydown', escape);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', escape);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [menu]);
+  return <header className="site-header"><div className="nav-wrap"><Brand label={site.nav.home} /><nav ref={navigation} id="site-nav" className={menu ? 'main-nav open' : 'main-nav'} aria-label={site.nav.main}><div className="main-nav-links">{route.page !== '/' && <><a href="#/projects" aria-current={route.page === '/projects' ? 'page' : undefined}>{site.nav.projects}</a><a href="#/templates" aria-current={route.page === '/templates' ? 'page' : undefined}>{site.nav.templates}</a><a href="#/docs" aria-current={route.page === '/docs' ? 'page' : undefined}>{site.nav.docs}</a></>}<a className="nav-github" href={github} target="_blank" rel="noreferrer" aria-label={site.nav.openSource} title={site.nav.openSource}><IconBrandGithub size={24} aria-hidden="true" /></a></div><div className="main-nav-controls"><LocaleToggle /><ThemePicker theme={theme} setTheme={setTheme} labels={site.theme} /></div></nav><div className="nav-actions">{user ? <a href="#/workspace" className="nav-account" aria-label={site.nav.workspace}><span className="nav-account-avatar">{user.name.slice(0, 1)}</span><span className="nav-account-label">{site.nav.workspace}</span></a> : <a className="nav-login" href={loginLink()}>{loading ? site.nav.account : site.nav.login}</a>}<LinkButton href={createHandoffHref(locale)} className="nav-cta">{site.nav.start} <IconArrowUpRight size={16} /></LinkButton><button ref={menuButton} className="icon-btn menu-toggle" aria-label={menu ? site.menu.close : site.menu.open} aria-expanded={menu} aria-controls="site-nav" onClick={() => setMenu(!menu)}>{menu ? <IconX /> : <IconMenu2 />}</button></div></div></header>;
 }
 function Footer({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
   const { locale } = useLocale();
