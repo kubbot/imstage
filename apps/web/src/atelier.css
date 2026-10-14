@@ -1,0 +1,275 @@
+/* Shared outer UI. Chat skins and export pixels belong to studio/SceneView;
+   none of the selectors below change the scene renderer. */
+:root {
+  --bg: #f6f4ef;
+  --surface: #fffefa;
+  --surface-2: #eeebe4;
+  --text: #262521;
+  --muted: #69665f;
+  --line: #dcd7cc;
+  --accent: #b63a22;
+  --accent-ink: #fff;
+  --soft: #f4e4da;
+  --canvas: #eeebe4;
+  --radius: 10px;
+  --shadow: 0 18px 60px -36px #36241644;
+  --success: #27653f;
+  --danger: #a42f21;
+  --ink-soft: var(--muted);
+}
+:root[data-theme=dark] {
+  --bg: #181917;
+  --surface: #20211e;
+  --surface-2: #282a25;
+  --text: #f0eee8;
+  --muted: #b2b2a6;
+  --line: #3e4038;
+  --accent: #ff9976;
+  --accent-ink: #291c16;
+  --soft: #342720;
+  --canvas: #21231f;
+  --shadow: 0 18px 60px -36px #0008;
+  --success: #99cfab;
+  --danger: #ffac91;
+}
+body .site-header { height: 76px; background: var(--bg); }
+body .nav-wrap { gap: 32px; }
+body .main-nav { gap: 24px; }
+body .main-nav-links { gap: 24px; }
+body .main-nav a { font-size: 13px; }
+body .btn { border-radius: 10px; box-shadow: none; transition: background-color 160ms, border-color 160ms, color 160ms; }
+body .btn:hover { transform: none; box-shadow: none; }
+body .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
+body .btn-secondary:hover { border-color: var(--muted); background: var(--surface-2); }
+body .btn:active { transform: translateY(1px); }
+body .nav-cta { min-height: 42px; }
+body .theme-picker, body .mark-toggle { background: var(--surface-2); border-color: var(--line); }
+body .theme-picker button, body .mark-toggle button { min-height: 32px; }
+body .footer-bottom .theme-picker { transform: none; }
+body .footer-bottom { flex-wrap: wrap; row-gap: 16px; }
+body .page-loading { min-height: 45dvh; padding: 48px 24px; font-size: 15px; }
+body .route-error { width: min(640px, calc(100% - 40px)); margin: 72px auto; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+body .route-error h1 { font-size: 28px; }
+body .route-error > div { display: flex; flex-wrap: wrap; gap: 12px; }
+body .page-intro { padding-top: 60px; }
+body .page-intro h1 { font-family: var(--display); font-size: clamp(38px, 4.6vw, 62px); line-height: 1.22; max-width: 880px; }
+body .page-intro > p { font-size: 15px; max-width: 620px; }
+body input::placeholder, body textarea::placeholder { color: var(--muted); opacity: 1; }
+body :is(input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Marketing keeps its product evidence visible. The small preview shelf is
+   stable; only the large specimen above it changes when a choice is made. */
+body .journey h1 { font-family: var(--display); font-weight: 600; }
+body .journey h2 { font-family: var(--display); }
+body .journey-position { font-family: inherit; letter-spacing: 0; font-size: 13px; }
+body .journey-note-label { font-size: 13px; }
+body .journey-note textarea { font-size: 16px; }
+body .journey-note small { font-size: 12px; }
+body .journey-note:focus-within { outline-color: var(--accent); }
+body .journey-note-continue { border-radius: 8px; }
+body .mark-section { padding-top: 88px; transition: opacity 240ms ease; }
+/* Fade the section into view without moving any of its live controls. */
+body .mark-section[data-reveal=pending] { transform: none; }
+body .mark-label { font-family: inherit; letter-spacing: 0; font-size: 13px; }
+body .mark-h2 { font-size: clamp(29px, 3.2vw, 44px); }
+body .mark-lede { font-size: 15px; }
+body .mark-feature { grid-template-columns: minmax(0, 250px) minmax(0, 1fr); background: var(--surface-2); border-color: var(--line); padding: 28px 36px; gap: 48px; }
+body .mark-feature-name { font-size: clamp(24px, 3vw, 38px); }
+body .mark-feature-caption { font-size: 16px; }
+body .mark-scenarios { gap: 32px 24px; }
+body .mark-scenario-select { padding: 0 0 14px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+body .mark-scenario.is-active .mark-scenario-select { background: transparent; border-color: var(--accent); }
+body .mark-scenario-select .mark-crop { height: 260px; aspect-ratio: auto; background: transparent; border-radius: 12px; }
+body .mark-scenario-name { font-size: 16px; }
+body .mark-scenario-caption { font-size: 13px; min-height: 48px; }
+body .mark-scenario-state { min-height: 20px; letter-spacing: 0; }
+body .mark-contrast { margin-top: 88px; padding-block: 72px; }
+body .mark-export-card { box-shadow: var(--shadow); border-radius: 16px; }
+body .mark-faq-list summary { min-height: 60px; font-size: 15px; }
+body .mark-faq-list details > p { font-size: 14px; }
+body .mark-cta { padding-block: 90px; }
+body .templates-page .template-card { border: 0; padding: 0; border-radius: 0; background: transparent; display: block; }
+body .templates-page .template-art { border-radius: 16px; }
+body .templates-page .template-word { font-size: 54px; font-weight: 600; }
+body .templates-page .template-caption h3 { font-size: 21px; }
+body .templates-page .template-card > p { font-size: 14px; }
+body .filter-tabs > button { min-height: 44px; font-size: 13px; }
+body .search-field { min-height: 46px; background: var(--surface); border-radius: 10px; }
+body .search-field input { font-size: 14px; }
+body .docs-content > h2 { font-family: var(--display); }
+body .docs-content :is(p, li) { font-size: 15px; line-height: 1.9; }
+body .docs-nav button { min-height: 46px; border-radius: 8px; }
+body .doc-callout { border-radius: 0 10px 10px 0; font-size: 14px; }
+
+/* The studio is a working surface: clear fixed controls, calm canvas, strong
+   selected state. Keep existing height/resize/crop contracts intact. */
+body .agent-workspace .agent-heading { background: var(--surface); }
+body .agent-workspace .agent-heading h1 { font-size: 16px; }
+body .agent-workspace .agent-chat { background: var(--surface); }
+body .agent-workspace .session-current { background: var(--bg); border-radius: 12px; }
+body .agent-workspace .session-toggle strong { font-size: 13px; }
+body .agent-workspace .session-toggle small { font-size: 11px; }
+body .agent-workspace .agent-chat > .editor-tabs { gap: 8px; }
+body .agent-workspace .editor-tabs button[aria-pressed=true] { background: var(--soft); color: var(--accent); box-shadow: none; }
+body .agent-workspace .creation-context summary { font-size: 13px; }
+body .agent-workspace .agent-drop-entry { border-radius: 12px; background: var(--bg); border-color: var(--line); }
+body .agent-workspace .agent-ideas { gap: 8px; }
+body .agent-workspace .agent-ideas button { background: var(--surface); border-radius: 10px; font-size: 13px; }
+body .agent-workspace .agent-ideas button:hover { background: var(--soft); border-color: var(--accent); }
+body .agent-workspace .agent-turn { line-height: 1.85; }
+body .agent-workspace .agent-turn.user > p { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px 12px 3px 12px; }
+body .agent-workspace .agent-chat .agent-composer { background: var(--bg); border-radius: 16px; box-shadow: 0 3px 12px #00000004; }
+body .agent-workspace .agent-chat .agent-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); }
+body .agent-workspace .agent-chat .agent-composer textarea { font-size: 15px; }
+body .agent-workspace .agent-capability { font-size: 12px; }
+body .agent-workspace .agent-input-dock > small { font-size: 11px; }
+body .agent-workspace .agent-render-toolbar { background: var(--surface); gap: 8px; }
+body .agent-workspace .agent-render-toolbar .canvas-platform { border-color: var(--line); background: var(--bg); min-height: 38px; }
+body .agent-workspace .agent-render-toolbar .canvas-platform:focus-within { border-color: var(--accent); }
+body .agent-workspace .agent-canvas { background-color: var(--canvas); background-image: none; }
+body .agent-workspace .agent-canvas-caption { font-size: 11px; }
+body .agent-workspace .agent-render-footer { background: var(--surface); }
+body .agent-workspace .agent-vibe { background: var(--surface); }
+body .agent-workspace .editor-selection { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+body .agent-workspace .property-inspector :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { border-radius: 8px; background: var(--bg); font-size: 13px; }
+body .agent-workspace .property-inspector label { font-size: 12px; }
+body .agent-workspace .element-item[aria-pressed=true] { border-color: var(--accent); background: var(--soft); }
+body .agent-workspace .element-item strong { font-size: 13px; }
+body .agent-workspace .element-item small { font-size: 11px; }
+body .agent-workspace .session-list-panel { border-radius: 14px; box-shadow: var(--shadow); }
+body .studio {
+  --studio-bg: var(--bg); --studio-surface: var(--surface);
+  --studio-text: var(--text); --studio-muted: var(--muted);
+  --studio-line: var(--line); --studio-accent: var(--accent);
+  --studio-radius: 12px;
+}
+body .studio-panel { padding: 18px; }
+body .studio-heading h1 { font-family: var(--display); font-size: 24px; }
+body .studio-canvas { background-color: var(--canvas); border-radius: 16px; box-shadow: var(--shadow); }
+body .studio-field > :is(input, select, textarea) { font-size: 14px; border-radius: 8px; }
+
+/* Accounts, projects and templates use the same materials without importing
+   marketing layouts into everyday work. */
+body .auth-layout { border-radius: 20px; margin-block: 48px; box-shadow: var(--shadow); }
+body .auth-story { background: var(--surface-2); padding: 40px 42px; }
+body .auth-story h2 { font-family: var(--display); font-size: 37px; line-height: 1.35; letter-spacing: -.025em; margin-block: 18px 16px; }
+body .auth-story > p { font-size: 15px; line-height: 1.85; }
+body .auth-story .account-kicker { font-family: inherit; font-size: 13px; letter-spacing: 0; color: var(--accent); }
+body .auth-specimen { width: 190px; height: 310px; overflow: hidden; margin: 8px auto 0; border-radius: 18px 18px 0 0; }
+body .auth-caption { padding-top: 18px; font-size: 12px; }
+body .auth-form-panel { padding: 42px 44px; }
+body .auth-form-heading h1 { font-family: var(--display); font-size: 30px; }
+body .auth-form-heading > p { font-size: 15px; }
+body .account-form label { font-size: 14px; }
+body .account-form input { background: var(--bg); border-radius: 10px; font-size: 16px; }
+body .account-form .auth-terms { font-size: 12px; }
+body .account-form .auth-terms input { border-radius: 3px; }
+body .auth-help :is(a, button) { min-height: 44px; font-size: 13px; }
+body .workspace-sidebar { background: var(--surface-2); border-right-color: var(--line); }
+body .workspace-nav { border-radius: 9px; }
+body .workspace-nav.active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px #00000005; }
+body .workspace-content { padding: 36px 40px 60px; }
+body .workspace-heading h1 { font-family: var(--display); font-size: 29px; }
+body .workspace-empty { border-style: solid; border-radius: 16px; background: var(--surface); }
+body .workspace-search { border-radius: 10px; min-height: 44px; }
+body .workspace-search input { font-size: 14px; }
+body .work-card-art { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-height: 190px; }
+body .work-card-art > svg { color: var(--accent); }
+body .work-card-art > strong { font-size: 18px; }
+body .work-card h3 { font-size: 15px; }
+body .work-card p { font-size: 12px; }
+body .projects-heading h1 { font-family: var(--display); font-size: 31px; }
+body :is(.project-create, .project-panel, .prefs-group, .prefs-preview, .template-panel) { border-radius: 16px; background: var(--surface); }
+body :is(.project-create, .project-panel) { padding: 28px; }
+body :is(.project-create, .project-form, .template-panel, .template-dialog) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { background: var(--bg); border-radius: 9px; font-size: 14px; }
+body .project-template-card { background: var(--bg); border-radius: 12px; }
+body .project-template-card.is-selected { background: var(--surface); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+body .project-template-head { font-size: 13px; }
+body .project-card { border-radius: 14px; }
+body .project-card-body { padding: 24px; }
+body .project-card-body strong { font-size: 18px; }
+body .project-batch-mode { background: var(--surface-2); }
+body .project-autosave[data-autosave=error], body .project-autosave[data-autosave=conflict] { color: var(--danger); }
+body .templates-shell .template-card { border-radius: 14px; padding: 18px; gap: 14px; }
+body .template-panel { padding: 22px; }
+body .template-panel h2 { font-size: 18px; }
+body .template-muted, body .template-card-body p, body .template-card-body small { color: var(--muted); }
+body .template-notice, body .template-saved { color: var(--success); }
+body .template-shot { background: var(--surface-2); }
+body .prefs-page h1 { font-family: var(--display); }
+body .prefs-help, body .prefs-preview-note { font-size: 13px; }
+body .prefs-preview-viewport { background: var(--canvas); }
+body .connections-page { max-width: 920px; }
+body .connection-intro { padding-top: 28px; }
+body .connection-intro h1 { font-size: clamp(32px, 4vw, 48px); }
+body .connection-client { border-radius: 12px; background: var(--surface); }
+body .connection-command { background: var(--surface-2); border-radius: 10px; }
+body .connection-list > li { border-radius: 14px; background: var(--surface); }
+body .connection-error { border-radius: 0 12px 12px 0; }
+
+@media(min-width:1100px) {
+  body .project-template-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+@media(max-width:960px) {
+  body .main-nav { display: none; position: absolute; top: 75px; left: 0; right: 0; padding: 20px 24px; background: var(--surface); border-bottom: 1px solid var(--line); flex-direction: column; align-items: flex-start; gap: 20px; box-shadow: var(--shadow); }
+  body .main-nav.open { display: flex; }
+  body .main-nav-links { flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
+  body .main-nav-links a { min-height: 44px; font-size: 15px; }
+  body .main-nav-controls { flex-wrap: wrap; margin: 0; gap: 12px; }
+  body .menu-toggle { display: inline-flex; min-width: 44px; min-height: 44px; }
+  body .nav-actions { margin-left: auto; gap: 10px; }
+  body .nav-cta { display: none; }
+  body:has(.agent-workspace) .main-nav { top: 59px; }
+  body .theme-picker button, body .mark-toggle button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  body .mark-feature { gap: 28px; grid-template-columns: minmax(0, 210px) minmax(0, 1fr); padding: 22px; }
+  body .mark-scenario-select .mark-crop { height: 220px; }
+  body .workspace-content { padding-inline: 28px; }
+}
+@media(max-width:660px) {
+  body .site-header { height: 68px; }
+  body .main-nav { top: 67px; }
+  body .nav-wrap { width: calc(100% - 32px); gap: 10px; }
+  body .brand { font-size: 22px; }
+  body .mark-section { padding-top: 64px; }
+  body .journey h1 { font-size: clamp(38px, 9.5vw, 46px); }
+  body .journey :is(.mark-hero-composer textarea, .journey-edit-field textarea) { font-size: 16px; }
+  body .journey-promise, body .journey-description, body .mark-lede { font-size: 16px; }
+  body .mark-feature { grid-template-columns: minmax(0, 132px) minmax(0, 1fr); padding: 16px; gap: 16px; }
+  body .mark-feature-name { font-size: 20px; }
+  body .mark-feature-caption { font-size: 13px; }
+  body .mark-feature-use, body .mark-scenario-use { min-height: 44px; }
+  body .mark-scenarios { gap: 24px 16px; }
+  body .mark-scenario-select .mark-crop { height: 180px; }
+  body .mark-scenario-name { font-size: 14px; }
+  body .mark-scenario-caption { font-size: 12px; min-height: 60px; }
+  body .mark-contrast { padding-block: 48px; margin-top: 64px; }
+  body .mark-cta { padding-block: 64px; }
+  body .page-intro { padding-top: 34px; }
+  body .page-intro h1 { font-size: 38px; }
+  body .docs-content :is(p, li) { font-size: 15px; }
+  body .filter-tabs { gap: 4px; flex-wrap: wrap; }
+  body .filter-tabs > button { padding-inline: 12px; }
+  body .templates-page .template-word { font-size: 44px; }
+  body .workspace-content { padding: 24px 18px 48px; }
+  body .workspace-heading h1 { font-size: 25px; }
+  body .workspace-nav { min-height: 52px; }
+  body .work-card-art { padding: 16px; min-height: 170px; }
+  body .work-card-art > strong { font-size: 16px; }
+  body :is(.project-create, .project-panel, .template-panel) { padding: 20px 18px; }
+  body .project-create :is(input:not([type=checkbox]):not([type=radio]), select, textarea), body .project-form :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; }
+  body .auth-layout { margin-block: 24px; }
+  body .auth-form-panel { padding: 30px 24px; }
+  body .agent-workspace .agent-chat .agent-composer textarea { font-size: 16px; }
+  body .agent-workspace .agent-composer-actions > button { width: 44px; height: 44px; }
+  body .agent-workspace .agent-button, body .agent-workspace .canvas-tool, body .agent-workspace .canvas-zoom button { min-height: 44px; }
+  body .agent-workspace .canvas-tool, body .agent-workspace .canvas-zoom button { min-width: 44px; }
+  body .agent-workspace .agent-render-toolbar select { min-height: 44px; font-size: 12px; }
+  body .agent-workspace .agent-render-toolbar .canvas-platform { padding: 0 6px; }
+  body .agent-workspace .property-inspector :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: 44px; }
+  body .agent-workspace .editor-selection { padding: 10px; }
+  body .studio-field > :is(input, select, textarea) { font-size: 16px; }
+  body .studio-tab { min-height: 44px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  body .btn:active { transform: none; }
+}

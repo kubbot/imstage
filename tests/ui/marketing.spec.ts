@@ -37,8 +37,9 @@ test.describe('landing default (zh-CN browser)', () => {
   test('the hero promises one prompt, replays one authored story and exports the real frame', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#mark-hero-title')).toHaveCount(1);
-    await expect(page.locator('#mark-hero-title')).toContainText('合成对话，');
-    await expect(page.locator('#mark-hero-title em')).toHaveText('用于测试与评测。');
+    await expect(page.locator('#mark-hero-title')).toContainText('把一句话，');
+    await expect(page.locator('#mark-hero-title em')).toHaveText('放进场景里。');
+    await expect(page.locator('.journey-position')).toHaveText('合成对话，用于测试与评测');
     await expect(page.locator('.journey-promise')).toHaveText('描述固定上下文，生成可对照的合成样本。');
     await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     // The instruction composer is the authored example, and it is editable.
@@ -108,8 +109,9 @@ test.describe('language', () => {
   test('an explicit ?lang=en switches platform, names, times and the whole marketing chrome', async ({ page }) => {
     await page.goto('/?lang=en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('#mark-hero-title')).toContainText('Synthetic conversations,');
-    await expect(page.locator('#mark-hero-title em')).toHaveText('for tests & evaluation.');
+    await expect(page.locator('#mark-hero-title')).toContainText('Give your words');
+    await expect(page.locator('#mark-hero-title em')).toHaveText('a scene.');
+    await expect(page.locator('.journey-position')).toHaveText('Synthetic conversations for tests & evaluation');
     await expect(page.getByRole('banner').getByRole('link', { name: /GitHub/ })).toBeVisible();
     await expect(heroScene(page)).toHaveAttribute('data-skin', 'imstage-generic');
     await expect(hero(page)).toContainText('Want to see the exhibition this weekend?');

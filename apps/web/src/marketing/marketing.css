@@ -8,27 +8,17 @@
 
 .mark {
   --mark-shell: min(1200px, calc(100% - 80px));
-  --mark-band-bg: #14161a;
-  --mark-band-bg-2: #1c2024;
-  --mark-band-text: #f3f4f0;
-  --mark-band-muted: #b4b9b5;
-  --mark-band-line: #343a3e;
-  --mark-band-accent: #ff9f7c;
-  --mark-band-ink: #241409;
+  /* The export workbench stays inside the one page theme: same surfaces, same
+   * accent, no automatic inverted band. */
+  --mark-band-bg: var(--surface-2);
+  --mark-band-bg-2: var(--surface);
+  --mark-band-text: var(--text);
+  --mark-band-muted: var(--muted);
+  --mark-band-line: var(--line);
+  --mark-band-accent: var(--accent);
+  --mark-band-ink: var(--accent-ink);
   overflow-x: clip;
   padding-bottom: 0;
-}
-
-/* The contrast band flips with the theme: dark on light pages, light on dark
- * pages, so it always reads as a deliberate counter-surface. */
-html[data-theme='dark'] .mark {
-  --mark-band-bg: #f3f2ec;
-  --mark-band-bg-2: #ffffff;
-  --mark-band-text: #17191b;
-  --mark-band-muted: #545956;
-  --mark-band-line: #d8d6cd;
-  --mark-band-accent: #a2381f;
-  --mark-band-ink: #ffffff;
 }
 
 /* ------------------------------------------------------------------ shell */
@@ -53,13 +43,6 @@ html[data-theme='dark'] .mark {
   letter-spacing: 0.14em;
   color: var(--accent);
   margin-bottom: 14px;
-}
-.mark-label::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 .mark-h2 {
   font-family: var(--display);
@@ -710,6 +693,64 @@ html[data-theme='dark'] .mark-phone-frame {
 }
 
 /* ------------------------------------------------------------- scenarios */
+/* One actual featured sample sits in a fixed place above the selector shelf.
+ * The eight scenario controls keep stable order and geometry, so choosing a
+ * scenario never moves the button the visitor just clicked. */
+.mark-feature {
+  display: grid;
+  grid-template-columns: minmax(150px, 215px) minmax(0, 1fr);
+  column-gap: 34px;
+  align-items: center;
+  padding: 22px 26px;
+  margin-bottom: 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 16px;
+  background: var(--soft);
+}
+.mark-feature-art {
+  width: 100%;
+}
+.mark-feature-art .mark-crop {
+  aspect-ratio: 420 / 892;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.mark-feature-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.mark-feature-name {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin: 6px 0 8px;
+  color: var(--text);
+}
+.mark-feature-caption {
+  font-size: 14px;
+  line-height: 1.8;
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+  max-width: 430px;
+  margin: 0 0 14px;
+}
+.mark-feature-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.mark-feature-use:hover {
+  color: var(--text);
+}
 .mark-scenarios {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -719,6 +760,7 @@ html[data-theme='dark'] .mark-phone-frame {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 .mark-scenario-select {
   display: block;
@@ -745,7 +787,7 @@ html[data-theme='dark'] .mark-phone-frame {
 .mark-crop {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 420 / 892;
   overflow: hidden;
   border-radius: 9px;
   background: var(--canvas);
@@ -754,20 +796,22 @@ html[data-theme='dark'] .mark-phone-frame {
 .mark-scenario-name {
   display: block;
   font-family: var(--display);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
   margin-bottom: 4px;
 }
 .mark-scenario-caption {
   display: block;
-  font-size: 12.5px;
-  line-height: 1.75;
+  font-size: 12px;
+  line-height: 1.7;
   color: var(--muted);
+  min-height: 41px;
 }
 .mark-scenario-state {
-  display: inline-block;
+  display: block;
   margin-top: 12px;
+  min-height: 16px;
   font-size: 11px;
   letter-spacing: 0.05em;
   color: var(--accent);
@@ -785,6 +829,57 @@ html[data-theme='dark'] .mark-phone-frame {
 .mark-scenario-use:hover {
   color: var(--accent);
 }
+@media (max-width: 900px) {
+  .mark-scenarios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mark-feature {
+    column-gap: 22px;
+    padding: 18px;
+  }
+  .mark-feature-name {
+    font-size: 20px;
+  }
+}
+@media (max-width: 590px) {
+  .mark-scenarios {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 15px;
+  }
+  .mark-feature {
+    grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
+    column-gap: 16px;
+    padding: 14px;
+    margin-bottom: 26px;
+  }
+  .mark-feature-name {
+    font-size: 17px;
+  }
+  .mark-feature-caption {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .mark-feature-use {
+    font-size: 12px;
+    min-height: 40px;
+  }
+  .mark-scenario-name {
+    font-size: 13px;
+  }
+  .mark-scenario-caption {
+    font-size: 11px;
+    line-height: 1.65;
+    min-height: 55px;
+  }
+  .mark-scenario-use {
+    font-size: 11px;
+    min-height: 40px;
+  }
+  .mark-scenario-state {
+    font-size: 10px;
+    margin-top: 8px;
+  }
+}
 
 /* ------------------------------------------------------- contrast band */
 .mark-contrast {
@@ -792,15 +887,13 @@ html[data-theme='dark'] .mark-phone-frame {
   padding: 92px 0;
   background: var(--mark-band-bg);
   color: var(--mark-band-text);
+  border-block: 1px solid var(--line);
 }
 .mark-contrast .mark-h2 {
   color: var(--mark-band-text);
 }
 .mark-label-band {
   color: var(--mark-band-accent);
-}
-.mark-label-band::before {
-  background: var(--mark-band-accent);
 }
 .mark-lede-band {
   color: var(--mark-band-muted);
@@ -875,14 +968,12 @@ html[data-theme='dark'] .mark-phone-frame {
 }
 
 .mark-export-card {
-  background: #ffffff;
-  color: #17191b;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 30px 70px #00000059;
-}
-html[data-theme='dark'] .mark-export-card {
-  box-shadow: 0 22px 50px #10141024, 0 0 0 1px #e2e0d8;
+  box-shadow: var(--shadow);
 }
 .mark-export-card-head {
   display: flex;
@@ -890,11 +981,11 @@ html[data-theme='dark'] .mark-export-card {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  border-bottom: 1px solid #e6e6e1;
-  background: #f7f7f4;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
   font-size: 12px;
   letter-spacing: 0.04em;
-  color: #5b615e;
+  color: var(--muted);
 }
 .mark-file-chip {
   font-family: var(--mono);
@@ -902,8 +993,8 @@ html[data-theme='dark'] .mark-export-card {
   letter-spacing: 0.12em;
   padding: 4px 8px;
   border-radius: 5px;
-  border: 1px solid #d9d9d3;
-  color: #3b403d;
+  border: 1px solid var(--line);
+  color: var(--muted);
 }
 .mark-export-card-body {
   display: flex;
@@ -926,19 +1017,19 @@ html[data-theme='dark'] .mark-export-card {
   align-items: center;
   gap: 10px;
   text-align: center;
-  color: #5b615e;
+  color: var(--muted);
   font-size: 12.5px;
 }
 .mark-export-empty p {
   margin: 0;
-  color: #5b615e;
+  color: var(--muted);
 }
 .mark-export-spinner {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 2px solid #dcdcd6;
-  border-top-color: #b63a22;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
   animation: mark-spin 0.9s linear infinite;
 }
 @keyframes mark-spin {
@@ -949,11 +1040,11 @@ html[data-theme='dark'] .mark-export-card {
 .mark-export-meta-line {
   margin: 0;
   padding: 14px 22px;
-  border-top: 1px solid #e6e6e1;
+  border-top: 1px solid var(--line);
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.02em;
-  color: #3b403d;
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -965,8 +1056,8 @@ html[data-theme='dark'] .mark-export-card {
   margin: 0;
   padding: 12px 22px 18px;
   font-size: 12px;
-  color: #5b615e;
-  border-top: 1px solid #e6e6e1;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
 }
 
 /* ------------------------------------------------------- open source block */

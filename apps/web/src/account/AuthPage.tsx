@@ -1,15 +1,22 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { IconArrowRight, IconEye, IconEyeOff, IconLock, IconMessageCircle } from '@tabler/icons-react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { IconArrowRight, IconEye, IconEyeOff, IconLock } from '@tabler/icons-react';
 import { useAuth } from './Auth';
 import { api, ApiError, errorText, safeNext, type User } from './api';
 import { cachedPreferences, ensurePreferences } from '../preferences/api';
 import { useCopy } from '../i18n';
 import { useLocale } from '../marketing/LocaleContext';
+import { createScenario } from '../marketing/scenes';
+import { ScaledSceneFrame } from '../marketing/DeviceFrame';
+import { SceneView } from '../studio/SceneView';
 const remembered = { email: '', name: '' };
 export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; next: string }) {
   const { user, accept, refresh } = useAuth();
   const a = useCopy().account;
   const { locale } = useLocale();
+  const example = useMemo(() => createScenario('evaluation', locale), [locale]);
+  const story = locale === 'zh'
+    ? { label: '你的场景工作室', title: ['把设定留好。', '下次继续。'], body: '保存合成场景，让每一次测试都有可复用的起点。', caption: '虚构人物 · 合成测试样本' }
+    : { label: 'Your conversation studio', title: ['Keep your context.', 'Continue the scene.'], body: 'Save synthetic scenes and keep a reusable starting point for every test.', caption: 'Fictional people · synthetic test sample' };
   const [email, setEmail] = useState(remembered.email);
   const [name, setName] = useState(remembered.name);
   const [password, setPassword] = useState('');
@@ -55,7 +62,7 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
     finally { if (active.current) setBusy(false); }
   }
   return <section className="auth-layout">
-    <div className="auth-story" aria-hidden="true"><span className="account-kicker">YOUR NEXT CONVERSATION</span><h2>好故事，<br />值得留下来。</h2><p>从一句台词到一整段对话。<br />把灵感存好，下次接着创作。</p><div className="auth-conversation"><div className="auth-bubble">下一站，去哪里？</div><div className="auth-bubble mine">去想象力能到的地方。</div><div className="auth-bubble small"><IconMessageCircle size={18} /> 故事未完，待你续写。</div></div><span className="auth-caption">IMStage / 给每段对话，一个舞台。</span></div>
+    <div className="auth-story" aria-hidden="true"><span className="account-kicker">{story.label}</span><h2>{story.title[0]}<br />{story.title[1]}</h2><p>{story.body}</p><div className="auth-specimen"><ScaledSceneFrame><SceneView scene={example} exportMode locale={locale} /></ScaledSceneFrame></div><span className="auth-caption">{story.caption}</span></div>
     <div className="auth-form-panel"><div className="auth-form-heading"><span className="account-kicker">{register ? a.registerKicker : a.loginKicker}</span><h1>{register ? a.registerTitle : a.loginTitle}</h1><p>{register ? a.registerLede : a.loginLede}</p></div>
       <form onSubmit={submit} className="account-form" aria-label={register ? a.registerTitle : a.loginTitle}>
         <fieldset disabled={busy}>
