@@ -39,6 +39,7 @@ import {
 } from './limits.mjs';
 import { isPlainObject, newSceneId } from './util.mjs';
 import { WIDGET_RESOURCE_URI } from './widget.mjs';
+import { VOICE_TRANSCRIPT_MAX } from '../../packages/schema/voice.mjs';
 
 const SCENE_KEYS = new Set([
   'id',
@@ -79,6 +80,7 @@ const MESSAGE_KEYS = new Set([
   'height',
   'appearance',
   'items',
+  'voiceTranscript',
 ]);
 const ITEM_KEYS = new Set(['id', 'asset', 'caption', 'kind']);
 const APPEARANCE_KEYS = new Set(['background', 'color', 'fontSize', 'radius', 'spacing']);
@@ -127,6 +129,7 @@ const MESSAGE_UPDATE_KEYS = new Set([
   'height',
   'appearance',
   'items',
+  'voiceTranscript',
 ]);
 
 function invalidPatch(message, details, recovery) {
@@ -205,6 +208,12 @@ function assertMessage(message, label) {
   assertString(message.asset, `${label}.asset`, { max: SCENE_LIMITS.assetDataUriMax });
   assertString(message.subtitle, `${label}.subtitle`, { max: 4000 });
   assertString(message.quote, `${label}.quote`, { max: 4000 });
+  // Explicit voice transcript: optional, strictly bounded and voice-only, so
+  // an unbounded hidden payload can never ride along on another message type.
+  assertString(message.voiceTranscript, `${label}.voiceTranscript`, { max: VOICE_TRANSCRIPT_MAX });
+  if (message.voiceTranscript !== undefined && message.type !== 'voice') {
+    invalidRequest(`${label}.voiceTranscript 只能用于 type=voice 的消息`, { field: `${label}.voiceTranscript`, type: message.type }, '删除 voiceTranscript，或把该消息 type 改为 voice。');
+  }
   assertAppearance(message.appearance, `${label}.appearance`);
   assertItems(message.items, `${label}.items`);
 }
@@ -550,6 +559,7 @@ export function buildCapabilities() {
       unsupported: ['reference screenshot overlays (real-screenshot editing is disabled on all public surfaces)', 'payment / transfer / red-packet / balance message types'],
       disclosure: '预览与导出默认带有 AI生成 / 虚构 水印（含自定义 watermark 文字）。scene.watermarkEnabled=false 时关闭两者；缺省为开启，模型工具不能修改该用户设置。',
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',
+      voiceTranscript: 'Message.voiceTranscript 是可选、显式创作的语音合成文字稿（仅 type=voice，≤2000 字），渲染在语音气泡下方；它不是任何真实音频的转录，缺失时渲染器保留诚实占位，不会自动补写。text/subtitle 仍是气泡标签/时长。',
     },
     limits: {
       scene: SCENE_LIMITS,

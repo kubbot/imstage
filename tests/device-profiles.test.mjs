@@ -38,7 +38,7 @@ function shape(profile) {
 /* ------------------------------------------------------------------ */
 
 test('DEVICE_PROFILES matches the coded device spec', () => {
-  assert.deepEqual(DEVICE_PROFILE_IDS, ['legacy360', 'iphone-17-pro', 'iphone-15-pro', 'pixel-8', 'macos-window']);
+  assert.deepEqual(DEVICE_PROFILE_IDS, ['legacy360', 'iphone-17-pro', 'iphone-15-pro', 'pixel-8', 'ipad-window', 'macos-window']);
   assert.equal(new Set(DEVICE_PROFILE_IDS).size, DEVICE_PROFILES.length);
 
   const byId = new Map(DEVICE_PROFILES.map((profile) => [profile.id, profile]));
@@ -64,6 +64,18 @@ test('DEVICE_PROFILES matches the coded device spec', () => {
     height: 800,
     pixelRatio: 3,
   });
+  // GET-35 tablet preset: registry-only formFactor, persisted surface unchanged.
+  assert.deepEqual(shape(byId.get('ipad-window')), {
+    id: 'ipad-window',
+    surface: 'ios',
+    width: 1024,
+    height: 768,
+    pixelRatio: 2,
+  });
+  assert.equal(byId.get('ipad-window').label, 'iPad 横屏窗口');
+  assert.equal(byId.get('ipad-window').formFactor, 'tablet');
+  assert.equal(byId.get('ipad-window').width * byId.get('ipad-window').pixelRatio, 2048);
+  assert.equal(byId.get('ipad-window').height * byId.get('ipad-window').pixelRatio, 1536);
   assert.deepEqual(shape(byId.get('macos-window')), {
     id: 'macos-window',
     surface: 'desktop',

@@ -7,6 +7,7 @@ import {
   REFERENCE_DISABLED_MESSAGE,
   stripDisclosureOverrides,
 } from '../../../../packages/schema/policy.mjs';
+import { voiceTranscriptError } from '../../../../packages/schema/voice.mjs';
 import { deviceProfileError } from './device-profiles.ts';
 /**
  * IMStage studio scene model.
@@ -58,6 +59,15 @@ export interface Message {
   height?: number;
   appearance?: Appearance;
   items?: MediaItem[];
+  /**
+   * Optional, explicit, user-authored voice transcript (voice messages only).
+   * Rendered below the voice bubble in every renderer. It is never inferred
+   * from audio and never migrated from legacy `text`/`subtitle` labels: an
+   * omitted field keeps the honest "no transcript" placeholder. Bounded by
+   * `VOICE_TRANSCRIPT_MAX` (packages/schema/voice.mjs); invalid types, over-long
+   * values and non-voice use are rejected by `validateScene`.
+   */
+  voiceTranscript?: string;
 }
 
 export interface Scene {
@@ -490,6 +500,12 @@ export function validateScene(input: unknown): ValidationResult {
       if (typeof raw.date === 'string' && isCalendarDate(raw.date)) message.date = raw.date;
       if (typeof raw.asset === 'string' && raw.asset !== '') message.asset = raw.asset;
       extraFields(raw, message as unknown as Record<string, unknown>, errors);
+      // Explicit voice transcript: optional and strictly bounded. Legacy voice
+      // text/subtitle stay bubble label/duration — they are never reinterpreted
+      // as a transcript, so loading an old scene never invents one.
+      const transcriptError = voiceTranscriptError(raw.voiceTranscript, type);
+      if (transcriptError) errors.push(`消息 ${index + 1}：${transcriptError}`);
+      else if (typeof raw.voiceTranscript === 'string') message.voiceTranscript = raw.voiceTranscript;
       if (raw.items !== undefined) {
         if (!Array.isArray(raw.items) || raw.items.length > 9) errors.push('相册最多 9 项');
         else {
@@ -622,6 +638,9 @@ export function updateMessage(scene: Scene, id: string, patch: MessagePatch): Sc
     changed = true;
     const next: Message = { ...message, ...patch, id: message.id };
     if (!next.asset) delete next.asset;
+    // An empty/undefined transcript is the same as omission: keep stored scenes
+    // clean instead of persisting an invisible empty field.
+    if (!next.voiceTranscript) delete next.voiceTranscript;
     return next;
   });
   if (!changed) return scene;
@@ -640,6 +659,8 @@ export interface NewMessageInput {
   height?: number;
   appearance?: Appearance;
   items?: MediaItem[];
+  /** Explicit synthetic transcript for a new voice message (never inferred). */
+  voiceTranscript?: string;
 }
 
 export function addMessage(scene: Scene, input: NewMessageInput = {}): Scene {
@@ -647,6 +668,8 @@ export function addMessage(scene: Scene, input: NewMessageInput = {}): Scene {
   if (isPaymentMessageType(type) || !MESSAGE_TYPES.includes(type)) {
     throw new Error(`不支持的消息类型：${String(type)}（支付/转账/红包类消息已移除）`);
   }
+  const transcriptError = voiceTranscriptError(input.voiceTranscript, type);
+  if (transcriptError) throw new Error(transcriptError);
   const participantId =
     type === 'system' ? '' : (input.participantId ?? scene.selfId);
   const message: Message = {
@@ -657,6 +680,7 @@ export function addMessage(scene: Scene, input: NewMessageInput = {}): Scene {
     time: input.time ?? scene.deviceTime,
   };
   if (input.asset) message.asset = input.asset;
+  if (input.voiceTranscript !== undefined) message.voiceTranscript = input.voiceTranscript;
   return { ...scene, messages: [...scene.messages, message] };
 }
 

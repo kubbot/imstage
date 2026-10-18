@@ -31,6 +31,7 @@ import {
   PAYMENT_NEUTRALIZED_TEXT,
   sceneWatermarkEnabled,
 } from '../schema/policy.mjs';
+import { hasVoiceTranscript } from '../schema/voice.mjs';
 
 export const RENDERER_VERSION = 'v3';
 
@@ -202,6 +203,21 @@ function renderMessage(message, context) {
     return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble"><span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
+  // Voice messages mirror the shared React SceneView semantics: the bubble
+  // keeps its legacy label/duration (text/subtitle — never reinterpreted as a
+  // transcript), and an explicit user-authored `voiceTranscript` renders below
+  // the bubble with safe CJK/English/multiline wrapping. An absent transcript
+  // renders nothing extra — nothing is ever transcribed or invented here.
+  if (message.type === 'voice') {
+    const label = escapeHtml(message.text || '语音');
+    const duration = message.subtitle ? ` <small class="voice-duration">${escapeHtml(message.subtitle)}</small>` : '';
+    const bubble = `<div class="bubble bubble-voice${theme.bubbleTail ? ' bubble-tail' : ''}"><span class="bubble-text"><span class="voice-wave" aria-hidden="true">◖ ıııııııııııı</span> ${label}${duration}</span>${theme.inlineTime ? meta : ''}</div>`;
+    if (hasVoiceTranscript(message)) {
+      return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="voice-wrap">${bubble}<div class="voice-transcript" data-voice-transcript="true">${escapeHtml(message.voiceTranscript)}</div></div>${isSelf && avatar ? avatar : ''}</div>`;
+    }
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}${bubble}${isSelf && avatar ? avatar : ''}</div>`;
+  }
+
   if (whatsapp && message.type === 'text') {
     const footer = message.time || isSelf ? `<span class="meta-space" aria-hidden="true">${metadata}</span><span class="meta">${metadata}</span>` : '';
     return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble bubble-whatsapp-text">${!isSelf && isGroup ? `<span class="sender-name">${escapeHtml(name)}</span>` : ''}<span class="bubble-text">${escapeHtml(message.text)}</span>${footer}</div>${isSelf && avatar ? avatar : ''}</div>`;
@@ -292,6 +308,28 @@ export function renderSceneHtml(scene, options = {}) {
   const headerAvatar = theme.headerAvatar
     ? `<span class="avatar avatar-header" style="background:${avatarColor(other?.id ?? 'unknown')}">${initials(other?.name ?? '?')}</span>`
     : '';
+
+  // Wide tablet two-pane layout (GET-35): only the `ipad-window` preset opts
+  // in. The chat list is derived from THIS synthetic thread alone — its real
+  // title/group size/latest message — never fabricated unrelated chats,
+  // unread counts or personal avatars. Phones and the desktop window keep the
+  // existing single-pane semantics.
+  const deviceProfileId = typeof options.deviceProfileId === 'string' ? options.deviceProfileId : scene.deviceProfileId;
+  const twoPane = deviceProfileId === 'ipad-window';
+  const lastMessage = (scene.messages ?? [])[(scene.messages ?? []).length - 1];
+  // Policy guard (same semantics as renderMessage): payment/transfer/red-packet
+  // payloads never leak into the chat-list preview or any summary.
+  const chatListPreview = (() => {
+    if (!lastMessage) return '还没有消息';
+    if (isPaymentMessageType(lastMessage.type)) return PAYMENT_NEUTRALIZED_TEXT;
+    return (lastMessage.type === 'voice'
+      ? (hasVoiceTranscript(lastMessage) ? lastMessage.voiceTranscript : lastMessage.text) || '语音'
+      : lastMessage.text) || '消息';
+  })();
+  const chatList = twoPane
+    ? `<aside class="chat-list" aria-label="会话"><div class="chat-list-title">会话</div><div class="chat-list-item is-active"><span class="avatar" style="background:${avatarColor(other?.id ?? 'unknown')}">${initials(other?.name ?? '?')}</span><div class="chat-list-main"><span class="chat-list-name">${headerTitle}</span>${isGroup ? `<span class="chat-list-count">${(scene.participants ?? []).length} 人</span>` : ''}<span class="chat-list-preview">${escapeHtml(chatListPreview)}</span></div><span class="chat-list-time">${escapeHtml(lastMessage?.time ?? '')}</span></div></aside>`
+    : '';
+  const backArrow = twoPane ? '' : surface === 'android' ? '←' : surface === 'desktop' || surface === 'web' ? '' : '‹';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -423,6 +461,38 @@ export function renderSceneHtml(scene, options = {}) {
   .caption { font-size: 13px; line-height: 1.35; white-space: pre-wrap; word-break: break-word; }
   .location-pin { font-size: 14px; }
 
+  /* Voice messages: the bubble keeps its legacy label/duration; an explicit
+     user-authored transcript renders below it and wraps CJK/English/multiline
+     safely. An absent transcript renders nothing extra. */
+  .bubble-voice .voice-wave { opacity: 0.75; letter-spacing: 1px; }
+  .voice-duration { opacity: 0.75; font-size: 11px; }
+  .voice-wrap { display: flex; flex-direction: column; gap: 6px; max-width: 74%; min-width: 0; }
+  .row-self .voice-wrap { align-items: flex-end; }
+  .voice-transcript {
+    max-width: 100%; padding: 6px 10px; border-radius: 8px;
+    background: rgba(0,0,0,0.05); color: #2b3138; font-size: 13px; line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  }
+
+  /* Wide tablet two-pane layout: derived chat list (this thread only) plus
+     the active conversation. No fabricated chats, unread counts or avatars. */
+  .split { flex: 1 1 auto; display: flex; min-height: 0; }
+  .chat-thread { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .chat-list {
+    flex: 0 0 32%; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+    border-right: 1px solid rgba(0,0,0,0.12); background: #f4f5f7; overflow: hidden;
+  }
+  .chat-list-title { padding: 6px 6px 10px; font-size: 20px; font-weight: 700; color: #16202e; }
+  .chat-list-item {
+    display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px;
+    border-radius: 12px; background: rgba(47,111,237,0.12);
+  }
+  .chat-list-main { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+  .chat-list-name { font-size: 15px; font-weight: 600; color: #16202e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-list-count { font-size: 11px; color: #5b6675; }
+  .chat-list-preview { font-size: 12px; color: #5b6675; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-list-time { align-self: flex-start; font-size: 11px; color: #5b6675; }
+
   .composer {
     flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
     padding: 9px 12px; background: ${theme.headerBg}; border-top: 1px solid ${theme.headerBorder};
@@ -469,8 +539,8 @@ export function renderSceneHtml(scene, options = {}) {
   <div class="device">
     ${statusBar(surface, scene.deviceTime, theme)}
     ${disclosure}
-    <header class="chat-header">
-      <span class="back" aria-hidden="true">${surface === 'android' ? '←' : surface === 'desktop' || surface === 'web' ? '' : '‹'}</span>
+    ${twoPane ? `<div class="split">${chatList}<div class="chat-thread">` : ''}<header class="chat-header">
+      <span class="back" aria-hidden="true">${backArrow}</span>
       ${headerAvatar}
       <span class="title">${headerTitle}</span>
       <span class="spacer" aria-hidden="true">${surface === 'desktop' || surface === 'web' ? '' : '⋯'}</span>
@@ -480,6 +550,7 @@ export function renderSceneHtml(scene, options = {}) {
       ${body}
     </main>
     ${renderComposer(theme, scene.composerText)}
+    ${twoPane ? '</div></div>' : ''}
     ${watermark}
   </div>
 </body>

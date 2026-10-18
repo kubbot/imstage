@@ -1,6 +1,7 @@
 import { useViewportDrag } from './useViewportDrag';
 import { timelinePresentation } from '../../../../packages/schema/timeline.mjs';
 import { DISCLOSURE_ATTRIBUTE, DISCLOSURE_CLASS, DISCLOSURE_STYLE, DISCLOSURE_TEXT, isPaymentMessageType, PAYMENT_NEUTRALIZED_TEXT, sceneWatermarkEnabled } from '../../../../packages/schema/policy.mjs';
+import { hasVoiceTranscript } from '../../../../packages/schema/voice.mjs';
 import {platformTemplate} from './platform-templates';
 import {deviceProfile} from './device-profiles';
 import type { CSSProperties } from 'react';
@@ -152,6 +153,22 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   const template = platformTemplate(scene.platform);
   const profile = deviceProfile(scene);
   const other = scene.participants.find(p => p.id !== scene.selfId);
+  // Registry-only form factor: only the tablet preset renders the wide
+  // two-pane chat layout (a derived list of *this* thread plus the active
+  // conversation). Phones keep the compact layout; desktop keeps its window
+  // semantics. The list never invents chats, unread counts or avatars.
+  const twoPane = profile.formFactor === 'tablet';
+  const lastMessage = scene.messages[scene.messages.length - 1];
+  const listPreviewText = (() => {
+    if (!lastMessage) return locale === 'en' ? 'No messages yet' : '还没有消息';
+    // Policy guard (same semantics as MessageBody): payment/transfer/red-packet
+    // payloads never leak into chat-list previews or any other summary.
+    if (isPaymentMessageType(lastMessage.type)) return PAYMENT_NEUTRALIZED_TEXT;
+    const wording = lastMessage.type === 'voice'
+      ? (hasVoiceTranscript(lastMessage) ? lastMessage.voiceTranscript : lastMessage.text) || (locale === 'en' ? 'Voice' : '语音')
+      : lastMessage.text;
+    return wording || (locale === 'en' ? 'Message' : '消息');
+  })();
   // User watermark preference: absent means on. Only `watermarkEnabled: false`
   // suppresses the AI生成/虚构 disclosure and any custom watermark.
   const watermarkOn = sceneWatermarkEnabled(scene);
@@ -196,6 +213,26 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
           `watermarkEnabled: false` on the scene turns it off. */}
       {watermarkOn ? <div className={DISCLOSURE_CLASS} {...{[DISCLOSURE_ATTRIBUTE]: 'true'}} role="note" aria-label={locale === 'en' ? 'AI-generated fictional content' : 'AI 生成的虚构内容'} {...elementProps(locale === 'en' ? 'Edit watermark' : '编辑水印')} style={{...DISCLOSURE_STYLE, pointerEvents: onSelectElement && !exportMode ? 'auto' : 'none'} as CSSProperties}>{DISCLOSURE_TEXT}</div> : null}
 
+      {/* Wide tablet two-pane chrome: a derived list of this exact thread plus
+          the active conversation. The list shows only real scene data — the
+          thread title/group and the latest message — never fabricated chats,
+          unread counts or personal avatars. Phone/desktop skip this wrapper. */}
+      <div className={twoPane ? 'scene-split' : 'scene-solo'}>
+        {twoPane ? (
+          <aside className="scene-chat-list" aria-label={locale === 'en' ? 'Chats' : '会话'} data-testid="scene-chat-list">
+            <div className="scene-chat-list-title">{locale === 'en' ? 'Chats' : '会话'}</div>
+            <div className="scene-chat-list-item is-active" data-testid="scene-chat-list-item">
+              <Avatar participant={other} locale={locale} />
+              <div className="scene-chat-list-main">
+                <span className="scene-chat-list-name">{title}</span>
+                {group ? <span className="scene-chat-list-count">{locale === 'en' ? `${scene.participants.length} members` : `${scene.participants.length} 人`}</span> : null}
+                <span className="scene-chat-list-preview">{listPreviewText}</span>
+              </div>
+              <span className="scene-chat-list-time">{lastMessage?.time ?? ''}</span>
+            </div>
+          </aside>
+        ) : null}
+        <div className="scene-chat-thread">
       {custom ? (
         <div className="scene-header scene-header-custom">
           <IconChevronLeft size={22} stroke={2} aria-hidden="true" className="scene-header-back" />
@@ -237,13 +274,12 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
             .filter(Boolean)
             .join(' ');
 
-          const row = (
-            <div className={rowClass} data-message-id={message.id}>
-              {dateLabel && <div className="scene-date scene-date-separator" data-date={message.date}>{dateLabel}</div>}
-              {!hidden && !template.inlineTime && showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
-              {!hidden && <div className="scene-line">
-                {!isSelf && showAvatar(false) && message.type !== 'system' ? avatar(participant) : null}
-                <Bubble type={selectable ? "button" : undefined} className={`scene-bubble-wrap${selectable ? ' scene-message-select' : ''}`} aria-label={selectable ? (locale === 'en' ? `Select message: ${message.text || message.type}` : `选择消息：${message.text || message.type}`) : undefined} aria-pressed={selectable ? selectedId === message.id : undefined} onClick={selectable ? () => onSelect?.(message.id) : undefined} style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
+          const transcript = message.type === 'voice' && hasVoiceTranscript(message) ? message.voiceTranscript ?? '' : '';
+          // Selectable summary: payment payloads are neutralized before any
+          // text reaches an aria-label or preview (same policy guard as render).
+          const summary = isPaymentMessageType(message.type) ? PAYMENT_NEUTRALIZED_TEXT : (message.text || transcript || message.type);
+          const bubbleNode = (
+                <Bubble type={selectable ? "button" : undefined} className={`scene-bubble-wrap${selectable ? ' scene-message-select' : ''}`} aria-label={selectable ? (locale === 'en' ? `Select message: ${summary}` : `选择消息：${summary}`) : undefined} aria-pressed={selectable ? selectedId === message.id : undefined} onClick={selectable ? () => onSelect?.(message.id) : undefined} style={{width:message.width ? Math.min(message.width, scene.surface === 'desktop' ? 560 : 252) : undefined,height:message.height, '--scene-font':message.appearance?.fontSize ? `${message.appearance.fontSize}px` : undefined,'--scene-text':message.appearance?.color,'--scene-bubble':message.appearance?.background,'--scene-radius':message.appearance?.radius !== undefined ? `${message.appearance.radius}px` : undefined} as CSSProperties}>
                   {!isSelf && message.type !== 'system' && group ? (
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
@@ -251,6 +287,22 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
                   {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} />}
                   {!whatsappText && template.inlineTime && message.type !== 'system' && <div className="scene-message-meta">{metadata}</div>}
                 </Bubble>
+          );
+          const row = (
+            <div className={rowClass} data-message-id={message.id}>
+              {dateLabel && <div className="scene-date scene-date-separator" data-date={message.date}>{dateLabel}</div>}
+              {!hidden && !template.inlineTime && showTime && message.time ? <div className="scene-time">{message.time}</div> : null}
+              {!hidden && <div className="scene-line">
+                {!isSelf && showAvatar(false) && message.type !== 'system' ? avatar(participant) : null}
+                {transcript ? (
+                  <div className="scene-voice-wrap">
+                    {bubbleNode}
+                    {/* Explicit, user-authored transcript: rendered below the voice
+                        bubble and wrapping CJK/English/multiline safely. Absent
+                        transcripts keep the honest placeholder above instead. */}
+                    <div className="scene-voice-transcript" data-voice-transcript="true">{transcript}</div>
+                  </div>
+                ) : bubbleNode}
                 {isSelf && showAvatar(true) ? avatar(participant) : null}
               </div>}
             </div>
@@ -271,6 +323,8 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M7 13h12M13 7v12"/></svg> : <IconPlus size={25} stroke={1.6}/>}</span>
       </div>}
+        </div>
+      </div>
 
       {watermarkOn && scene.watermark ? <div className="scene-watermark" {...elementProps(locale === 'en' ? 'Edit watermark' : '编辑水印')}>{scene.watermark}</div> : null}
     </div>

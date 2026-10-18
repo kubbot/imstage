@@ -20,9 +20,17 @@
  * `macos-window` is a *configurable desktop window preset*, not a hardware
  * screen claim. These presets are project-maintained references and do not
  * assert that any official app version is pixel-perfect verified.
+ *
+ * `ipad-window` is a reproducible *generic tablet window* preset (1024 × 768
+ * logical points at 2x → 2048 × 1536 export pixels). It is not a hardware or
+ * app-version pixel certification; its provenance and the tablet layout
+ * contract are documented in docs/get-35-voice-tablet.md.
  */
 
 export type DeviceSurface = 'ios' | 'android' | 'desktop';
+
+/** Registry-only layout discriminator; never persisted into scene data. */
+export type DeviceFormFactor = 'phone' | 'tablet' | 'desktop';
 
 export interface DeviceProfile {
   id: string;
@@ -31,6 +39,13 @@ export interface DeviceProfile {
   width: number;
   height: number;
   pixelRatio: number;
+  /**
+   * Registry-only shape/form discriminator used by the renderer to pick the
+   * phone-compact or wide two-pane chat layout. It is intentionally NOT part
+   * of the scene contract: scenes only persist `surface` + `deviceProfileId`,
+   * so old parsers never see a new top-level tablet surface.
+   */
+  formFactor?: DeviceFormFactor;
 }
 
 /** Minimal shape `deviceProfile` needs; avoids a runtime dependency on the scene model. */
@@ -46,6 +61,7 @@ const LEGACY_IOS: DeviceProfile = {
   width: 360,
   height: 640,
   pixelRatio: 2,
+  formFactor: 'phone',
 };
 
 const IPHONE_15_PRO: DeviceProfile = {
@@ -55,12 +71,13 @@ const IPHONE_15_PRO: DeviceProfile = {
   width: 393,
   height: 852,
   pixelRatio: 3,
+  formFactor: 'phone',
 };
 
 // Apple: https://support.apple.com/125090 — 1206 × 2622 native pixels.
 const IPHONE_17_PRO: DeviceProfile = {
   id: 'iphone-17-pro', label: 'iPhone 17 Pro', surface: 'ios',
-  width: 402, height: 874, pixelRatio: 3,
+  width: 402, height: 874, pixelRatio: 3, formFactor: 'phone',
 };
 
 const PIXEL_8: DeviceProfile = {
@@ -70,6 +87,22 @@ const PIXEL_8: DeviceProfile = {
   width: 360,
   height: 800,
   pixelRatio: 3,
+  formFactor: 'phone',
+};
+
+// Generic tablet window preset (GET-35): 1024 × 768 logical points at 2x,
+// exported at 2048 × 1536. Reproducible project convention — not a hardware,
+// OS-version or app-version pixel certification. The persisted `surface` stays
+// `ios` (the enum is unchanged for old parsers); only this registry entry
+// knows it is a tablet.
+const IPAD_WINDOW: DeviceProfile = {
+  id: 'ipad-window',
+  label: 'iPad 横屏窗口',
+  surface: 'ios',
+  width: 1024,
+  height: 768,
+  pixelRatio: 2,
+  formFactor: 'tablet',
 };
 
 const MACOS_WINDOW: DeviceProfile = {
@@ -79,6 +112,7 @@ const MACOS_WINDOW: DeviceProfile = {
   width: 1000,
   height: 720,
   pixelRatio: 2,
+  formFactor: 'desktop',
 };
 
 /**
@@ -92,6 +126,7 @@ export const DEVICE_PROFILES: readonly DeviceProfile[] = [
   IPHONE_17_PRO,
   IPHONE_15_PRO,
   PIXEL_8,
+  IPAD_WINDOW,
   MACOS_WINDOW,
 ];
 
@@ -107,6 +142,7 @@ const LEGACY_ANDROID: DeviceProfile = {
   width: 360,
   height: 640,
   pixelRatio: 2,
+  formFactor: 'phone',
 };
 
 /** Desktop compatibility fallback for a scene that has no explicit id. */
@@ -117,6 +153,7 @@ const LEGACY_DESKTOP: DeviceProfile = {
   width: 900,
   height: 640,
   pixelRatio: 2,
+  formFactor: 'desktop',
 };
 
 /** The renderer treats anything that is not android/desktop as iOS. */

@@ -3,6 +3,9 @@ import { IconArrowDown, IconArrowUp, IconCopy, IconPhoto, IconPlus, IconTrash } 
 import { DEVICE_PROFILES } from '../studio/device-profiles';
 import { MESSAGE_TYPES, PLATFORMS, PLATFORM_LABELS, validateScene, type Message, type Platform, type Scene } from '../studio/model';
 import { readImageFile } from '../studio/storage';
+import { VOICE_TRANSCRIPT_MAX, voiceTranscriptError } from '../../../../packages/schema/voice.mjs';
+import { VoiceTranscriptError, messageTypeChangePatch } from '../studio/voice-transcript';
+import { useLocale } from '../marketing/LocaleContext';
 import { useCopy } from '../i18n';
 
 type Props = { scene: Scene; selected: string; locked: boolean; onSelect: (id: string) => void; onChange: (scene: Scene) => void; onBusy: (busy: boolean) => void };
@@ -11,6 +14,7 @@ function Section({ title, children, advanced = false }: { title: string; childre
 }
 export default function ElementInspector({ scene, selected, locked, onSelect, onChange, onBusy }: Props) {
   const copy = useCopy();
+  const { locale } = useLocale();
   const e = copy.elements;
   const [error, setError] = useState('');
   const file = useRef<HTMLInputElement>(null);
@@ -19,6 +23,19 @@ export default function ElementInspector({ scene, selected, locked, onSelect, on
   const message = scene.messages.find(m => m.id === selected);
   const person = scene.participants.find(p => `@participant:${p.id}` === selected);
   const index = scene.messages.findIndex(m => m.id === selected);
+  // GET-35: the explicit voice transcript field keeps uncommitted (over-long)
+  // input visible so a rejected submission never loses typed wording; the
+  // scene/draft stays valid and the reason surfaces in the panel error.
+  const [transcriptDraft, setTranscriptDraft] = useState('');
+  const transcriptOwnerRef = useRef({ id: '', value: '' });
+  useEffect(() => {
+    const current = message?.voiceTranscript ?? '';
+    const id = message?.id ?? '';
+    if (id !== transcriptOwnerRef.current.id || current !== transcriptOwnerRef.current.value) {
+      transcriptOwnerRef.current = { id, value: current };
+      setTranscriptDraft(current);
+    }
+  }, [message?.id, message?.voiceTranscript]);
   function apply(next: Scene) {
     const result = validateScene(next);
     if (!result.ok || !result.scene) { setError(result.errors.join('；')); return; }
@@ -58,7 +75,7 @@ export default function ElementInspector({ scene, selected, locked, onSelect, on
     {person ? <>
       <Section title={e.personSection}><div className="property-avatar">{person.avatar ? <img src={person.avatar} alt={e.avatarAlt(person.name)}/> : <span>{person.name.slice(0, 1)}</span>}<div><button type="button" className="agent-button" onClick={() => pick('avatar')}><IconPhoto size={15}/>{e.changeAvatar}</button>{person.avatar && <button className="property-text-button" onClick={() => update({ avatar: undefined })}>{e.removeAvatar}</button>}</div></div>{text(e.name, 'name', person.name)}{scene.platform !== 'wechat' && <Section title={e.subtitle} advanced>{text(e.subtitle, 'subtitle', person.subtitle || '')}</Section>}<label>{e.messagePosition}<select value={scene.selfId === person.id ? 'self' : 'other'} onChange={e => { const selfId = e.target.value === 'self' ? person.id : scene.participants.find(p => p.id !== person.id)?.id; if (selfId) apply({ ...scene, selfId }); }}><option value="self">{e.selfSide}</option><option value="other" disabled={scene.participants.length < 2}>{e.otherSide}</option></select></label></Section>
     </> : message ? <>
-      <Section title={e.messageSection}>{text(e.messageText, 'text', message.text, true)}<label>{e.sendDate}<input aria-label={e.sendDate} type="date" value={message.date || ''} onChange={e => update({date:e.target.value || undefined})}/></label><div className="inspector-pair"><label>{e.sender}<select value={message.participantId} onChange={e => update({ participantId: e.target.value })}>{message.type === 'system' && <option value="">{e.system}</option>}{scene.participants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>{text(e.messageTime, 'time', message.time)}</div><label>{e.messageType}<select value={message.type} onChange={e => update({ type: e.target.value as Message['type'], participantId: e.target.value !== 'system' && !message.participantId ? scene.selfId : message.participantId })}>{MESSAGE_TYPES.map(t => <option key={t} value={t}>{copy.messageTypes[t]}</option>)}</select></label></Section>
+      <Section title={e.messageSection}>{text(e.messageText, 'text', message.text, true)}{message.type === 'voice' ? <label>{locale === 'en' ? 'Voice transcript (optional, ≤2000)' : `语音文字稿（可选，≤${VOICE_TRANSCRIPT_MAX} 字）`}<textarea aria-label={locale === 'en' ? 'Voice transcript' : '语音文字稿'} rows={3} value={transcriptDraft} onChange={ev => { const value = ev.target.value; setTranscriptDraft(value); const reason = voiceTranscriptError(value, 'voice'); if (reason) { setError(reason); return; } transcriptOwnerRef.current = { id: message.id, value }; setError(''); update({ voiceTranscript: value === '' ? undefined : value }); }}/></label> : null}<label>{e.sendDate}<input aria-label={e.sendDate} type="date" value={message.date || ''} onChange={e => update({date:e.target.value || undefined})}/></label><div className="inspector-pair"><label>{e.sender}<select value={message.participantId} onChange={e => update({ participantId: e.target.value })}>{message.type === 'system' && <option value="">{e.system}</option>}{scene.participants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>{text(e.messageTime, 'time', message.time)}</div><label>{e.messageType}<select value={message.type} onChange={ev => { const type = ev.target.value as Message['type']; try { const patch = messageTypeChangePatch(message, type, scene.selfId); update({ ...patch, participantId: type !== 'system' && !message.participantId ? scene.selfId : message.participantId }); } catch (error) { setError(error instanceof VoiceTranscriptError ? error.message : String(error)); } }}>{MESSAGE_TYPES.map(t => <option key={t} value={t}>{copy.messageTypes[t]}</option>)}</select></label></Section>
       {media && <Section title={e.mediaSection}>{message.asset && <img className="property-media" src={message.asset} alt={e.currentMedia}/>}<button type="button" className="agent-button" onClick={() => pick('asset')}><IconPhoto size={15}/>{message.asset ? e.replaceMedia : e.uploadMedia}</button>{message.asset && <button className="property-text-button" onClick={() => update({ asset: undefined })}>{e.removeMedia}</button>}{message.type === 'album' && <>{message.items?.map((i, n) => <div key={i.id} className="property-album-item"><label>{e.albumCaption(n + 1)}<input aria-label={e.albumCaption(n + 1)} value={i.caption} onChange={e => update({items:message.items?.map(item => item.id===i.id ? {...item,caption:e.target.value} : item)})}/></label><div className="inspector-pair"><button type="button" className="agent-button" onClick={() => pick(`item:${i.id}`)}>{e.replaceImage}</button><button className="agent-button" onClick={()=>update({items:message.items?.filter(item=>item.id!==i.id)})}>{e.removeImage}</button></div></div>)}<button className="agent-button" disabled={(message.items?.length || 0) >= 9} onClick={() => update({ items: [...(message.items || []), { id: crypto.randomUUID(), kind: 'image', caption: e.newPhoto }] })}>{e.addAlbumImage}</button></>}</Section>}
       <Section title={e.quoteSection} advanced>{text(e.subtitleField, 'subtitle', message.subtitle || '')}{text(e.quoteField, 'quote', message.quote || '', true)}</Section>
     </> : <>

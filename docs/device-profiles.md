@@ -20,9 +20,10 @@
 | `iphone-17-pro` | ios | 402 × 874 | 3 | 1206 × 2622 | 当前默认，与用户参考截图尺寸一致 |
 | `iphone-15-pro` | ios | 393 × 852 | 3 | 1179 × 2556 | 原生面板 1179 × 2556 |
 | `pixel-8` | android | 360 × 800 | 3 | 1080 × 2400 | 原生面板 1080 × 2400 |
+| `ipad-window` | ios | 1024 × 768 | 2 | 2048 × 1536 | GET-35 可复现的通用平板横屏窗口预设；`surface` 枚举不变，注册表内的 `formFactor: 'tablet'` 判定两栏版式 |
 | `macos-window` | desktop | 1000 × 720 | 2 | 2000 × 1440 | 固定尺寸的桌面窗口预设，不是硬件屏幕声明 |
 
-`DEVICE_PROFILES` 只包含上表五项。`deviceProfile(scene)` 另外提供两个“兼容回退”，它们不出现在可选列表中：
+`DEVICE_PROFILES` 只包含上表六项。`deviceProfile(scene)` 另外提供两个“兼容回退”，它们不出现在可选列表中：
 
 - `legacy-android`：场景没有显式 id、`surface = android` 时的 360 × 640 @2x 回退。
 - `legacy-desktop`：场景没有显式 id、`surface = desktop` 时的 900 × 640 @2x 回退。
@@ -39,6 +40,8 @@ iPhone 17 Pro 的 [Apple 官方规格](https://support.apple.com/125090) 为 120
 - `macos-window` 只是一个 1000 × 720 @2x 的桌面窗口预设，用于桌面版式与导出，**不代表**任何具体 Mac 屏幕或窗口分辨率。
 
 上述选择是项目内的可复现约定，方便注册表、测试和导出尺寸一致；不代表某个官方 App 版本、系统版本或主题已经逐像素验证通过。
+
+- `ipad-window` 同样是**项目内的可复现约定**：通用平板横屏“窗口”预设 1024 × 768 逻辑点 @2x（导出 2048 × 1536），**不是**任何硬件、系统版本或 App 版本的像素认证。它的出处与平板版式契约见 `docs/get-35-voice-tablet.md`。
 
 ## 解析规则
 
@@ -68,6 +71,7 @@ deviceProfile(scene): DeviceProfile
 
 - **iPhone 17 Pro / 15 Pro**：iOS 状态栏与安全区，微信使用更接近原生的字号、头像尺寸与气泡间距。17 Pro 微信按参考截图保留底部安全区但隐藏静止状态的 home indicator；15 Pro 保留原来的指示条。
 - **Pixel 8**：Android 状态栏与底部手势导航条，微信同样使用更接近原生的排版指标。
+- **iPad 横屏窗口（`ipad-window`）**：iOS 风格平板 chrome（状态栏，不画 macOS 交通灯）与两栏聊天版式——左侧只推导**当前这一条合成会话**（标题/群人数/最新消息/时间均来自场景本身，不虚构其他会话、未读数或个人头像），右侧为当前会话。仅该预设启用两栏；手机保持紧凑版式，`macos-window` 保持既有桌面窗口语义。
 - **macOS 窗口**：桌面标题栏（交通灯）与更宽松的桌面输入栏，**不显示**移动端状态栏。
 - **legacy 回退**：没有任何设备专属选择器命中，保持原有通用外观。
 
@@ -94,4 +98,4 @@ node --test tests/device-profiles.test.mjs
 npm run typecheck
 ```
 
-覆盖：注册表与官方像素换算、回退解析、显式 id 的校验/拒绝不匹配/草稿往返，以及评估夹具与注册表的一致性。
+覆盖：注册表与官方像素换算、回退解析、显式 id 的校验/拒绝不匹配/草稿往返，以及评估夹具与注册表的一致性。`tests/get35-voice-tablet.test.mjs` 另外覆盖 `ipad-window` 注册表项/往返/失配拒绝/旧尺寸不变与渲染矩阵。

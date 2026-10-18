@@ -132,3 +132,68 @@ test('too-tall bounded requests fail instead of silently cropping', async () => 
     (error) => error.code === 'output_too_tall',
   );
 });
+
+/* ------------------------------------------------------------------ */
+/* GET-35: actual render profile matrix + voice transcript             */
+/*                                                                     */
+/* phone 402x874@3, tablet 1024x768@2 (ipad-window), desktop           */
+/* 1000x720@2 (macos-window) render the same content with stable ids.  */
+/* Standard captures match the logical viewport; long captures grow     */
+/* with the transcript instead of clipping it.                          */
+/* ------------------------------------------------------------------ */
+
+function get35Scene({ deviceProfileId, surface, transcriptLines }) {
+  const { id: _ignored, ...rest } = createScene('weekend');
+  const participants = rest.participants.slice(0, 2);
+  const transcript = Array.from({ length: transcriptLines }, (_, index) => `文字稿第 ${index + 1} 行：周六码头见，English line ${index + 1} wraps safely.`).join('\n');
+  return {
+    ...rest,
+    title: 'GET-35 矩阵',
+    platform: 'wechat',
+    surface,
+    deviceProfileId,
+    selfId: participants[0].id,
+    participants,
+    watermarkEnabled: false,
+    messages: [
+      { id: 'm-1', participantId: participants[1].id, type: 'text', text: '听这段语音。', time: '09:38' },
+      { id: 'm-2', participantId: participants[1].id, type: 'voice', text: '', time: '09:39', ...(transcriptLines > 0 ? { voiceTranscript: transcript } : {}) },
+      { id: 'm-3', participantId: participants[0].id, type: 'text', text: '收到，周六见。', time: '09:40' },
+    ],
+  };
+}
+
+test('GET-35 profile matrix renders the same content and never clips the voice transcript', async () => {
+  const matrix = [
+    { id: 'iphone-17-pro', surface: 'ios', width: 402, height: 874 },
+    { id: 'ipad-window', surface: 'ios', width: 1024, height: 768 },
+    { id: 'macos-window', surface: 'desktop', width: 1000, height: 720 },
+  ];
+  for (const profile of matrix) {
+    // Same content, stable ids on every profile.
+    const short = get35Scene({ deviceProfileId: profile.id, surface: profile.surface, transcriptLines: 2 });
+    const tall = get35Scene({ deviceProfileId: profile.id, surface: profile.surface, transcriptLines: 14 });
+    for (const scene of [short, tall]) {
+      assert.deepEqual(scene.messages.map((message) => message.id), ['m-1', 'm-2', 'm-3']);
+      assert.deepEqual(scene.participants.map((person) => person.id), ['p-linxiaoman', 'p-ayuan']);
+    }
+
+    // Standard: exact logical viewport (clipping rules unchanged).
+    const standard = await renderScenePng({ scene: short, surface: profile.surface, width: profile.width, height: profile.height, outputKind: 'screenshot' });
+    assert.equal(standard.width, profile.width, `${profile.id} standard width`);
+    assert.equal(standard.height, profile.height, `${profile.id} standard height`);
+
+    // Long: the full transcript content grows the capture instead of being cut.
+    const long = await renderScenePng({ scene: tall, surface: profile.surface, width: profile.width, height: profile.height, outputKind: 'long-screenshot' });
+    assert.equal(long.width, profile.width, `${profile.id} long width`);
+    assert.ok(long.height > profile.height, `${profile.id} long capture exceeds the viewport (${long.height} > ${profile.height})`);
+
+    if (profile.id === 'ipad-window') {
+      // Pixel-level proof the transcript is really rendered and not clipped:
+      // the same scene without it captures strictly shorter.
+      const without = get35Scene({ deviceProfileId: profile.id, surface: profile.surface, transcriptLines: 0 });
+      const bare = await renderScenePng({ scene: without, surface: profile.surface, width: profile.width, height: profile.height, outputKind: 'long-screenshot' });
+      assert.ok(long.height > bare.height, `transcript adds ${long.height - bare.height}px of real content in long mode`);
+    }
+  }
+});

@@ -18,6 +18,7 @@ import {
   AGENT_MAX_SCENE_TITLE_CHARS,
   AGENT_MAX_SCENE_WATERMARK_CHARS,
 } from './config.mjs';
+import { VOICE_TRANSCRIPT_MAX } from '../../packages/schema/voice.mjs';
 
 export const ASSET_MARKER = '<已有图片：服务端保留，勿修改>';
 export const AVATAR_MARKER = '<已有头像：服务端保留，勿修改>';
@@ -45,6 +46,10 @@ function markMessage(message) {
     subtitle: truncate(message.subtitle,400), quote: truncate(message.quote,800), width: message.width, height: message.height, appearance: message.appearance,
     items: message.items?.map(item => ({...item, caption:truncate(item.caption,200), asset: item.asset ? ASSET_MARKER : undefined})),
   };
+  // Explicit voice transcript: visible scene content the model may author or
+  // edit, bounded like message text. Only present when the scene carries one —
+  // nothing is ever inferred from legacy labels/durations.
+  if (message.voiceTranscript !== undefined) marked.voiceTranscript = truncate(message.voiceTranscript, MESSAGE_CONTEXT_TEXT_CHARS);
   if (message.asset) marked.asset = ASSET_MARKER;
   return marked;
 }
@@ -180,6 +185,9 @@ export function checkSceneLimits(scene) {
     }
     if (typeof message.text === 'string' && message.text.length > AGENT_MAX_SCENE_TEXT_CHARS) {
       return `消息文本超过 ${AGENT_MAX_SCENE_TEXT_CHARS} 字：${shortId(message.id)}`;
+    }
+    if (typeof message.voiceTranscript === 'string' && message.voiceTranscript.length > VOICE_TRANSCRIPT_MAX) {
+      return `语音文字稿超过 ${VOICE_TRANSCRIPT_MAX} 字：${shortId(message.id)}`;
     }
   }
   return null;
