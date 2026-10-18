@@ -498,24 +498,61 @@ test('a legacy draft without type/brief inherits the richer remote metadata at t
 });
 
 test('a lost acknowledgement with a canonicalized brief never becomes a false conflict', async ({ page }) => {
-  // The server trims name/role and canonicalizes key order; the local snapshot
-  // intentionally differs in key order and whitespace before the PUT.
-  const { headers, projectId } = await createRichProject(page, '回执', {
+  const rawBrief = {
     cast: [{ role: ' me ', name: ' A ' }],
     language: 'zh-CN',
+  };
+  const { headers, projectId, userId } = await createRichProject(page, '回执', rawBrief);
+  const baseline = await projectOnServer(page, { headers }, projectId);
+  const draftKey = `imstage.project.draft.${userId}.${projectId}`;
+  // Create canonicalizes the server copy. Restore a genuinely raw LOCAL edit
+  // so the actual PUT, not just the create fixture, exercises canonicalization.
+  await page.addInitScript(({ draftKey, draft }) => {
+    sessionStorage.setItem(draftKey, JSON.stringify(draft));
+  }, {
+    draftKey,
+    draft: {
+      token: 'canonical-brief-lost-ack-token', userId, projectId,
+      baseRevision: baseline.revision,
+      settings: {
+        name: baseline.name, rules: '丢回执后的规则', platform: 'wechat',
+        watermarkEnabled: true, type: 'story', brief: rawBrief,
+      },
+    },
   });
-  await loseFirstPut(page, projectId);
-  await page.goto(`/?lang=zh#/projects?project=${projectId}`);
-  await expect(page.getByLabel('姓名 1')).toHaveValue('A');
-
-  await rulesField(page).fill('丢回执后的规则');
+  const putBodies: Array<Record<string, unknown>> = [];
+  let lostAcknowledgement = false;
+  let reconciliationReads = 0;
+  await page.route(`**/api/projects/${projectId}`, async (route) => {
+    if (route.request().method() === 'GET' && lostAcknowledgement) reconciliationReads += 1;
+    if (route.request().method() !== 'PUT') return route.continue();
+    putBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    if (putBodies.length > 1) return route.continue();
+    const accepted = await route.fetch();
+    expect(accepted.ok()).toBe(true);
+    lostAcknowledgement = true;
+    await route.abort();
+  });
+  // Force a fresh project document: the register-page AuthProvider's pending
+  // redirect cannot replace a hash-only navigation, and the draft predates mount.
+  await page.goto(`/?lang=zh&draft=canonical-brief#/projects?project=${projectId}`);
+  await expect.poll(() => putBodies.length).toBe(1);
   await expect(autosave(page, 'saved')).toBeVisible({ timeout: 15000 });
   await expect(autosave(page, 'conflict')).toHaveCount(0);
+  await expect(page.getByLabel('姓名 1')).toHaveValue('A');
+  expect(putBodies[0].brief).toEqual(rawBrief);
+  expect(Object.keys(putBodies[0].brief as Record<string, unknown>)).toEqual(['cast', 'language']);
+  expect(lostAcknowledgement).toBe(true);
+  expect(reconciliationReads).toBeGreaterThanOrEqual(1);
   const stored = (await projectOnServer(page, { headers }, projectId)) as unknown as {
     rules: string; type: string; brief: { cast?: Array<{ name: string; role: string }>; language?: string };
   };
   expect(stored.rules).toBe('丢回执后的规则');
   expect(stored.type).toBe('story');
   expect(stored.brief.cast?.[0]?.name).toBe('A');
+  expect(stored.brief.cast?.[0]?.role).toBe('me');
   expect(stored.brief.language).toBe('zh-CN');
+  expect((stored as unknown as { revision: number }).revision).toBe(baseline.revision + 1);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), draftKey)).toBeNull();
+  expect(putBodies).toHaveLength(1);
 });
