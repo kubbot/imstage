@@ -53,6 +53,8 @@ import {
 import { SceneView, initials } from './SceneView';
 import { useAuth } from '../account/Auth';
 import { useLocale } from '../marketing/LocaleContext';
+import { VOICE_TRANSCRIPT_MAX, voiceTranscriptError } from '../../../../packages/schema/voice.mjs';
+import { VoiceTranscriptError, messageTypeChangePatch, newVoiceMessageInput } from './voice-transcript';
 import { applyNewSceneDefaults, ensurePreferences } from '../preferences/api';
 import {
   DRAFT_KEY,
@@ -273,6 +275,22 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
     mutate((s) => updateMessage(s, selectedId, { time: next }));
   });
 
+  // The voice transcript field keeps uncommitted (over-long) input visible so a
+  // rejected submission never loses what the user typed; the scene/draft stays
+  // valid and the error is surfaced. Selection changes and undo/redo resync it.
+  const [messageError, setMessageError] = useState('');
+  const [transcriptDraft, setTranscriptDraft] = useState('');
+  const transcriptOwnerRef = useRef({ id: '', value: '' });
+  useEffect(() => {
+    const current = selected?.voiceTranscript ?? '';
+    const id = selected?.id ?? '';
+    if (id !== transcriptOwnerRef.current.id || current !== transcriptOwnerRef.current.value) {
+      transcriptOwnerRef.current = { id, value: current };
+      setTranscriptDraft(current);
+      setMessageError('');
+    }
+  }, [selected?.id, selected?.voiceTranscript]);
+
   /* ---------------------------------------------------------------- */
   /* Actions                                                           */
   /* ---------------------------------------------------------------- */
@@ -378,15 +396,32 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
       setImageError('请输入台词内容');
       return;
     }
+    // Voice submissions are validated BEFORE any state change: an over-long
+    // transcript is rejected visibly (input, draft and undo stay intact) and
+    // never silently truncated. Ordinary text input is not length-restricted.
+    let voiceInput: ReturnType<typeof newVoiceMessageInput> | null = null;
+    if (composerType === 'voice') {
+      try {
+        voiceInput = newVoiceMessageInput(composerText, composerSenderId, composerTime || scene.deviceTime);
+      } catch (error) {
+        setImageError(error instanceof VoiceTranscriptError ? error.message : '语音文字稿无效');
+        return;
+      }
+    }
     const newId = nextMessageId(scene);
     mutate((current) =>
-      addMessage(current, {
-        type: composerType,
-        text: composerText,
-        participantId: composerType === 'system' ? '' : composerSenderId,
-        time: composerTime || current.deviceTime,
-        asset: composerType === 'image' ? composerAsset : undefined,
-      }),
+      // A new voice message treats the authored words as the explicit
+      // synthetic transcript; the bubble keeps a neutral label (语音/Voice)
+      // instead of an invented duration.
+      voiceInput
+        ? addMessage(current, voiceInput)
+        : addMessage(current, {
+            type: composerType,
+            text: composerText,
+            participantId: composerType === 'system' ? '' : composerSenderId,
+            time: composerTime || current.deviceTime,
+            asset: composerType === 'image' ? composerAsset : undefined,
+          }),
     );
     setSelectedId(newId);
     setComposerText('');
@@ -713,6 +748,13 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
                 </span>
               </h2>
 
+              {messageError ? (
+                <div className="studio-banner studio-banner-error" role="alert">
+                  <IconAlertTriangle size={16} stroke={1.8} />
+                  <span>{messageError}</span>
+                </div>
+              ) : null}
+
               {selected.type !== 'system' ? (
                 <label className="studio-field">
                   <span className="studio-label">发送者</span>
@@ -742,12 +784,18 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
                     value={selected.type}
                     onChange={(event) => {
                       const type = event.target.value as MessageType;
-                      mutate((s) =>
-                        updateMessage(s, selected.id, {
-                          type,
-                          participantId: type === 'system' ? '' : s.selfId,
-                        }),
-                      );
+                      // One deliberate reversible edit: an explicit TEXT → VOICE
+                      // switch copies the authored wording into the visible
+                      // transcript field; undo restores the text message. The
+                      // patch is validated first: an over-long copy is rejected
+                      // visibly BEFORE any state change (never truncated).
+                      try {
+                        const patch = messageTypeChangePatch(selected, type, scene.selfId);
+                        setMessageError('');
+                        mutate((s) => updateMessage(s, selected.id, patch));
+                      } catch (error) {
+                        setMessageError(error instanceof VoiceTranscriptError ? error.message : '切换消息类型失败');
+                      }
                     }}
                     disabled={exporting}
                   >
@@ -766,10 +814,38 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
 
               <label className="studio-field">
                 <span className="studio-label">
-                  {selected.type === 'location' ? '地点名称' : '文本内容'}
+                  {selected.type === 'location' ? '地点名称' : selected.type === 'voice' ? '语音气泡标签（可选）' : '文本内容'}
                 </span>
                 <textarea className="studio-textarea" {...messageTextField} disabled={exporting} />
               </label>
+
+              {selected.type === 'voice' ? (
+                <label className="studio-field">
+                  <span className="studio-label">语音文字稿（可选，≤{VOICE_TRANSCRIPT_MAX} 字）</span>
+                  <textarea
+                    className="studio-textarea"
+                    aria-label="语音文字稿"
+                    value={transcriptDraft}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setTranscriptDraft(value);
+                      // Reject over-long input visibly BEFORE state change; the
+                      // typed wording stays in the field and never gets truncated.
+                      const reason = voiceTranscriptError(value, 'voice');
+                      if (reason) {
+                        setMessageError(`${reason}（当前 ${value.length} 字）`);
+                        return;
+                      }
+                      transcriptOwnerRef.current = { id: selected.id, value };
+                      setMessageError('');
+                      mutate((s) => updateMessage(s, selected.id, { voiceTranscript: value === '' ? undefined : value }));
+                    }}
+                    placeholder="如实写下的合成文字稿；留空则画面不显示文字稿"
+                    disabled={exporting}
+                  />
+                  <small>文字稿会显示在语音气泡下方，最多 {VOICE_TRANSCRIPT_MAX} 字；超出会在上方提示，草稿保持原样。这是创作者显式录入的合成文字，不代表已转录任何真实音频。</small>
+                </label>
+              ) : null}
 
               {selected.type === 'image' ? (
                 <div className="studio-field">
@@ -822,6 +898,9 @@ export default function Studio({ initialTemplate, initialScene, persistLocal = t
               onChange={(event) => setComposerText(event.target.value)}
               disabled={exporting}
             />
+            {composerType === 'voice' ? (
+              <p className="studio-hint">输入的文字会成为这条语音的显式合成文字稿，显示在气泡下方；画面不声称转录过任何真实音频。</p>
+            ) : null}
             <div className="studio-grid-2">
               <label className="studio-field">
                 <span className="studio-label">类型</span>

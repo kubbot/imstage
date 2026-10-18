@@ -102,6 +102,7 @@ const MESSAGE_SCHEMA = {
     height: { type: 'integer' },
     appearance: { type: 'object' },
     items: { type: 'array' },
+    voiceTranscript: { type: 'string', maxLength: SCENE_LIMITS.textMax, description: '可选显式语音合成文字稿，仅 type=voice，≤2000 字，渲染在气泡下方；不是真实音频转录。' },
   },
   required: ['id', 'type'],
   additionalProperties: false,

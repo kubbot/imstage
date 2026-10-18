@@ -142,6 +142,11 @@ export function dialogueSignature(scene) {
     message.type,
     String(message.text ?? '').replace(/\s+/g, ' ').trim(),
     message.asset ? 1 : 0,
+    // Keep every legacy four-tuple byte-identical. Only explicit, nonblank
+    // voice wording extends identity; labels never become a transcript.
+    ...(message.type === 'voice' && typeof message.voiceTranscript === 'string' && message.voiceTranscript.trim()
+      ? [['voiceTranscript', message.voiceTranscript.replace(/\s+/g, ' ').trim()]]
+      : []),
   ]);
   return sha256Hex(JSON.stringify(lines));
 }

@@ -1391,3 +1391,161 @@
   color: var(--scene-custom-text, #6b7280);
   opacity: 0.65;
 }
+
+/* ------------------------------------------------------------------ */
+/* GET-35: explicit voice transcripts + tablet two-pane chat layout     */
+/*                                                                     */
+/* Transcript: an optional, user-authored `Message.voiceTranscript`     */
+/* rendered below the voice bubble. Absent transcripts render nothing   */
+/* (the bubble keeps its honest 语音/Voice placeholder). CJK, English   */
+/* and multiline wording all wrap safely and stay legible in standard   */
+/* and long exports. Semantics are shared with the deterministic HTML   */
+/* renderer (packages/renderer/renderSceneHtml.mjs).                    */
+/* ------------------------------------------------------------------ */
+
+.scene-voice-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-width: 76%;
+}
+.scene-row.is-self .scene-voice-wrap {
+  align-items: flex-end;
+}
+.scene-voice-wrap > .scene-bubble-wrap {
+  max-width: 100%;
+}
+.scene-voice-transcript {
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(17, 18, 20, 0.05);
+  color: #2b3138;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tablet (ipad-window) two-pane layout                                */
+/*                                                                     */
+/* Wide tablet and (optionally) desktop share this minimal two-pane    */
+/* chat layout: a derived list of ONLY this synthetic thread plus the  */
+/* active conversation. The list shows real scene data (thread title /  */
+/* group size / latest message / latest time) — never fabricated        */
+/* unrelated chats, unread counts or personal avatars. Phones keep the */
+/* compact layout; the macOS window keeps its existing window          */
+/* semantics (smallest backwards-compatible choice, see                */
+/* docs/get-35-voice-tablet.md).                                        */
+/* ------------------------------------------------------------------ */
+
+.scene-solo {
+  display: contents;
+}
+.scene-chat-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.scene-split {
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.scene-chat-list {
+  flex: 0 0 32%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-right: 1px solid rgba(17, 18, 20, 0.12);
+  background: #f4f5f7;
+  overflow: hidden;
+}
+.scene-chat-list-title {
+  padding: 6px 6px 10px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.scene-chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(47, 111, 237, 0.12);
+}
+.scene-chat-list-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.scene-chat-list-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scene-chat-list-count {
+  font-size: 11px;
+  opacity: 0.65;
+}
+.scene-chat-list-preview {
+  font-size: 12px;
+  color: #5b6675;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scene-chat-list-time {
+  align-self: flex-start;
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+/* iPad landscape window preset: iOS-style tablet chrome (status bar, no
+   desktop traffic lights) and tablet chat metrics. Not a hardware or
+   app-version pixel certification. */
+.scene-view[data-device='ipad-window'] {
+  --scene-font: 15px;
+  --scene-spacing: 12px;
+}
+.scene-view[data-device='ipad-window'] .scene-status {
+  min-height: 48px;
+  padding: 12px 30px 6px;
+  font-size: 15px;
+}
+.scene-view[data-device='ipad-window'] .scene-header {
+  display: flex;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 18px 10px;
+}
+.scene-view[data-device='ipad-window'] .scene-header-title {
+  flex: 1;
+  align-items: flex-start;
+}
+.scene-view[data-device='ipad-window'] .scene-header > :not(.scene-header-title) {
+  flex-shrink: 0;
+}
+.scene-view[data-device='ipad-window'] .scene-header-back {
+  display: none;
+}
+.scene-view[data-device='ipad-window'] .scene-messages {
+  padding: 12px 18px 18px;
+}
+.scene-view[data-device='ipad-window'] .scene-composer {
+  padding: 12px 18px 16px;
+}
+.scene-view[data-device='ipad-window'] .scene-voice-transcript {
+  font-size: 14px;
+}

@@ -328,6 +328,11 @@ export async function writeArchive({ writer, exportRow, frozen, items, loadScene
           role: message.participantId === scene?.selfId ? 'self' : 'other',
           type: message.type,
           text: message.text ?? null,
+          // GET-35 frozen protocol: `text` keeps its exact legacy/label meaning;
+          // the explicit transcript travels as its own optional field, copied
+          // verbatim and only when the scene actually carries one. Never
+          // inferred from labels/durations, never a replacement for `text`.
+          ...(message.voiceTranscript !== undefined ? { voiceTranscript: message.voiceTranscript } : {}),
         })),
     });
     if (Object.keys(summary.annotations?.labels ?? {}).length > 0) {
