@@ -1,0 +1,244 @@
+TAP version 13
+# Subtest: select_template validates enums, preserves scene preferences/assets and exposes the complete catalog
+ok 1 - select_template validates enums, preserves scene preferences/assets and exposes the complete catalog
+  ---
+  duration_ms: 6.8185
+  type: 'test'
+  ...
+# Subtest: template changes are blocked for local targets, allowed for @scene, and truthful on no-op
+ok 2 - template changes are blocked for local targets, allowed for @scene, and truthful on no-op
+  ---
+  duration_ms: 0.959292
+  type: 'test'
+  ...
+# Subtest: initial WhatsApp request selects its template before a full rebuild and survives scene events
+ok 3 - initial WhatsApp request selects its template before a full rebuild and survives scene events
+  ---
+  duration_ms: 37.21225
+  type: 'test'
+  ...
+# Subtest: createScene("weekend") matches the sample brief
+ok 4 - createScene("weekend") matches the sample brief
+  ---
+  duration_ms: 36.791292
+  type: 'test'
+  ...
+# Subtest: createScene("launch") has a three-person design launch group
+ok 5 - createScene("launch") has a three-person design launch group
+  ---
+  duration_ms: 0.3405
+  type: 'test'
+  ...
+# Subtest: createScene("welcome") starts with a new-friend system message
+ok 6 - createScene("welcome") starts with a new-friend system message
+  ---
+  duration_ms: 0.197209
+  type: 'test'
+  ...
+# Subtest: createScene returns independent fresh copies with stable message ids
+ok 7 - createScene returns independent fresh copies with stable message ids
+  ---
+  duration_ms: 0.558792
+  type: 'test'
+  ...
+# Subtest: updateScene returns a new scene and leaves the original untouched
+ok 8 - updateScene returns a new scene and leaves the original untouched
+  ---
+  duration_ms: 0.874125
+  type: 'test'
+  ...
+# Subtest: updateMessage replaces only the target message
+ok 9 - updateMessage replaces only the target message
+  ---
+  duration_ms: 0.252792
+  type: 'test'
+  ...
+# Subtest: updateMessage on a missing id returns the same reference
+ok 10 - updateMessage on a missing id returns the same reference
+  ---
+  duration_ms: 1.721292
+  type: 'test'
+  ...
+# Subtest: addMessage appends with a unique stable id without mutating the source
+ok 11 - addMessage appends with a unique stable id without mutating the source
+  ---
+  duration_ms: 2.667125
+  type: 'test'
+  ...
+# Subtest: addMessage defaults system messages to an empty sender
+ok 12 - addMessage defaults system messages to an empty sender
+  ---
+  duration_ms: 2.003208
+  type: 'test'
+  ...
+# Subtest: deleteMessage removes the target immutably and no-ops on unknown ids
+ok 13 - deleteMessage removes the target immutably and no-ops on unknown ids
+  ---
+  duration_ms: 2.253166
+  type: 'test'
+  ...
+# Subtest: moveMessage reorders immutably and clamps out-of-range moves
+ok 14 - moveMessage reorders immutably and clamps out-of-range moves
+  ---
+  duration_ms: 0.414084
+  type: 'test'
+  ...
+# Subtest: updateParticipant renames and clears avatars immutably
+ok 15 - updateParticipant renames and clears avatars immutably
+  ---
+  duration_ms: 0.183875
+  type: 'test'
+  ...
+# Subtest: addParticipant allocates a stable unique id
+ok 16 - addParticipant allocates a stable unique id
+  ---
+  duration_ms: 0.261458
+  type: 'test'
+  ...
+# Subtest: message ids stay unique even for non-numeric ids
+ok 17 - message ids stay unique even for non-numeric ids
+  ---
+  duration_ms: 0.266458
+  type: 'test'
+  ...
+# Subtest: validateScene accepts a well-formed scene and normalises it
+ok 18 - validateScene accepts a well-formed scene and normalises it
+  ---
+  duration_ms: 0.834959
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-objects and missing core fields
+ok 19 - validateScene rejects non-objects and missing core fields
+  ---
+  duration_ms: 0.086208
+  type: 'test'
+  ...
+# Subtest: validateScene rejects unknown platforms and message types
+ok 20 - validateScene rejects unknown platforms and message types
+  ---
+  duration_ms: 0.225625
+  type: 'test'
+  ...
+# Subtest: validateScene rejects broken participants and dangling senders
+ok 21 - validateScene rejects broken participants and dangling senders
+  ---
+  duration_ms: 3.279333
+  type: 'test'
+  ...
+# Subtest: validateScene rejects a selfId that is not a participant
+ok 22 - validateScene rejects a selfId that is not a participant
+  ---
+  duration_ms: 0.768875
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-array messages and bad field types
+ok 23 - validateScene rejects non-array messages and bad field types
+  ---
+  duration_ms: 0.251709
+  type: 'test'
+  ...
+# Subtest: parseSceneJson handles corrupt JSON and valid JSON
+ok 24 - parseSceneJson handles corrupt JSON and valid JSON
+  ---
+  duration_ms: 1.895417
+  type: 'test'
+  ...
+# Subtest: draft round-trips through serializeDraft and parseDraft
+ok 25 - draft round-trips through serializeDraft and parseDraft
+  ---
+  duration_ms: 1.018542
+  type: 'test'
+  ...
+# Subtest: parseDraft rejects corrupt, mis-versioned and malformed drafts
+ok 26 - parseDraft rejects corrupt, mis-versioned and malformed drafts
+  ---
+  duration_ms: 0.154458
+  type: 'test'
+  ...
+# Subtest: history supports commit, undo and redo
+ok 27 - history supports commit, undo and redo
+  ---
+  duration_ms: 0.118292
+  type: 'test'
+  ...
+# Subtest: a new commit clears the redo branch
+ok 28 - a new commit clears the redo branch
+  ---
+  duration_ms: 0.049083
+  type: 'test'
+  ...
+# Subtest: committing the same reference is a no-op
+ok 29 - committing the same reference is a no-op
+  ---
+  duration_ms: 0.029917
+  type: 'test'
+  ...
+# Subtest: undo isolation: histories and scenes never leak into each other
+ok 30 - undo isolation: histories and scenes never leak into each other
+  ---
+  duration_ms: 0.14225
+  type: 'test'
+  ...
+# Subtest: resetHistory drops the past and future
+ok 31 - resetHistory drops the past and future
+  ---
+  duration_ms: 0.164792
+  type: 'test'
+  ...
+# Subtest: validation failure never mutates the input object
+ok 32 - validation failure never mutates the input object
+  ---
+  duration_ms: 0.071042
+  type: 'test'
+  ...
+# Subtest: untrusted drafts cannot request external images or unsupported data content
+ok 33 - untrusted drafts cannot request external images or unsupported data content
+  ---
+  duration_ms: 0.217333
+  type: 'test'
+  ...
+# Subtest: scene date and device time survive draft round trip independently
+ok 34 - scene date and device time survive draft round trip independently
+  ---
+  duration_ms: 10.4775
+  type: 'test'
+  ...
+# Subtest: x: scene round-trip, real template tool, MCP and deterministic render
+ok 35 - x: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 5.126833
+  type: 'test'
+  ...
+# Subtest: jike: scene round-trip, real template tool, MCP and deterministic render
+ok 36 - jike: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 0.398041
+  type: 'test'
+  ...
+# Subtest: threads: scene round-trip, real template tool, MCP and deterministic render
+ok 37 - threads: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 0.387875
+  type: 'test'
+  ...
+# Subtest: xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+ok 38 - xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 0.281584
+  type: 'test'
+  ...
+# Subtest: social HTML preserves quotes, safe inline media, album captions and link subtitles
+ok 39 - social HTML preserves quotes, safe inline media, album captions and link subtitles
+  ---
+  duration_ms: 0.47525
+  type: 'test'
+  ...
+1..39
+# tests 39
+# suites 0
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1741.211792

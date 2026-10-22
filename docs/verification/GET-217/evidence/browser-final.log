@@ -1,0 +1,381 @@
+npm notice run imstage@0.2.0 test:ui
+npm notice run playwright test tests/ui/social-platforms.spec.ts --workers=1
+[WebServer] npm notice run imstage@0.2.0 start
+[WebServer] npm notice run node tools/start-web.mjs
+[WebServer] (node:16321) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:16321) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+
+Running 24 tests using 1 worker
+
+(node:16333) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 tests/ui/social-platforms.spec.ts:30:35 › x A: real editor select edit undo recover and PNG download (5.1s)
+  ✓   2 tests/ui/social-platforms.spec.ts:30:35 › x B: real editor select edit undo recover and PNG download (3.0s)
+  ✓   3 tests/ui/social-platforms.spec.ts:30:35 › x C: real editor select edit undo recover and PNG download (3.0s)
+  ✘   4 tests/ui/social-platforms.spec.ts:50:34 › x: actual A shared and HTML renders (9.5s)
+(node:16881) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   5 tests/ui/social-platforms.spec.ts:50:34 › x: actual B shared and HTML renders (2.8s)
+  ✓   6 tests/ui/social-platforms.spec.ts:50:34 › x: actual C shared and HTML renders (1.2s)
+  ✓   7 tests/ui/social-platforms.spec.ts:30:35 › jike A: real editor select edit undo recover and PNG download (2.4s)
+  ✓   8 tests/ui/social-platforms.spec.ts:30:35 › jike B: real editor select edit undo recover and PNG download (2.6s)
+  ✓   9 tests/ui/social-platforms.spec.ts:30:35 › jike C: real editor select edit undo recover and PNG download (3.3s)
+  ✘  10 tests/ui/social-platforms.spec.ts:50:34 › jike: actual A shared and HTML renders (5.8s)
+(node:17100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 tests/ui/social-platforms.spec.ts:50:34 › jike: actual B shared and HTML renders (1.9s)
+  ✓  12 tests/ui/social-platforms.spec.ts:50:34 › jike: actual C shared and HTML renders (906ms)
+  ✓  13 tests/ui/social-platforms.spec.ts:30:35 › threads A: real editor select edit undo recover and PNG download (3.2s)
+  ✘  14 tests/ui/social-platforms.spec.ts:30:35 › threads B: real editor select edit undo recover and PNG download (7.2s)
+(node:17265) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 tests/ui/social-platforms.spec.ts:30:35 › threads C: real editor select edit undo recover and PNG download (2.6s)
+  ✘  16 tests/ui/social-platforms.spec.ts:50:34 › threads: actual A shared and HTML renders (6.0s)
+(node:17393) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 tests/ui/social-platforms.spec.ts:50:34 › threads: actual B shared and HTML renders (710ms)
+  ✓  18 tests/ui/social-platforms.spec.ts:50:34 › threads: actual C shared and HTML renders (428ms)
+  ✘  19 tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu A: real editor select edit undo recover and PNG download (6.0s)
+(node:17439) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  20 tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu B: real editor select edit undo recover and PNG download (6.4s)
+(node:17590) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  21 tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu C: real editor select edit undo recover and PNG download (6.5s)
+(node:17626) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 tests/ui/social-platforms.spec.ts:50:34 › xiaohongshu: actual A shared and HTML renders (5.7s)
+(node:17686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  23 tests/ui/social-platforms.spec.ts:50:34 › xiaohongshu: actual B shared and HTML renders (633ms)
+  ✓  24 tests/ui/social-platforms.spec.ts:50:34 › xiaohongshu: actual C shared and HTML renders (374ms)
+
+
+  1) tests/ui/social-platforms.spec.ts:50:34 › x: actual A shared and HTML renders ─────────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.device').locator('.scene-quote')
+    Expected substring: "周六去看展吗？这是合成对话。"
+    Received string:    "周六去看展吗？"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" locator('.device').locator('.scene-quote') with timeout 5000ms
+      - waiting for locator('.device').locator('.scene-quote')
+        14 × locator resolved to <div class="scene-quote">周六去看展吗？</div>
+           - unexpected value "周六去看展吗？"
+
+
+      57 |     const header=await page.locator('.scene-header').evaluate(e=>{const title=e.querySelector('.scene-header-title')!.getBoundingClientRect(),menu=e.querySelector('.scene-header-more')!.getBoundingClientRect();return {width:title.width,sameRow:Math.abs(title.top-menu.top)<24};});expect(header.width).toBeGreaterThan(100);expect(header.sameRow).toBeTruthy();
+      58 |    }
+    > 59 |    if(kind==='A')await expect(rootOrDevice(page).locator(renderer==='shared'?'.scene-quote':'.quote')).toContainText(scene.messages[0].text);
+         |                                                                                                        ^
+      60 |    const root=page.locator('.device');await expect(root).toContainText(kind==='C'?'END · 全部内容已保留。':kind==='B'?'LongUnbrokenToken':'门口见');
+      61 |    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);expect(overflow).toBeFalsy();
+      62 |    if(renderer==='shared'){expect(await page.locator('.scene-messages').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBeTruthy();await expect(page.locator('.scene-view')).toHaveAttribute('data-platform',platform);}
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:59:104
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-x-actual-A-shared-and-HTML-renders/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-x-actual-A-shared-and-HTML-renders/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-x-actual-A-shared-and-HTML-renders/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-x-actual-A-shared-and-HTML-renders/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests/ui/social-platforms.spec.ts:50:34 › jike: actual A shared and HTML renders ──────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.device').locator('.scene-quote')
+    Expected substring: "周六去看展吗？这是合成对话。"
+    Received string:    "周六去看展吗？"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" locator('.device').locator('.scene-quote') with timeout 5000ms
+      - waiting for locator('.device').locator('.scene-quote')
+        13 × locator resolved to <div class="scene-quote">周六去看展吗？</div>
+           - unexpected value "周六去看展吗？"
+
+
+      57 |     const header=await page.locator('.scene-header').evaluate(e=>{const title=e.querySelector('.scene-header-title')!.getBoundingClientRect(),menu=e.querySelector('.scene-header-more')!.getBoundingClientRect();return {width:title.width,sameRow:Math.abs(title.top-menu.top)<24};});expect(header.width).toBeGreaterThan(100);expect(header.sameRow).toBeTruthy();
+      58 |    }
+    > 59 |    if(kind==='A')await expect(rootOrDevice(page).locator(renderer==='shared'?'.scene-quote':'.quote')).toContainText(scene.messages[0].text);
+         |                                                                                                        ^
+      60 |    const root=page.locator('.device');await expect(root).toContainText(kind==='C'?'END · 全部内容已保留。':kind==='B'?'LongUnbrokenToken':'门口见');
+      61 |    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);expect(overflow).toBeFalsy();
+      62 |    if(renderer==='shared'){expect(await page.locator('.scene-messages').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBeTruthy();await expect(page.locator('.scene-view')).toHaveAttribute('data-platform',platform);}
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:59:104
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-jike-actual-A-shared-and-HTML-renders/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-jike-actual-A-shared-and-HTML-renders/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-jike-actual-A-shared-and-HTML-renders/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-jike-actual-A-shared-and-HTML-renders/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) tests/ui/social-platforms.spec.ts:30:35 › threads B: real editor select edit undo recover and PNG download 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.agent-phone')
+    Timeout: 5000ms
+    - Expected substring  - 3
+    + Received string     + 1
+
+    - 中文换行与多语言边界。
+    - Hello world — 日本語、한국어、العربية。
+    - LongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenToken
+    + 09:41AI生成 / 虚构 · AI-generated / Fictional对方周六 09:38还没有消息
+
+    Call log:
+      - Expect "toContainText" locator('.agent-phone') with timeout 5000ms
+      - waiting for locator('.agent-phone')
+        10 × locator resolved to <div data-surface="ios" data-mode="standard" class="agent-phone device-frame">…</div>
+           - unexpected value "09:41AI生成 / 虚构 · AI-generated / Fictional对方周六 09:38还没有消息"
+
+
+      32 |   const scene=fixture('wechat',kind);await page.goto('/#/create');
+      33 |   await page.evaluate(s=>sessionStorage.setItem('imstage.agent.guest.draft',JSON.stringify({scene:s})),scene);
+    > 34 |   await page.reload();await expect(page.locator('.agent-phone')).toContainText(scene.messages[0].text);
+         |                                                                  ^
+      35 |   const selector=page.getByLabel('目标聊天平台',{exact:true});await selector.selectOption(platform);
+      36 |   const view=page.locator('.agent-phone .scene-view');await expect(view).toHaveAttribute('data-platform',platform);
+      37 |   await page.locator('.agent-phone [data-message-id="one"] .scene-message-select').click();
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:34:66
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-B-77f9d-do-recover-and-PNG-download/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-B-77f9d-do-recover-and-PNG-download/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-B-77f9d-do-recover-and-PNG-download/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-B-77f9d-do-recover-and-PNG-download/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) tests/ui/social-platforms.spec.ts:50:34 › threads: actual A shared and HTML renders ───────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.device').locator('.scene-quote')
+    Expected substring: "周六去看展吗？这是合成对话。"
+    Received string:    "周六去看展吗？"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" locator('.device').locator('.scene-quote') with timeout 5000ms
+      - waiting for locator('.device').locator('.scene-quote')
+        14 × locator resolved to <div class="scene-quote">周六去看展吗？</div>
+           - unexpected value "周六去看展吗？"
+
+
+      57 |     const header=await page.locator('.scene-header').evaluate(e=>{const title=e.querySelector('.scene-header-title')!.getBoundingClientRect(),menu=e.querySelector('.scene-header-more')!.getBoundingClientRect();return {width:title.width,sameRow:Math.abs(title.top-menu.top)<24};});expect(header.width).toBeGreaterThan(100);expect(header.sameRow).toBeTruthy();
+      58 |    }
+    > 59 |    if(kind==='A')await expect(rootOrDevice(page).locator(renderer==='shared'?'.scene-quote':'.quote')).toContainText(scene.messages[0].text);
+         |                                                                                                        ^
+      60 |    const root=page.locator('.device');await expect(root).toContainText(kind==='C'?'END · 全部内容已保留。':kind==='B'?'LongUnbrokenToken':'门口见');
+      61 |    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);expect(overflow).toBeFalsy();
+      62 |    if(renderer==='shared'){expect(await page.locator('.scene-messages').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBeTruthy();await expect(page.locator('.scene-view')).toHaveAttribute('data-platform',platform);}
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:59:104
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-actual-A-shared-and-HTML-renders/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-actual-A-shared-and-HTML-renders/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-actual-A-shared-and-HTML-renders/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-threads-actual-A-shared-and-HTML-renders/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu A: real editor select edit undo recover and PNG download 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByLabel('目标聊天平台', { exact: true })
+    Expected: "xiaohongshu"
+    Received: "wechat"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveValue" getByLabel('目标聊天平台', { exact: true }) with timeout 5000ms
+      - waiting for getByLabel('目标聊天平台', { exact: true })
+        10 × locator resolved to <select aria-label="目标聊天平台">…</select>
+           - unexpected value "wechat"
+
+
+      39 |   await expect(view).toContainText('编辑已生效');await page.getByRole('button',{name:'撤销上次修改',exact:true}).click();
+      40 |   await expect(view).toContainText(scene.messages[0].text);await page.getByRole('button',{name:'关闭 AI 编辑',exact:true}).click();
+    > 41 |   await expect(selector).toHaveValue(platform);await page.reload();await expect(selector).toHaveValue(platform);
+         |                                                                                           ^
+      42 |   const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
+      43 |   const exported=path.join(out,`${platform}-${kind}-editor-export.png`);await(await download).saveAs(exported);await assertDisclosureInPng(exported);
+      44 |   const meta=await sharp(exported).metadata();expect(meta.width).toBeGreaterThanOrEqual(640);expect(events).toEqual([]);
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:41:91
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-e7c9b-do-recover-and-PNG-download/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-e7c9b-do-recover-and-PNG-download/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-e7c9b-do-recover-and-PNG-download/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-e7c9b-do-recover-and-PNG-download/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu B: real editor select edit undo recover and PNG download 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByLabel('目标聊天平台', { exact: true })
+    Expected: "xiaohongshu"
+    Received: "wechat"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveValue" getByLabel('目标聊天平台', { exact: true }) with timeout 5000ms
+      - waiting for getByLabel('目标聊天平台', { exact: true })
+        10 × locator resolved to <select aria-label="目标聊天平台">…</select>
+           - unexpected value "wechat"
+
+
+      39 |   await expect(view).toContainText('编辑已生效');await page.getByRole('button',{name:'撤销上次修改',exact:true}).click();
+      40 |   await expect(view).toContainText(scene.messages[0].text);await page.getByRole('button',{name:'关闭 AI 编辑',exact:true}).click();
+    > 41 |   await expect(selector).toHaveValue(platform);await page.reload();await expect(selector).toHaveValue(platform);
+         |                                                                                           ^
+      42 |   const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
+      43 |   const exported=path.join(out,`${platform}-${kind}-editor-export.png`);await(await download).saveAs(exported);await assertDisclosureInPng(exported);
+      44 |   const meta=await sharp(exported).metadata();expect(meta.width).toBeGreaterThanOrEqual(640);expect(events).toEqual([]);
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:41:91
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-dcbb4-do-recover-and-PNG-download/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-dcbb4-do-recover-and-PNG-download/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-dcbb4-do-recover-and-PNG-download/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-dcbb4-do-recover-and-PNG-download/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu C: real editor select edit undo recover and PNG download 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByLabel('目标聊天平台', { exact: true })
+    Expected: "xiaohongshu"
+    Received: "wechat"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveValue" getByLabel('目标聊天平台', { exact: true }) with timeout 5000ms
+      - waiting for getByLabel('目标聊天平台', { exact: true })
+        10 × locator resolved to <select aria-label="目标聊天平台">…</select>
+           - unexpected value "wechat"
+
+
+      39 |   await expect(view).toContainText('编辑已生效');await page.getByRole('button',{name:'撤销上次修改',exact:true}).click();
+      40 |   await expect(view).toContainText(scene.messages[0].text);await page.getByRole('button',{name:'关闭 AI 编辑',exact:true}).click();
+    > 41 |   await expect(selector).toHaveValue(platform);await page.reload();await expect(selector).toHaveValue(platform);
+         |                                                                                           ^
+      42 |   const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出 PNG',exact:true}).click();
+      43 |   const exported=path.join(out,`${platform}-${kind}-editor-export.png`);await(await download).saveAs(exported);await assertDisclosureInPng(exported);
+      44 |   const meta=await sharp(exported).metadata();expect(meta.width).toBeGreaterThanOrEqual(640);expect(events).toEqual([]);
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:41:91
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-53615-do-recover-and-PNG-download/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-53615-do-recover-and-PNG-download/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-53615-do-recover-and-PNG-download/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-53615-do-recover-and-PNG-download/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) tests/ui/social-platforms.spec.ts:50:34 › xiaohongshu: actual A shared and HTML renders ───────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.device').locator('.scene-quote')
+    Expected substring: "周六去看展吗？这是合成对话。"
+    Received string:    "周六去看展吗？"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" locator('.device').locator('.scene-quote') with timeout 5000ms
+      - waiting for locator('.device').locator('.scene-quote')
+        14 × locator resolved to <div class="scene-quote">周六去看展吗？</div>
+           - unexpected value "周六去看展吗？"
+
+
+      57 |     const header=await page.locator('.scene-header').evaluate(e=>{const title=e.querySelector('.scene-header-title')!.getBoundingClientRect(),menu=e.querySelector('.scene-header-more')!.getBoundingClientRect();return {width:title.width,sameRow:Math.abs(title.top-menu.top)<24};});expect(header.width).toBeGreaterThan(100);expect(header.sameRow).toBeTruthy();
+      58 |    }
+    > 59 |    if(kind==='A')await expect(rootOrDevice(page).locator(renderer==='shared'?'.scene-quote':'.quote')).toContainText(scene.messages[0].text);
+         |                                                                                                        ^
+      60 |    const root=page.locator('.device');await expect(root).toContainText(kind==='C'?'END · 全部内容已保留。':kind==='B'?'LongUnbrokenToken':'门口见');
+      61 |    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);expect(overflow).toBeFalsy();
+      62 |    if(renderer==='shared'){expect(await page.locator('.scene-messages').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBeTruthy();await expect(page.locator('.scene-view')).toHaveAttribute('data-platform',platform);}
+        at /Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts:59:104
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-7a82b-l-A-shared-and-HTML-renders/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-7a82b-l-A-shared-and-HTML-renders/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-7a82b-l-A-shared-and-HTML-renders/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../../private/tmp/ai-test-GET-217.PasoxW/attempt2/test-results/social-platforms-xiaohongs-7a82b-l-A-shared-and-HTML-renders/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8 failed
+    tests/ui/social-platforms.spec.ts:50:34 › x: actual A shared and HTML renders ──────────────────
+    tests/ui/social-platforms.spec.ts:50:34 › jike: actual A shared and HTML renders ───────────────
+    tests/ui/social-platforms.spec.ts:30:35 › threads B: real editor select edit undo recover and PNG download 
+    tests/ui/social-platforms.spec.ts:50:34 › threads: actual A shared and HTML renders ────────────
+    tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu A: real editor select edit undo recover and PNG download 
+    tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu B: real editor select edit undo recover and PNG download 
+    tests/ui/social-platforms.spec.ts:30:35 › xiaohongshu C: real editor select edit undo recover and PNG download 
+    tests/ui/social-platforms.spec.ts:50:34 › xiaohongshu: actual A shared and HTML renders ────────
+  16 passed (1.8m)

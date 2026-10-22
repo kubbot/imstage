@@ -1,0 +1,22 @@
+npm notice run imstage@0.2.0 npx
+npm notice run 'playwright' test tests/ui/social-adapter-boundaries.spec.ts --workers=1
+[WebServer] npm notice run imstage@0.2.0 start
+[WebServer] npm notice run node tools/start-web.mjs
+[WebServer] (node:86548) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:86548) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+
+Running 8 tests using 1 worker
+
+(node:86549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/ui/social-adapter-boundaries.spec.ts:6:48 › x desktop header retains readable title and one row (534ms)
+  ✓  2 tests/ui/social-adapter-boundaries.spec.ts:6:48 › threads desktop header retains readable title and one row (302ms)
+  ✓  3 tests/ui/social-adapter-boundaries.spec.ts:12:1 › HTML empty album items stay inside their own grid cells (241ms)
+  ✓  4 tests/ui/social-adapter-boundaries.spec.ts:16:28 › social explicit radius 0 controls all four bubble corners (223ms)
+  ✓  5 tests/ui/social-adapter-boundaries.spec.ts:16:28 › social explicit radius 40 controls all four bubble corners (205ms)
+  ✓  6 tests/ui/social-adapter-boundaries.spec.ts:23:1 › social album captions are visible beside their corresponding images (243ms)
+  ✓  7 tests/ui/social-adapter-boundaries.spec.ts:29:1 › short social long exports keep the composer at the bottom in editor full mode (277ms)
+  ✓  8 tests/ui/social-adapter-boundaries.spec.ts:36:1 › social deterministic HTML shares the exact rendered scene with MCP (6ms)
+
+  8 passed (5.1s)

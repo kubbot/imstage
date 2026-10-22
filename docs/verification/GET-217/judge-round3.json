@@ -1,0 +1,1794 @@
+{
+  "issue": "GET-217",
+  "round": 3,
+  "verdict": "PASS_LOCAL_ARTIFACT_JUDGE_ONLY",
+  "requested_native_model_identifier": "gpt-6-astra",
+  "model_identity_note": "The native Codex judge was requested as gpt-6-astra; provider-side actual routing/model identifier is not exposed and cannot be independently attested. Same native judge resumed; no external model, API/key, Pi or recursive delegation.",
+  "judge_invocations_this_round": 1,
+  "judge_invocations_cumulative": 3,
+  "rubric": {
+    "H": 20,
+    "T": 25,
+    "F": 25,
+    "E": 20,
+    "R": 10,
+    "threshold_every_row": 98,
+    "rounding_or_score_topup": false,
+    "path": "/Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/docs/verification/GET-217/plan.md",
+    "sha256": "2a1a13ee17d234b75c14973b709f9037136c9ea4fce53aeb59e25596da1b8fff"
+  },
+  "artifact_root_at_review": "/private/tmp/ai-test-GET-217-resume.dJCkx6/round3-final",
+  "scope": "Actual review of 24 designated shared/HTML PNGs, 12 actual editor-export PNGs, 12 desktop plus 12 mobile screenshots, all 12 inputs and 12 operation records. Read-only raw pixel comparison and inspection of the current acceptance script/browser log. No browser/build/test was launched by this judge.",
+  "preserved_prior_attempts": {
+    "judge-round1.json": "aa263a9a21e1bdb38b3b5f16016e7829d695df1160b94609379db67d9c300b3a",
+    "judge-round1.md": "3069c90f71af4f1e1b83badc76ea4b36171c2552bc1c02c1f964ae4bf481186e",
+    "judge-round2.json": "506a153c42f0dadb1ac0f3c17a85f454e7f991227655445f05079ce23fbab6b9",
+    "judge-round2.md": "f4599f669b71ca137c009ababf90ca9c3985e7b9f2af126774b879b3ec062fe0"
+  },
+  "rows": [
+    {
+      "platform": "x",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-A-shared.png",
+      "paired_editor_export": "x-A-editor-export.png",
+      "editor_evidence": [
+        "x-A-input.json",
+        "x-A-editor-operations.json",
+        "x-A-editor-desktop.png",
+        "x-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-A-html.png",
+      "paired_editor_export": "x-A-editor-export.png",
+      "editor_evidence": [
+        "x-A-input.json",
+        "x-A-editor-operations.json",
+        "x-A-editor-desktop.png",
+        "x-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-B-shared.png",
+      "paired_editor_export": "x-B-editor-export.png",
+      "editor_evidence": [
+        "x-B-input.json",
+        "x-B-editor-operations.json",
+        "x-B-editor-desktop.png",
+        "x-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-B-html.png",
+      "paired_editor_export": "x-B-editor-export.png",
+      "editor_evidence": [
+        "x-B-input.json",
+        "x-B-editor-operations.json",
+        "x-B-editor-desktop.png",
+        "x-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-C-shared.png",
+      "paired_editor_export": "x-C-editor-export.png",
+      "editor_evidence": [
+        "x-C-input.json",
+        "x-C-editor-operations.json",
+        "x-C-editor-desktop.png",
+        "x-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "左对齐头像页头、X合成私信副标题、蓝色发出气泡和发送私信输入栏明确；时间置于消息下方。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "x-C-html.png",
+      "paired_editor_export": "x-C-editor-export.png",
+      "editor_evidence": [
+        "x-C-input.json",
+        "x-C-editor-operations.json",
+        "x-C-editor-desktop.png",
+        "x-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-A-shared.png",
+      "paired_editor_export": "jike-A-editor-export.png",
+      "editor_evidence": [
+        "jike-A-input.json",
+        "jike-A-editor-operations.json",
+        "jike-A-editor-desktop.png",
+        "jike-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-A-html.png",
+      "paired_editor_export": "jike-A-editor-export.png",
+      "editor_evidence": [
+        "jike-A-input.json",
+        "jike-A-editor-operations.json",
+        "jike-A-editor-desktop.png",
+        "jike-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-B-shared.png",
+      "paired_editor_export": "jike-B-editor-export.png",
+      "editor_evidence": [
+        "jike-B-input.json",
+        "jike-B-editor-operations.json",
+        "jike-B-editor-desktop.png",
+        "jike-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-B-html.png",
+      "paired_editor_export": "jike-B-editor-export.png",
+      "editor_evidence": [
+        "jike-B-input.json",
+        "jike-B-editor-operations.json",
+        "jike-B-editor-desktop.png",
+        "jike-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-C-shared.png",
+      "paired_editor_export": "jike-C-editor-export.png",
+      "editor_evidence": [
+        "jike-C-input.json",
+        "jike-C-editor-operations.json",
+        "jike-C-editor-desktop.png",
+        "jike-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "居中页头、即刻合成对话副标题、黄底黑字发出气泡、双侧头像和聊点有趣的输入栏明确；时间置于消息前。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "jike-C-html.png",
+      "paired_editor_export": "jike-C-editor-export.png",
+      "editor_evidence": [
+        "jike-C-input.json",
+        "jike-C-editor-operations.json",
+        "jike-C-editor-desktop.png",
+        "jike-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-A-shared.png",
+      "paired_editor_export": "threads-A-editor-export.png",
+      "editor_evidence": [
+        "threads-A-input.json",
+        "threads-A-editor-operations.json",
+        "threads-A-editor-desktop.png",
+        "threads-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-A-html.png",
+      "paired_editor_export": "threads-A-editor-export.png",
+      "editor_evidence": [
+        "threads-A-input.json",
+        "threads-A-editor-operations.json",
+        "threads-A-editor-desktop.png",
+        "threads-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-B-shared.png",
+      "paired_editor_export": "threads-B-editor-export.png",
+      "editor_evidence": [
+        "threads-B-input.json",
+        "threads-B-editor-operations.json",
+        "threads-B-editor-desktop.png",
+        "threads-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-B-html.png",
+      "paired_editor_export": "threads-B-editor-export.png",
+      "editor_evidence": [
+        "threads-B-input.json",
+        "threads-B-editor-operations.json",
+        "threads-B-editor-desktop.png",
+        "threads-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-C-shared.png",
+      "paired_editor_export": "threads-C-editor-export.png",
+      "editor_evidence": [
+        "threads-C-input.json",
+        "threads-C-editor-operations.json",
+        "threads-C-editor-desktop.png",
+        "threads-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "左对齐头像页头、Threads合成私信副标题、黑色发出气泡和发送消息输入栏明确。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "threads-C-html.png",
+      "paired_editor_export": "threads-C-editor-export.png",
+      "editor_evidence": [
+        "threads-C-input.json",
+        "threads-C-editor-operations.json",
+        "threads-C-editor-desktop.png",
+        "threads-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-A-shared.png",
+      "paired_editor_export": "xiaohongshu-A-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-A-input.json",
+        "xiaohongshu-A-editor-operations.json",
+        "xiaohongshu-A-editor-desktop.png",
+        "xiaohongshu-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "三条双语消息、太阳emoji、引用原文与10:06–10:08时间均存在。真实下载与桌面预览的输入栏已位于scene底部，其后没有上轮灰/白空带。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-A-html.png",
+      "paired_editor_export": "xiaohongshu-A-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-A-input.json",
+        "xiaohongshu-A-editor-operations.json",
+        "xiaohongshu-A-editor-desktop.png",
+        "xiaohongshu-A-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-B-shared.png",
+      "paired_editor_export": "xiaohongshu-B-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-B-input.json",
+        "xiaohongshu-B-editor-operations.json",
+        "xiaohongshu-B-editor-desktop.png",
+        "xiaohongshu-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 25,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 100,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "320px图中多语言正文和12次LongUnbrokenToken在边界内换行，单图和两张相册图片存在；样本 A、样本 B在shared、HTML及真实下载均完整可见并各自对应图片。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-B-html.png",
+      "paired_editor_export": "xiaohongshu-B-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-B-input.json",
+        "xiaohongshu-B-editor-operations.json",
+        "xiaohongshu-B-editor-desktop.png",
+        "xiaohongshu-B-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-C-shared.png",
+      "paired_editor_export": "xiaohongshu-C-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-C-input.json",
+        "xiaohongshu-C-editor-operations.json",
+        "xiaohongshu-C-editor-desktop.png",
+        "xiaohongshu-C-editor-mobile.png"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 99,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题为较淡的小字号，系统状态文字与淡底的层级仍偏弱；文字可读且完整。与第二轮相同的C次要文字扣分保留，已修复的平台副标题不再扣分。"
+        }
+      ],
+      "observations": [
+        "居中页头、小红书合成私信副标题、红色发出气泡、双侧头像和发送消息输入栏明确。",
+        "长正文、合成状态、12秒语音视觉、完整中英文文字稿、链接缩略图/标题/副标题以及END结尾全部可见；真实下载高度足够，没有尾部截断。",
+        "默认AI生成/虚构水印可见；未见缺字方框、重叠或横向越界。",
+        "对应shared与HTML逐RGB像素比较为0差异；实际编辑导出使用360逻辑像素宽，和320/390宽样本之间存在合理换行，不据此扣分。",
+        "该case拥有本轮真实平台选择、编辑、撤销、保存及IndexedDB断言、刷新恢复、PNG下载和390px手机证据。"
+      ],
+      "artifact": "xiaohongshu-C-html.png",
+      "paired_editor_export": "xiaohongshu-C-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-C-input.json",
+        "xiaohongshu-C-editor-operations.json",
+        "xiaohongshu-C-editor-desktop.png",
+        "xiaohongshu-C-editor-mobile.png"
+      ]
+    }
+  ],
+  "blocking_findings": [],
+  "nonblocking_findings": [
+    {
+      "id": "C-SECONDARY-TEXT-CONTRAST",
+      "affected_cases": [
+        "x-C-shared",
+        "x-C-html",
+        "jike-C-shared",
+        "jike-C-html",
+        "threads-C-shared",
+        "threads-C-html",
+        "xiaohongshu-C-shared",
+        "xiaohongshu-C-html"
+      ],
+      "finding": "Link subtitle is visually small and pale; system-state text has weak secondary hierarchy against a pale fill. Both remain readable and complete.",
+      "deduction": "T -1 in every C row",
+      "suggestion": "Increase link subtitle/system-state contrast while preserving the current complete content and wrapping."
+    }
+  ],
+  "closed_round2_findings": [
+    {
+      "id": "B-ALBUM-CAPTIONS-OMITTED",
+      "basis": "Both captions were visually inspected in every B shared, HTML and real editor-export image; the same frozen B input is retained."
+    },
+    {
+      "id": "HTML-FORMAT-DIVERGENCE",
+      "basis": "All 12 shared/HTML pairs have equal dimensions and 0 differing RGB pixels. Platform subtitles, avatars, time positions, quotes/cards and composer icons now match."
+    },
+    {
+      "id": "A-COMPOSER-TRAILING-SPACE",
+      "basis": "All four A real downloads show composer at bottom and no trailing empty band; matching desktop previews show the same behavior."
+    },
+    {
+      "id": "HEADER-SUBTITLE-CONTRAST",
+      "basis": "Every platform subtitle is now visibly darker and readable. Remaining C card/system text deduction is kept."
+    }
+  ],
+  "pixel_comparison": [
+    {
+      "platform": "x",
+      "case": "A",
+      "shared": "x-A-shared.png",
+      "html": "x-A-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "x",
+      "case": "B",
+      "shared": "x-B-shared.png",
+      "html": "x-B-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "x",
+      "case": "C",
+      "shared": "x-C-shared.png",
+      "html": "x-C-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "jike",
+      "case": "A",
+      "shared": "jike-A-shared.png",
+      "html": "jike-A-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "jike",
+      "case": "B",
+      "shared": "jike-B-shared.png",
+      "html": "jike-B-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "jike",
+      "case": "C",
+      "shared": "jike-C-shared.png",
+      "html": "jike-C-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "threads",
+      "case": "A",
+      "shared": "threads-A-shared.png",
+      "html": "threads-A-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "threads",
+      "case": "B",
+      "shared": "threads-B-shared.png",
+      "html": "threads-B-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "threads",
+      "case": "C",
+      "shared": "threads-C-shared.png",
+      "html": "threads-C-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "A",
+      "shared": "xiaohongshu-A-shared.png",
+      "html": "xiaohongshu-A-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "B",
+      "shared": "xiaohongshu-B-shared.png",
+      "html": "xiaohongshu-B-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "C",
+      "shared": "xiaohongshu-C-shared.png",
+      "html": "xiaohongshu-C-html.png",
+      "differing_rgb_pixels": 0,
+      "method": "Decode existing PNGs to raw RGB with sharp; compare every pixel without modifying files."
+    }
+  ],
+  "input_integrity": "All 12 round3 input JSON documents were parsed and compared with final-local round2 inputs: equal. No failing case was removed or made easier.",
+  "editing_recovery_evidence": {
+    "score_per_row": 10,
+    "basis": "All 12 operation records exist, errors=[], matched export sizes and selected platforms. Read-only inspection confirms records are written after real UI select/edit/undo, saved-local status, IndexedDB equality checks for platform/text/count, reload, actual download, disclosure pixel assertion and mobile overflow assertion. New B caption visibility and scene/composer-bottom geometry assertions precede export. The local 42-test run log includes a passing line for every designated real-editor case.",
+    "limits": "This judge did not independently rerun the UI. JSON action lists are completion records, not per-step timestamped traces or raw IndexedDB dumps. R credits the supplied current-run evidence and inspected sequential assertions."
+  },
+  "browser_run_log": {
+    "path": "/private/tmp/ai-test-GET-217-resume.dJCkx6/round3-browser.log",
+    "sha256": "2840144da8c18aa2bd2a67537dc23a9f861f006c0b0d79c5ac519a5460acaabf",
+    "observed_summary": "42 passed (1.3m)",
+    "independently_executed_by_judge": false,
+    "scope": "social-platforms, social-adapter-boundaries, whatsapp-timestamps, project-options; includes X exact selector regression result and captions/composer/equality checks."
+  },
+  "acceptance_script": {
+    "path": "/Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/tests/ui/social-platforms.spec.ts",
+    "sha256": "bcb244323184ea56a790adc8363b32f327a8166f28cf7e8f495ae700470f6530",
+    "inspection": "read-only"
+  },
+  "not_independently_verified": [
+    "Current full host test suite and production build execution",
+    "Independent code review and latest-head CI/CD",
+    "Production deployment and actual production behavior",
+    "Real generation provider availability or generation success",
+    "Real social login, publishing, public feed or platform API capability",
+    "Broader WeChat regression and unrelated platform behavior outside this image set"
+  ],
+  "capability_boundary": "Pass applies only to frozen local synthetic chat/private-message artifact cases and supplied editing/recovery evidence. It is not task delivery, release approval, production acceptance, real-provider acceptance, or proof of public-feed/social-API capability. Full frozen protocol still separately requires independent code review, CI and production acceptance.",
+  "summary": {
+    "rows": 24,
+    "score_pass_rows": 24,
+    "score_fail_rows": 0,
+    "minimum": 99,
+    "maximum": 100,
+    "all_designated_local_artifact_cases_pass": true,
+    "blocking_defect_present": false,
+    "overall_delivery_accepted": false
+  },
+  "evidence_manifest": [
+    {
+      "file": "x-A-shared.png",
+      "sha256": "7771eb1c31f5b980e5f6a547e0e77895f62885f8ee6cde34ab74184a1f3f79ac",
+      "bytes": 35190,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "x-A-html.png",
+      "sha256": "7771eb1c31f5b980e5f6a547e0e77895f62885f8ee6cde34ab74184a1f3f79ac",
+      "bytes": 35190,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "x-A-editor-export.png",
+      "sha256": "71b07997a8961501b9548b854f8783e640b9c984ea09852e3b47f693b9ccd70b",
+      "bytes": 108794,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "x-A-editor-desktop.png",
+      "sha256": "c7f2a5f7d69c54a06ba444f765792ea61e22828351227eada5c910c3e8b704ee",
+      "bytes": 126380,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-A-editor-mobile.png",
+      "sha256": "9cb4c4618d13ad8dac47966a535d7f8f90442170c3f10014bba4ac3c564d5e58",
+      "bytes": 52497,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-A-input.json",
+      "sha256": "4cc0bc14746c553cec352af30152a71037a1b492c96a5caee53e49c830c86b55",
+      "bytes": 949,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-A-editor-operations.json",
+      "sha256": "60079fb7a52aa7e53c3ff613a016d1b6d89dcf7e4e535681a37c04b425241289",
+      "bytes": 1621,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-B-shared.png",
+      "sha256": "c84d86eecc5aa8d2059ae4a5cbafa3eeddb7a454e0ad9bb3750573f397af1b40",
+      "bytes": 51636,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        955
+      ]
+    },
+    {
+      "file": "x-B-html.png",
+      "sha256": "c84d86eecc5aa8d2059ae4a5cbafa3eeddb7a454e0ad9bb3750573f397af1b40",
+      "bytes": 51636,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        955
+      ]
+    },
+    {
+      "file": "x-B-editor-export.png",
+      "sha256": "d552f775f740542f5261bb9dcf73e5fba60154835dac0234c6943d03ec1733fe",
+      "bytes": 170583,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1862
+      ]
+    },
+    {
+      "file": "x-B-editor-desktop.png",
+      "sha256": "075d277de5d2d4c18b1d0f8029db461a067f093a94c5534c18141466ae913d04",
+      "bytes": 138082,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-B-editor-mobile.png",
+      "sha256": "e5021ec08c4fc04f4d2a131fed8f860c99ecd3282f6642559d9e2e7202890e08",
+      "bytes": 55271,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-B-input.json",
+      "sha256": "bc6f1bd4ba94edaf0e8fc7ccf800bf2a380d67d201c17916d0daed9e8bf3e928",
+      "bytes": 39736,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-B-editor-operations.json",
+      "sha256": "6cb6853c42c400abe19c31782bd23a4c91d30e68f0e0c63f3ae977c2ca64aa69",
+      "bytes": 40436,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-C-shared.png",
+      "sha256": "c07339de3746cb9a37fd9f61c178abe919d862a5a91cc2b52312bc4917d5ce8e",
+      "bytes": 68059,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "x-C-html.png",
+      "sha256": "c07339de3746cb9a37fd9f61c178abe919d862a5a91cc2b52312bc4917d5ce8e",
+      "bytes": 68059,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "x-C-editor-export.png",
+      "sha256": "ad5afe1325d857c518bcf3f9d3fb5985098e3f6ab7337a85c3b295fd8fee5e0e",
+      "bytes": 376409,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        2544
+      ]
+    },
+    {
+      "file": "x-C-editor-desktop.png",
+      "sha256": "319859e65a48776d394746d5562e32fe5d1775049116862fee4bdc0ba9b2ec4f",
+      "bytes": 193894,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-C-editor-mobile.png",
+      "sha256": "e46de65bb3a32fd880566d76bb7d337769ba5030849875e99383aa639c5af5f7",
+      "bytes": 67864,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-C-input.json",
+      "sha256": "0b761039f4385a8cfc4e1ddeb4f325039e304499c66036d1f907ae02ecf2be5a",
+      "bytes": 14948,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-C-editor-operations.json",
+      "sha256": "e7df125b6757274a1631cee94d4118869d65620756e72b195a27804f6c34791c",
+      "bytes": 15652,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-A-shared.png",
+      "sha256": "f0421e7f4ef7339950fa098e3a70470b0f6aed44a510d359675ae0eadb03b6f9",
+      "bytes": 34137,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "jike-A-html.png",
+      "sha256": "f0421e7f4ef7339950fa098e3a70470b0f6aed44a510d359675ae0eadb03b6f9",
+      "bytes": 34137,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "jike-A-editor-export.png",
+      "sha256": "40068d454b9a678c2823e9027af3ec76801a11f1646040b0e55c2f8379287ba2",
+      "bytes": 106111,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "jike-A-editor-desktop.png",
+      "sha256": "575bd7274ce75164fb26de0bf5c2a59357538ea489ea8d60840ebdbbccfaa261",
+      "bytes": 125650,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-A-editor-mobile.png",
+      "sha256": "56c14b38cc1bc4ec876f4762b5cbae8550418bd24a02fe875d8b2e95e0a684b0",
+      "bytes": 52500,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-A-input.json",
+      "sha256": "2ca64ceef568142ce33245c2bc026a0b3977ceb5bcc68095def6852d9ada05e4",
+      "bytes": 955,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-A-editor-operations.json",
+      "sha256": "22e1a39c18f9a1e54e4bf725c4372d2f029e72cf9fb2196b6fa83f974087dcf7",
+      "bytes": 1624,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-B-shared.png",
+      "sha256": "6cef9a01216bc714c3f44269bc70c0311cbc831e7cf8dec1c875e228c7a6613d",
+      "bytes": 51622,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        977
+      ]
+    },
+    {
+      "file": "jike-B-html.png",
+      "sha256": "6cef9a01216bc714c3f44269bc70c0311cbc831e7cf8dec1c875e228c7a6613d",
+      "bytes": 51622,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        977
+      ]
+    },
+    {
+      "file": "jike-B-editor-export.png",
+      "sha256": "70ffa28d6d21af92a37039ece7bbe9a2d6c13033da7198e0bf3ccf5b5678d6ab",
+      "bytes": 170759,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1906
+      ]
+    },
+    {
+      "file": "jike-B-editor-desktop.png",
+      "sha256": "c768f2644adb530f6aaaa1c9b6147f09db2dc42e6e85abb3391329ce730389c5",
+      "bytes": 138419,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-B-editor-mobile.png",
+      "sha256": "536885610bba523fc31616ea8b90eafab049c3edaf0db39b777320a5abcb7c17",
+      "bytes": 54931,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-B-input.json",
+      "sha256": "c6c3a684401c1bef8523e0819f685ecea440d830fa592e22fd544a09c002196c",
+      "bytes": 39742,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-B-editor-operations.json",
+      "sha256": "f494240e97531dbf3f2abf508be543590b50bdefe05c998e8eaaab7581dd548e",
+      "bytes": 40439,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-C-shared.png",
+      "sha256": "aba17b25e2c5224cf7175b9e9c2d7e1dbb38cf1393d2fbcc3aac3cf8b0920ed2",
+      "bytes": 68193,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "jike-C-html.png",
+      "sha256": "aba17b25e2c5224cf7175b9e9c2d7e1dbb38cf1393d2fbcc3aac3cf8b0920ed2",
+      "bytes": 68193,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "jike-C-editor-export.png",
+      "sha256": "a2f923d00a1019c1c79797160baee820602ae9b1606fe9ee5e58fbe122fac077",
+      "bytes": 388365,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        2604
+      ]
+    },
+    {
+      "file": "jike-C-editor-desktop.png",
+      "sha256": "d9a93164b90144f0dd16934bc48d4f4899af01e6401f6d625e98f776b4797085",
+      "bytes": 195388,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-C-editor-mobile.png",
+      "sha256": "58d9540e4b26b86411dfbc24034ac9a0eebe3322e892f998f25d6ae7efae262c",
+      "bytes": 67769,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-C-input.json",
+      "sha256": "1aedf05a4bb2249ac6fd4ca5c6979b63901cc7fa1f37f3a44771ed7740e30712",
+      "bytes": 14954,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-C-editor-operations.json",
+      "sha256": "48290220ba04a2a0756621e0a84e684e204cc7b1c50d43149f1807870b302c1e",
+      "bytes": 15655,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-A-shared.png",
+      "sha256": "0a0d4e4515247e8ae6a8ca0eb40f3c8712b5f9b0b1a28be3f538c6fd4725c3d2",
+      "bytes": 35314,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "threads-A-html.png",
+      "sha256": "0a0d4e4515247e8ae6a8ca0eb40f3c8712b5f9b0b1a28be3f538c6fd4725c3d2",
+      "bytes": 35314,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "threads-A-editor-export.png",
+      "sha256": "3dbcbd04f70942d7c98f369e8b681f0db7fa637d58c236da56d6ceb62b15692c",
+      "bytes": 109425,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "threads-A-editor-desktop.png",
+      "sha256": "f902610c7e4ba57d18f60afd9f4c7353c60a7c1eeafdf7589a9e6584431f5d1a",
+      "bytes": 126889,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-A-editor-mobile.png",
+      "sha256": "fa473be2eeb7da30f544e0be069ade976bbc6e3262d89b477b99694116e6b28a",
+      "bytes": 53032,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-A-input.json",
+      "sha256": "e0ba12e07969a76134b4526b49bc2b69e3b7d649b88a66a303d171000bc2ac44",
+      "bytes": 961,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-A-editor-operations.json",
+      "sha256": "12ddf8287bc0c190aab8dd87c9a16c77cac914dcaed64ea9c7ce85c92dfe1c74",
+      "bytes": 1627,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-B-shared.png",
+      "sha256": "261a6921094b8baf4de8d90c4c11b7434aa71614226868e3a613799387caf1c2",
+      "bytes": 52613,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        955
+      ]
+    },
+    {
+      "file": "threads-B-html.png",
+      "sha256": "261a6921094b8baf4de8d90c4c11b7434aa71614226868e3a613799387caf1c2",
+      "bytes": 52613,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        955
+      ]
+    },
+    {
+      "file": "threads-B-editor-export.png",
+      "sha256": "ede8dba9ea502f2f53785e61fd77d38a8a59beb570295c33c117924c27b1ad7f",
+      "bytes": 173323,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1862
+      ]
+    },
+    {
+      "file": "threads-B-editor-desktop.png",
+      "sha256": "889c4bd8a537ee3c34196901a982fd18a37a539cbdd3b9c8d669667cc3218fee",
+      "bytes": 139527,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-B-editor-mobile.png",
+      "sha256": "fe65631be050b4d9d5a75098ee9d137422c0f28f6dd1ec53bef325a10110b44c",
+      "bytes": 56479,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-B-input.json",
+      "sha256": "61a62b654109c74088a68b2fdea8c154d605344277804bb8b47195c73c23c9f4",
+      "bytes": 39748,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-B-editor-operations.json",
+      "sha256": "5c10f1998928ecd6562cd5662db4054559b36340b878d3620df1dd18c58194d8",
+      "bytes": 40442,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-C-shared.png",
+      "sha256": "6248265b5ba6be29be64c0a338056a330e6cbc6102e1ac6563ed8d91fb412606",
+      "bytes": 68234,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "threads-C-html.png",
+      "sha256": "6248265b5ba6be29be64c0a338056a330e6cbc6102e1ac6563ed8d91fb412606",
+      "bytes": 68234,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "threads-C-editor-export.png",
+      "sha256": "732f3ce3400df470252d6aa1b7b43d2e934c05cc5ab0e54c41741af6595815ae",
+      "bytes": 388923,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        2544
+      ]
+    },
+    {
+      "file": "threads-C-editor-desktop.png",
+      "sha256": "f8f940b701af6f0bb1a1db2317980de0340794f7a41841033677641b3668b7a6",
+      "bytes": 196977,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-C-editor-mobile.png",
+      "sha256": "9b503d8a22666e23028283e36cf5a3188d750e1d280bb7bcf857cebdcf703213",
+      "bytes": 70455,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-C-input.json",
+      "sha256": "71139eca215a4a60c76194cfb7b8015d1ac88ee21141a290153817aa7b2ab25c",
+      "bytes": 14960,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-C-editor-operations.json",
+      "sha256": "1b03ca57eb52028a4574b6578b1bdf47601c2b9e645eaabd0eb40b5413b5b564",
+      "bytes": 15658,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-A-shared.png",
+      "sha256": "c43882d29235e48d2798907a8f29e60b705bfdfc49893f2c71cb807ffa7fc725",
+      "bytes": 34408,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-html.png",
+      "sha256": "c43882d29235e48d2798907a8f29e60b705bfdfc49893f2c71cb807ffa7fc725",
+      "bytes": 34408,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-export.png",
+      "sha256": "7ef2aa0df4d38ada530aebb9d1f3833d14cf96371335785a9679626b961c1ab7",
+      "bytes": 107354,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-desktop.png",
+      "sha256": "b16d52611bfd73e714fb22d42d1be20bb756b610a2f6b3473b67d02dbe0f82da",
+      "bytes": 126888,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-mobile.png",
+      "sha256": "f02ec82e5636c20ded26eaccee6a2afe2e0f89abe3501471e10b8f94a275566e",
+      "bytes": 53709,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-input.json",
+      "sha256": "f86f82c3397359d70e2ac08476ae86b65f0acaa873286a911a4ef5f23dce644c",
+      "bytes": 969,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-A-editor-operations.json",
+      "sha256": "9435abe21e8ee0e8724a38129de38ee6cd95653570e317d5625639e365f22fe8",
+      "bytes": 1631,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-B-shared.png",
+      "sha256": "c3a206b40429866ea98ce29927191a33e0a778f51ac6411891a544580a7d76ce",
+      "bytes": 51419,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        977
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-html.png",
+      "sha256": "c3a206b40429866ea98ce29927191a33e0a778f51ac6411891a544580a7d76ce",
+      "bytes": 51419,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        320,
+        977
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-export.png",
+      "sha256": "59e8f2b363c5deb726aad76490244936727b9110606aaa04cac2742b81a9357b",
+      "bytes": 171299,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        1906
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-desktop.png",
+      "sha256": "48335f7deb517e57770b7e2961d8462f2828765face6abc916c9f00be2aaa910",
+      "bytes": 138932,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-mobile.png",
+      "sha256": "83e76b381c39006569f707ccddc9c3ca71c7cd4591af64f2a7aa3e4636ad715b",
+      "bytes": 56146,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-input.json",
+      "sha256": "cb6154be0aab7ba62bfd58a2fc0966187486ce0f7b27fa913d6404514714f9c1",
+      "bytes": 39756,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-B-editor-operations.json",
+      "sha256": "1d584df876ffeb60201f99ba088b8af031c89c50fe307128f7f3c813e3565092",
+      "bytes": 40446,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-C-shared.png",
+      "sha256": "551bc218fb093ed5384056cc3ea13e4b50e337eb4236d2b8e7c88b73ad817bc4",
+      "bytes": 68309,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-html.png",
+      "sha256": "551bc218fb093ed5384056cc3ea13e4b50e337eb4236d2b8e7c88b73ad817bc4",
+      "bytes": 68309,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-export.png",
+      "sha256": "94f9bce94b8f0d887b031645c31bddae256335338113adbeee877440cbcfb04f",
+      "bytes": 386094,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        720,
+        2604
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-desktop.png",
+      "sha256": "1b63add13a0ae214589be9531a3412e5a17c763ac7c01368a44ed67c10c7c205",
+      "bytes": 196302,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-mobile.png",
+      "sha256": "2b1ed901a043400a9b849a13d276860500024621c0620e3a8a74d1d2b3072501",
+      "bytes": 68673,
+      "inspection": "visually_viewed",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-input.json",
+      "sha256": "ff5c4e805332c8037dc530ca82b07ca11230a7860224b271bf40671f269be77d",
+      "bytes": 14968,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-C-editor-operations.json",
+      "sha256": "f37eeff73a534f7686c10796c67383f41c01a591a71a45cd7c5189f085916709",
+      "bytes": 15662,
+      "inspection": "read_and_compared"
+    }
+  ],
+  "resource_lifecycle": {
+    "started_services": [],
+    "started_browsers": [],
+    "terminated_pids": [],
+    "reclaimed_gib": 0
+  }
+}

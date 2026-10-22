@@ -36,7 +36,7 @@ import {
 
 test('createScene("weekend") matches the sample brief', () => {
   const scene = createScene('weekend');
-  assert.deepEqual(PLATFORMS, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+  assert.deepEqual(PLATFORMS, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram', 'x', 'jike', 'threads']);
   assert.equal(scene.platform, 'imstage');
   assert.equal(scene.messages.length, 4);
   assert.equal(scene.watermark, '');

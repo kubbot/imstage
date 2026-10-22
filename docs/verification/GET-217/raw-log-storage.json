@@ -1,0 +1,6 @@
+{
+  "compressed_log": "evidence/resume-logs/judge-fixes-red.log.txt.gz",
+  "raw_sha256": "b4f97055848ce4187850ff43e20261409133f51a1712237577011edf9a2106c2",
+  "raw_bytes": 91004,
+  "note": "Lossless raw log storage; preserves original whitespace and full failed assertions."
+}

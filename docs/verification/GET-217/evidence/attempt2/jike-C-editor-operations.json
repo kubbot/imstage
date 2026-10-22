@@ -1,0 +1,85 @@
+{
+  "platform": "jike",
+  "seed": {
+    "id": "synthetic-wechat-C",
+    "title": "合成评测 · 展览计划",
+    "platform": "wechat",
+    "deviceTime": "09:41",
+    "date": "2026年10月22日",
+    "selfId": "me",
+    "participants": [
+      {
+        "id": "me",
+        "name": "阿远"
+      },
+      {
+        "id": "friend",
+        "name": "小满"
+      }
+    ],
+    "messages": [
+      {
+        "id": "one",
+        "participantId": "friend",
+        "type": "text",
+        "text": "这是一段长图合成验收。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。保留中文标点与段落，确保内容完整。",
+        "time": "10:06"
+      },
+      {
+        "id": "state",
+        "participantId": "",
+        "type": "system",
+        "text": "合成状态：对话已开始",
+        "time": ""
+      },
+      {
+        "id": "two",
+        "participantId": "me",
+        "type": "voice",
+        "text": "12秒",
+        "voiceTranscript": "合成文字稿：We will meet at the gallery.\n这不是实际音频转录。",
+        "time": "10:07"
+      },
+      {
+        "id": "three",
+        "participantId": "friend",
+        "type": "link",
+        "text": "展览指南 · Synthetic guide",
+        "subtitle": "合成链接卡片，无外部跳转",
+        "asset": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+        "time": "10:08"
+      },
+      {
+        "id": "end",
+        "participantId": "me",
+        "type": "text",
+        "text": "END · 全部内容已保留。",
+        "time": "10:09"
+      }
+    ],
+    "watermark": "",
+    "headerText": "小满 · Synthetic",
+    "surface": "ios",
+    "watermarkEnabled": true
+  },
+  "actions": [
+    "seed synthetic local draft",
+    "select template",
+    "select message",
+    "edit text",
+    "assert edited output",
+    "undo",
+    "assert original",
+    "close edit",
+    "reload",
+    "assert platform restored",
+    "download PNG",
+    "verify PNG disclosure pixels",
+    "mobile viewport"
+  ],
+  "png": {
+    "width": 720,
+    "height": 1280
+  },
+  "errors": []
+}

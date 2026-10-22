@@ -1,3 +1,4 @@
+import { PLATFORM_IDS } from '../../../../packages/schema/platforms.mjs';
 import { isCalendarDate } from '../../../../packages/schema/timeline.mjs';
 import type { ReferenceDocument } from '../../../../packages/schema/reference.ts';
 import { validateCustomLayout, type CustomLayout } from '../../../../packages/schema/layout.ts';
@@ -24,7 +25,7 @@ import { deviceProfileError } from './device-profiles.ts';
  * Instagram, Xiaohongshu, Slack); each renders an approximate style preview of
  * synthetic content — never a pixel clone and never a brand logo.
  */
-export type Platform = 'imstage' | 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram';
+export type Platform = 'imstage' | 'wechat' | 'xiaohongshu' | 'imessage' | 'whatsapp' | 'slack' | 'instagram' | 'x' | 'jike' | 'threads';
 export type TemplateId = 'weekend' | 'launch' | 'welcome';
 /** Payment-style types (transfer/red packet/balance) were removed by policy. */
 export type MessageType = 'text' | 'image' | 'location' | 'system' | 'contact' | 'voice' | 'video' | 'link' | 'album';
@@ -103,15 +104,7 @@ export interface Scene {
   layout?: CustomLayout;
 }
 
-export const PLATFORMS: readonly Platform[] = [
-  'imstage',
-  'wechat',
-  'xiaohongshu',
-  'imessage',
-  'whatsapp',
-  'slack',
-  'instagram',
-];
+export const PLATFORMS: readonly Platform[] = PLATFORM_IDS as readonly Platform[];
 
 /** Legacy identifiers accepted on import for migration. */
 export const LEGACY_PLATFORMS: readonly Platform[] = PLATFORMS.slice(1);
@@ -129,6 +122,9 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   whatsapp: 'WhatsApp',
   slack: 'Slack',
   instagram: 'Instagram',
+  x: 'X',
+  jike: '即刻 / Jike',
+  threads: 'Threads',
 };
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {

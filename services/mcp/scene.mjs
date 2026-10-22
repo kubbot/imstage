@@ -555,7 +555,7 @@ export function buildCapabilities() {
       nativelyRenderedMessageTypes: [...NATIVE_MESSAGE_TYPES],
       degradedMessageTypes: degraded,
       persistedNotRendered: [],
-      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用 scene.platform 选择的聊天模板皮肤（imstage 为通用 IMStage 皮肤，另有 wechat/whatsapp/imessage/instagram/xiaohongshu/slack 近似风格模板，均为合成内容风格预览，不复刻任何真实平台界面）。',
+      layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用 scene.platform 选择的聊天模板皮肤（imstage 为通用 IMStage 皮肤，另有 wechat/whatsapp/imessage/instagram/xiaohongshu/slack/x/jike/threads 近似风格模板，均为合成内容风格预览，不复刻任何真实平台界面）。',
       unsupported: ['reference screenshot overlays (real-screenshot editing is disabled on all public surfaces)', 'payment / transfer / red-packet / balance message types'],
       disclosure: '预览与导出默认带有 AI生成 / 虚构 水印（含自定义 watermark 文字）。scene.watermarkEnabled=false 时关闭两者；缺省为开启，模型工具不能修改该用户设置。',
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',

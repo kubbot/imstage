@@ -1,0 +1,69 @@
+{
+  "platform": "x",
+  "seed": {
+    "id": "synthetic-wechat-A",
+    "title": "合成评测 · 展览计划",
+    "platform": "wechat",
+    "deviceTime": "09:41",
+    "date": "2026年10月22日",
+    "selfId": "me",
+    "participants": [
+      {
+        "id": "me",
+        "name": "阿远"
+      },
+      {
+        "id": "friend",
+        "name": "小满"
+      }
+    ],
+    "messages": [
+      {
+        "id": "one",
+        "participantId": "friend",
+        "type": "text",
+        "text": "周六去看展吗？这是合成对话。",
+        "time": "10:06"
+      },
+      {
+        "id": "two",
+        "participantId": "me",
+        "type": "text",
+        "text": "好呀！See you at 14:00. ☀️",
+        "time": "10:07",
+        "quote": "周六去看展吗？"
+      },
+      {
+        "id": "three",
+        "participantId": "friend",
+        "type": "text",
+        "text": "门口见，记得带相机。",
+        "time": "10:08"
+      }
+    ],
+    "watermark": "",
+    "headerText": "小满 · Synthetic",
+    "surface": "ios",
+    "watermarkEnabled": true
+  },
+  "actions": [
+    "seed synthetic local draft",
+    "select template",
+    "select message",
+    "edit text",
+    "assert edited output",
+    "undo",
+    "assert original",
+    "close edit",
+    "reload",
+    "assert platform restored",
+    "download PNG",
+    "verify PNG disclosure pixels",
+    "mobile viewport"
+  ],
+  "png": {
+    "width": 720,
+    "height": 1280
+  },
+  "errors": []
+}

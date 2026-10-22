@@ -74,7 +74,7 @@ export const RENDER_OUTPUT_KINDS = Object.freeze(['screenshot', 'long-screenshot
  * Platforms implemented by the shared Web SceneView. `imstage` is the generic
  * skin; legacy ids are accepted for migration and render generically.
  */
-export const SUPPORTED_PLATFORMS = Object.freeze(['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+export { PLATFORM_IDS as SUPPORTED_PLATFORMS } from '../../packages/schema/platforms.mjs';
 export const NATIVE_MESSAGE_TYPES = Object.freeze(['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
 
 /** Resource MIME for MCP Apps widgets. */

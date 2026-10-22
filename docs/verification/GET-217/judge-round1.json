@@ -1,0 +1,323 @@
+{
+  "invocations": 1,
+  "identity": "native Codex independent sub-agent",
+  "exact_model_identifier": null,
+  "exact_model_note": "Reviewer could not access exact actual model identifier",
+  "threshold": 98,
+  "all_cases_passed": false,
+  "case_scores": [
+    {
+      "platform": "X",
+      "case": "A",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        6
+      ],
+      "total": 78
+    },
+    {
+      "platform": "X",
+      "case": "B",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "X",
+      "case": "C",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "X",
+      "case": "A",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        20,
+        14,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "X",
+      "case": "B",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        10,
+        10,
+        0
+      ],
+      "total": 58
+    },
+    {
+      "platform": "X",
+      "case": "C",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        18,
+        13,
+        0
+      ],
+      "total": 69
+    },
+    {
+      "platform": "Jike",
+      "case": "A",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        23,
+        25,
+        20,
+        10
+      ],
+      "total": 97
+    },
+    {
+      "platform": "Jike",
+      "case": "B",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        23,
+        25,
+        20,
+        0
+      ],
+      "total": 87
+    },
+    {
+      "platform": "Jike",
+      "case": "C",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        22,
+        25,
+        20,
+        0
+      ],
+      "total": 86
+    },
+    {
+      "platform": "Jike",
+      "case": "A",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        20,
+        14,
+        0
+      ],
+      "total": 74
+    },
+    {
+      "platform": "Jike",
+      "case": "B",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        10,
+        10,
+        0
+      ],
+      "total": 60
+    },
+    {
+      "platform": "Jike",
+      "case": "C",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        18,
+        13,
+        0
+      ],
+      "total": 71
+    },
+    {
+      "platform": "Threads",
+      "case": "A",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        10
+      ],
+      "total": 82
+    },
+    {
+      "platform": "Threads",
+      "case": "B",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "Threads",
+      "case": "C",
+      "path": "shared",
+      "H_T_F_E_R": [
+        12,
+        20,
+        24,
+        16,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "Threads",
+      "case": "A",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        20,
+        14,
+        0
+      ],
+      "total": 72
+    },
+    {
+      "platform": "Threads",
+      "case": "B",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        10,
+        10,
+        0
+      ],
+      "total": 58
+    },
+    {
+      "platform": "Threads",
+      "case": "C",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        20,
+        18,
+        13,
+        0
+      ],
+      "total": 69
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "A",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        23,
+        25,
+        20,
+        10
+      ],
+      "total": 97
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "B",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        23,
+        25,
+        20,
+        0
+      ],
+      "total": 87
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "C",
+      "path": "shared",
+      "H_T_F_E_R": [
+        19,
+        22,
+        25,
+        20,
+        0
+      ],
+      "total": 86
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "A",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        20,
+        14,
+        0
+      ],
+      "total": 74
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "B",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        10,
+        10,
+        0
+      ],
+      "total": 60
+    },
+    {
+      "platform": "Xiaohongshu",
+      "case": "C",
+      "path": "HTML",
+      "H_T_F_E_R": [
+        18,
+        22,
+        18,
+        13,
+        0
+      ],
+      "total": 71
+    }
+  ],
+  "fixed_output_rejudged": false
+}

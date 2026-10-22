@@ -1,0 +1,83 @@
+{
+  "platform": "jike",
+  "seed": {
+    "id": "synthetic-wechat-B",
+    "title": "合成评测 · 展览计划",
+    "platform": "wechat",
+    "deviceTime": "09:41",
+    "date": "2026年10月22日",
+    "selfId": "me",
+    "participants": [
+      {
+        "id": "me",
+        "name": "阿远"
+      },
+      {
+        "id": "friend",
+        "name": "小满"
+      }
+    ],
+    "messages": [
+      {
+        "id": "one",
+        "participantId": "friend",
+        "type": "text",
+        "text": "中文换行与多语言边界。\nHello world — 日本語、한국어、العربية。\nLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenTokenLongUnbrokenToken",
+        "time": "10:06"
+      },
+      {
+        "id": "two",
+        "participantId": "me",
+        "type": "image",
+        "text": "合成媒体样本",
+        "asset": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+        "time": "10:07"
+      },
+      {
+        "id": "three",
+        "participantId": "friend",
+        "type": "album",
+        "text": "合成相册",
+        "items": [
+          {
+            "id": "a",
+            "kind": "image",
+            "asset": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+            "caption": "样本 A"
+          },
+          {
+            "id": "b",
+            "kind": "image",
+            "asset": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+            "caption": "样本 B"
+          }
+        ],
+        "time": "10:08"
+      }
+    ],
+    "watermark": "",
+    "headerText": "小满 · Synthetic",
+    "surface": "ios",
+    "watermarkEnabled": true
+  },
+  "actions": [
+    "seed synthetic local draft",
+    "select template",
+    "select message",
+    "edit text",
+    "assert edited output",
+    "undo",
+    "assert original",
+    "close edit",
+    "reload",
+    "assert platform restored",
+    "download PNG",
+    "verify PNG disclosure pixels",
+    "mobile viewport"
+  ],
+  "png": {
+    "width": 720,
+    "height": 1280
+  },
+  "errors": []
+}

@@ -11,18 +11,25 @@
 ## 快速开始
 
 ```bash
-# 安装（版本已在 package.json 精确锁定，lockfile 一并提交）
-npm --prefix tools/eval install
+# 从仓库根目录安装全部 workspace 依赖（使用提交的 lockfile）
+npm ci
 
 # 启动标注实验室（固定 127.0.0.1:4421）
 npm --prefix tools/eval start
 
-# 运行 node:test 测试套件
+# 安装实际 PNG 测试需要的浏览器；本机已有 Chrome 时可复用
+npx playwright install chromium
+
+# 运行 node:test 测试套件（包含真实 PNG 尺寸与裁切边界验证）
 npm --prefix tools/eval test
 
 # 运行端到端自检（生成 harness 夹具并验证评测器行为）
 npm --prefix tools/eval run selftest
 ```
+
+四个新增社交私信皮肤与编辑器共用静态 React 渲染；运行时需要根项目的
+React、ReactDOM 与图标依赖，不能仅安装此子目录。源码/样式改动后运行
+`npm run build:mcp` 并提交生成物；CI 在覆盖生成物之前运行 `npm run check:renderer`。
 
 启用 AI 生成时，在服务端进程环境中提供 Key（也可用 `node --env-file .local/eval.env server.mjs` 加载被
 忽略的本地文件）。**Key 只存在于服务端，浏览器无法读取或设置。**

@@ -1,0 +1,18 @@
+{
+  "formal_evidence_files_verified": 159,
+  "temporary_artifact_removed": true,
+  "reclaimed_allocated_bytes": 14045184,
+  "reclaimed_GiB": 0.01,
+  "terminated_pids": [],
+  "prior_services_preserved": true,
+  "worktree_retained": "not delivered; fixes await independent review and final judge",
+  "linear_readback": "In Progress",
+  "linear_comment_id": "d2129e99-0bcc-479a-b9ab-75f840ef366c",
+  "symphony_state": "blocked",
+  "reason_code": "LLM_JUDGE_THRESHOLD_NOT_MET",
+  "dispatch_count": 1,
+  "pr_created": false,
+  "merged": false,
+  "deployed": false,
+  "simulator_prune_exit": 0
+}

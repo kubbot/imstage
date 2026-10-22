@@ -3,6 +3,7 @@ import { timelinePresentation } from '../../../../packages/schema/timeline.mjs';
 import { DISCLOSURE_ATTRIBUTE, DISCLOSURE_CLASS, DISCLOSURE_STYLE, DISCLOSURE_TEXT, isPaymentMessageType, PAYMENT_NEUTRALIZED_TEXT, sceneWatermarkEnabled } from '../../../../packages/schema/policy.mjs';
 import { hasVoiceTranscript } from '../../../../packages/schema/voice.mjs';
 import {platformTemplate} from './platform-templates';
+import {socialChatAdapter} from '../../../../packages/schema/platforms.mjs';
 import {deviceProfile} from './device-profiles';
 import type { CSSProperties } from 'react';
 import {
@@ -75,11 +76,11 @@ function Avatar({ participant, locale = 'zh' }: { participant: Participant | und
 function media(message: Message, locale: 'zh' | 'en' = 'zh') {
   return message.asset ? <img src={message.asset} alt={message.text || (locale === 'en' ? 'Image' : '图片')} /> : <span className="scene-media-empty">{locale === 'en' ? 'Image not set' : '图片未设置'}</span>;
 }
-function MessageBody({ message, pending = false, locale = 'zh' }: { message: Message; pending?: boolean; locale?: 'zh' | 'en' }) {
+function MessageBody({ message, pending = false, locale = 'zh', albumCaptions = false }: { message: Message; pending?: boolean; locale?: 'zh' | 'en'; albumCaptions?: boolean }) {
   // Policy guard: payment / transfer / red-packet cards can never render,
   // even if a scene reaches the view without passing through `validateScene`.
   if (isPaymentMessageType(message.type)) return <div className="scene-system">{PAYMENT_NEUTRALIZED_TEXT}</div>;
-  if (message.type === 'album') return <div className="scene-album">{message.items?.map(item => <div key={item.id} className="scene-album-item">{item.asset ? <img src={item.asset} alt={item.caption} /> : <span>{item.caption || (locale === 'en' ? 'Image not set' : '图片未设置')}</span>}{item.kind === 'video' && <span className="scene-play">▶</span>}</div>)}</div>;
+  if (message.type === 'album') return <div className="scene-album" data-captions={albumCaptions ? 'true' : undefined}>{message.items?.map(item => <div key={item.id} className="scene-album-item"><div className="scene-album-media">{item.asset ? <img src={item.asset} alt={item.caption} /> : <span>{item.caption || (locale === 'en' ? 'Image not set' : '图片未设置')}</span>}{item.kind === 'video' && <span className="scene-play">▶</span>}</div>{albumCaptions && item.asset && item.caption && <span className="scene-album-caption">{item.caption}</span>}</div>)}</div>;
   if (message.type === 'video') return <div className="scene-video">{media(message, locale)}<span className="scene-play">▶</span><small>{message.subtitle || '0:10'}</small></div>;
   if (message.type === 'voice') return <div className="scene-bubble">◖ ıııııııııııı {message.text || (locale === 'en' ? 'Voice' : '语音')} <small>{message.subtitle}</small></div>;
   if (message.type === 'contact') return <div className="scene-card scene-contact"><div className="scene-contact-main">{message.asset && media(message, locale)}<strong>{message.text}</strong></div><span>{message.subtitle || 'Contact Card'}</span></div>;
@@ -173,6 +174,8 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   // suppresses the AI生成/虚构 disclosure and any custom watermark.
   const watermarkOn = sceneWatermarkEnabled(scene);
   const custom = scene.layout?.kind === 'custom' ? scene.layout : null;
+  const social = custom ? undefined : socialChatAdapter(scene.platform);
+  const socialVars: CSSProperties = social ? { '--social-incoming':social.incoming, '--social-outgoing':social.outgoing, '--social-outgoing-text':social.outgoingText, '--social-accent':social.accent, '--social-radius':`${social.radius}px`, '--social-header':social.headerBackground, '--social-border':social.border } as CSSProperties : {};
   // Bounded declarative tokens only. No CSS text, no arbitrary style keys.
   const customVars = custom ? {
     '--scene-custom-bg': custom.background,
@@ -195,7 +198,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   };
 
   return (
-    <div className="scene-view" data-platform={scene.platform} data-skin={scene.platform === 'imstage' ? 'imstage-generic' : `imstage-${scene.platform}`} data-layout={custom ? 'custom' : undefined} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{...customVars,'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : custom?.bubbleRadius !== undefined ? `${custom.bubbleRadius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : custom?.messageSpacing !== undefined ? `${custom.messageSpacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={watermarkOn && Boolean(scene.watermark)} data-mark={watermarkOn ? 'on' : 'off'} data-export={exportMode ? 'true' : undefined}>
+    <div className="scene-view" data-platform={scene.platform} data-social-chat={social ? 'true' : undefined} data-skin={scene.platform === 'imstage' ? 'imstage-generic' : `imstage-${scene.platform}`} data-layout={custom ? 'custom' : undefined} data-template={template.version} data-surface={scene.surface || profile.surface} data-device={profile.id} style={{...socialVars,...customVars,'--scene-font':scene.appearance?.fontSize !== undefined ? `${scene.appearance.fontSize}px` : undefined,'--scene-radius':scene.appearance?.radius !== undefined ? `${scene.appearance.radius}px` : custom?.bubbleRadius !== undefined ? `${custom.bubbleRadius}px` : undefined,'--scene-spacing':scene.appearance?.spacing !== undefined ? `${scene.appearance.spacing}px` : custom?.messageSpacing !== undefined ? `${custom.messageSpacing}px` : undefined,'--scene-text':scene.appearance?.color,'--scene-bubble':scene.appearance?.background} as CSSProperties} data-watermark={watermarkOn && Boolean(scene.watermark)} data-mark={watermarkOn ? 'on' : 'off'} data-export={exportMode ? 'true' : undefined}>
       <div className="scene-status" data-element="@scene" {...elementProps(locale === 'en' ? 'Edit device status' : '编辑设备状态')}>
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
@@ -248,9 +251,9 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         }
         <div className="scene-header-title" {...elementProps(locale === 'en' ? 'Edit chat title' : '编辑会话标题')}>
           <span className="scene-header-name">{title}</span>
-          {group ? <span className="scene-header-sub">{locale === 'en' ? `${scene.participants.length} members` : `${scene.participants.length} 人`}</span> : template.headerAvatar ? <span className="scene-header-sub">{scene.platform === 'whatsapp' ? 'tap for contact info' : other?.name}</span> : null}
+          {group ? <span className="scene-header-sub">{locale === 'en' ? `${scene.participants.length} members` : `${scene.participants.length} 人`}</span> : social ? <span className="scene-header-sub">{social.subtitle[locale]}</span> : template.headerAvatar ? <span className="scene-header-sub">{scene.platform === 'whatsapp' ? 'tap for contact info' : other?.name}</span> : null}
         </div>
-        {template.headerAvatar ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
+        {template.headerAvatar && !social ? <span className="scene-header-actions" aria-hidden="true"><IconVideo size={23} stroke={1.7}/><IconPhone size={23} stroke={1.7}/></span> : <IconDots size={20} stroke={2} aria-hidden="true" className="scene-header-more" />}
       </div>
       )}
 
@@ -284,7 +287,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
                   {message.quote && <div className="scene-quote">{message.quote}</div>}
-                  {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} />}
+                  {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} albumCaptions={Boolean(socialChatAdapter(scene.platform))} />}
                   {!whatsappText && template.inlineTime && message.type !== 'system' && <div className="scene-message-meta">{metadata}</div>}
                 </Bubble>
           );
@@ -319,9 +322,9 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-composer-icon" aria-hidden="true"><IconPlus size={25} stroke={1.6}/></span>
       </div> : profile.id==='macos-window' ? <div className="scene-composer scene-desktop-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}><div className="scene-desktop-tools"><IconMoodSmile size={21}/><IconFolder size={21}/><IconScissors size={21}/><IconMicrophone size={21}/></div><div className="scene-desktop-input">{scene.composerText||''}</div><span className="scene-desktop-send" aria-hidden="true">{locale === 'en' ? 'Send' : '发送'}</span></div> : <div className="scene-composer" {...elementProps(locale === 'en' ? 'Edit composer' : '编辑输入栏')}>
         <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M11 9q4 4 0 8M14 7q6 6 0 12M8 11q2 2 0 4"/></svg> : template.composer === 'instagram' ? <IconCamera size={25}/> : template.composer === 'default' ? <IconMoodSmile size={25} stroke={1.6}/> : <IconPlus size={25} stroke={1.6}/>}</span>
-        <span className="scene-composer-field">{scene.composerText ?? (template.composer === 'instagram' ? 'Message…' : locale === 'en' ? 'Message…' : '')}</span>
+        <span className="scene-composer-field">{scene.composerText ?? social?.placeholder[locale] ?? (template.composer === 'instagram' ? 'Message…' : locale === 'en' ? 'Message…' : '')}</span>
         <span className="scene-composer-icon" hidden={template.composer==='default'} aria-hidden="true">{template.composer === 'whatsapp' ? <IconCamera size={24} stroke={1.6}/> : <IconMoodSmile size={25} stroke={1.6}/>}</span>
-        <span className="scene-composer-icon" aria-hidden="true">{template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M7 13h12M13 7v12"/></svg> : <IconPlus size={25} stroke={1.6}/>}</span>
+        <span className="scene-composer-icon" aria-hidden="true">{social ? <IconPhoto size={24} stroke={1.7}/> : template.composer === 'whatsapp' ? <IconMicrophone size={24} stroke={1.7}/> : template.composer === 'wechat' ? <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="13" cy="13" r="11"/><path d="M7 13h12M13 7v12"/></svg> : <IconPlus size={25} stroke={1.6}/>}</span>
       </div>}
         </div>
       </div>

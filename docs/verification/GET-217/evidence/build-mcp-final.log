@@ -1,0 +1,2 @@
+npm notice run imstage@0.2.0 build:mcp
+npm notice run node services/mcp/build-studio.mjs
