@@ -1,0 +1,238 @@
+TAP version 13
+# Subtest: GET /api/generation reports configuration without secrets or host URLs
+ok 1 - GET /api/generation reports configuration without secrets or host URLs
+  ---
+  duration_ms: 15.03575
+  type: 'test'
+  ...
+# Subtest: GET /api/generation reflects a configured provider
+ok 2 - GET /api/generation reflects a configured provider
+  ---
+  duration_ms: 2.595833
+  type: 'test'
+  ...
+# Subtest: text generation creates a fresh unreviewed case with AI provenance
+ok 3 - text generation creates a fresh unreviewed case with AI provenance
+  ---
+  duration_ms: 75.633542
+  type: 'test'
+  ...
+# Subtest: image-only generation sends real image bytes and infers an instruction
+ok 4 - image-only generation sends real image bytes and infers an instruction
+  ---
+  duration_ms: 67.454584
+  type: 'test'
+  ...
+# Subtest: defaults and explicit overrides choose the right viewport and platform
+ok 5 - defaults and explicit overrides choose the right viewport and platform
+  ---
+  duration_ms: 144.30325
+  type: 'test'
+  ...
+# Subtest: rejects empty input, too many images and non-image input before calling AI
+ok 6 - rejects empty input, too many images and non-image input before calling AI
+  ---
+  duration_ms: 23.42375
+  type: 'test'
+  ...
+# Subtest: missing credentials produce a stable actionable error and no fallback scene
+ok 7 - missing credentials produce a stable actionable error and no fallback scene
+  ---
+  duration_ms: 2.224125
+  type: 'test'
+  ...
+# Subtest: malformed model output fails safely with no persisted case
+ok 8 - malformed model output fails safely with no persisted case
+  ---
+  duration_ms: 69.302334
+  type: 'test'
+  ...
+# Subtest: renderer failures are truthful and never stored
+ok 9 - renderer failures are truthful and never stored
+  ---
+  duration_ms: 72.834917
+  type: 'test'
+  ...
+# Subtest: provider HTTP/timeout errors map to safe codes without leaking the key
+ok 10 - provider HTTP/timeout errors map to safe codes without leaking the key
+  ---
+  duration_ms: 22.327042
+  type: 'test'
+  ...
+# Subtest: provider request body uses OpenAI-compatible vision blocks and disables thinking
+ok 11 - provider request body uses OpenAI-compatible vision blocks and disables thinking
+  ---
+  duration_ms: 0.451458
+  type: 'test'
+  ...
+# Subtest: resolveAiConfig uses the documented env variables and defaults
+ok 12 - resolveAiConfig uses the documented env variables and defaults
+  ---
+  duration_ms: 0.060583
+  type: 'test'
+  ...
+# Subtest: stale revision is rejected before any provider call
+ok 13 - stale revision is rejected before any provider call
+  ---
+  duration_ms: 11.793167
+  type: 'test'
+  ...
+# Subtest: a concurrent store edit during generation is never overwritten
+ok 14 - a concurrent store edit during generation is never overwritten
+  ---
+  duration_ms: 54.228209
+  type: 'test'
+  ...
+# Subtest: same requestId with identical input is idempotent; changed input conflicts
+ok 15 - same requestId with identical input is idempotent; changed input conflicts
+  ---
+  duration_ms: 63.513542
+  type: 'test'
+  ...
+# Subtest: one concurrent generation at a time; duplicate in-flight requestId conflicts
+ok 16 - one concurrent generation at a time; duplicate in-flight requestId conflicts
+  ---
+  duration_ms: 85.580917
+  type: 'test'
+  ...
+# Subtest: client disconnect aborts the provider and stores nothing
+ok 17 - client disconnect aborts the provider and stores nothing
+  ---
+  duration_ms: 151.113875
+  type: 'test'
+  ...
+# Subtest: disconnect before generation listener registration skips the provider and releases the gate
+ok 18 - disconnect before generation listener registration skips the provider and releases the gate
+  ---
+  duration_ms: 57.843167
+  type: 'test'
+  ...
+# Subtest: P1: renderer failure caches the provider result; retry does not pay again
+ok 19 - P1: renderer failure caches the provider result; retry does not pay again
+  ---
+  duration_ms: 71.653
+  type: 'test'
+  ...
+# Subtest: P1: post-generation revision conflict retries from the cached model result
+ok 20 - P1: post-generation revision conflict retries from the cached model result
+  ---
+  duration_ms: 96.730416
+  type: 'test'
+  ...
+# Subtest: P1: a new app instance reuses the completed ledger entry
+ok 21 - P1: a new app instance reuses the completed ledger entry
+  ---
+  duration_ms: 59.100625
+  type: 'test'
+  ...
+# Subtest: P1: an uncertain provider attempt refuses a paid retry with generation_outcome_unknown
+ok 22 - P1: an uncertain provider attempt refuses a paid retry with generation_outcome_unknown
+  ---
+  duration_ms: 11.254834
+  type: 'test'
+  ...
+# Subtest: P1: changed input with a cached requestId conflicts instead of silently reusing
+ok 23 - P1: changed input with a cached requestId conflicts instead of silently reusing
+  ---
+  duration_ms: 17.712917
+  type: 'test'
+  ...
+# Subtest: P1: a deleted completed case is not resurrected by replaying the requestId
+ok 24 - P1: a deleted completed case is not resurrected by replaying the requestId
+  ---
+  duration_ms: 66.601
+  type: 'test'
+  ...
+# Subtest: P1: a corrupt recovery ledger fails closed and is never overwritten
+ok 25 - P1: a corrupt recovery ledger fails closed and is never overwritten
+  ---
+  duration_ms: 1.907541
+  type: 'test'
+  ...
+# Subtest: P1: the recovery ledger is written with 0600 permissions
+ok 26 - P1: the recovery ledger is written with 0600 permissions
+  ---
+  duration_ms: 54.445458
+  type: 'test'
+  ...
+# Subtest: P2: client cancellation during a blob write does not commit a case
+ok 27 - P2: client cancellation during a blob write does not commit a case
+  ---
+  duration_ms: 228.849666
+  type: 'test'
+  ...
+# Subtest: P2: a truncated 33-byte PNG header is rejected before the provider
+ok 28 - P2: a truncated 33-byte PNG header is rejected before the provider
+  ---
+  duration_ms: 3.422209
+  type: 'test'
+  ...
+# Subtest: P2: a truncated 33-byte rendered PNG is rejected before commit
+ok 29 - P2: a truncated 33-byte rendered PNG is rejected before commit
+  ---
+  duration_ms: 19.945834
+  type: 'test'
+  ...
+# Subtest: P2: renderSceneHtml never emits a hostile platform value as a class
+ok 30 - P2: renderSceneHtml never emits a hostile platform value as a class
+  ---
+  duration_ms: 1.375208
+  type: 'test'
+  ...
+# Subtest: conversation schema accepts valid scenes and enforces every bound
+ok 31 - conversation schema accepts valid scenes and enforces every bound
+  ---
+  duration_ms: 0.428375
+  type: 'test'
+  ...
+# Subtest: parseSceneResponse overrides platform and surfaces warnings
+ok 32 - parseSceneResponse overrides platform and surfaces warnings
+  ---
+  duration_ms: 0.097792
+  type: 'test'
+  ...
+# Subtest: renderSceneHtml is deterministic, escaped and platform-specific with no remote loads
+ok 33 - renderSceneHtml is deterministic, escaped and platform-specific with no remote loads
+  ---
+  duration_ms: 1.038542
+  type: 'test'
+  ...
+# Subtest: detectLanguage records zh-CN / en / other automatically
+ok 34 - detectLanguage records zh-CN / en / other automatically
+  ---
+  duration_ms: 0.046416
+  type: 'test'
+  ...
+# Subtest: publicGenerationStatus never exposes secrets or host URLs
+ok 35 - publicGenerationStatus never exposes secrets or host URLs
+  ---
+  duration_ms: 0.123916
+  type: 'test'
+  ...
+# Subtest: commit-window recovery completes the ledger and cannot resurrect a deleted case
+ok 36 - commit-window recovery completes the ledger and cannot resurrect a deleted case
+  ---
+  duration_ms: 94.832667
+  type: 'test'
+  ...
+# Subtest: concurrent ledger initialization uses one snapshot and retains begun attempts
+ok 37 - concurrent ledger initialization uses one snapshot and retains begun attempts
+  ---
+  duration_ms: 20.154833
+  type: 'test'
+  ...
+# Subtest: recovery writes cannot rename over a newer paid-attempt marker; failed writes do not advance memory
+ok 38 - recovery writes cannot rename over a newer paid-attempt marker; failed writes do not advance memory
+  ---
+  duration_ms: 69.14775
+  type: 'test'
+  ...
+1..38
+# tests 38
+# suites 0
+# pass 38
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2125.061958

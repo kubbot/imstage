@@ -1,4 +1,5 @@
-// Deterministic, framework-neutral IM scene renderer.
+// Deterministic IM scene renderer. Social skins reuse the editor's static
+// React markup; legacy skins retain their framework-neutral implementation.
 //
 // renderSceneHtml(scene, { surface, width, outputKind, assets }) -> HTML string
 //
@@ -34,7 +35,9 @@ import {
 import { hasVoiceTranscript } from '../schema/voice.mjs';
 
 import { PLATFORM_IDS, SOCIAL_CHAT_ADAPTERS, socialChatAdapter } from '../schema/platforms.mjs';
-export const RENDERER_VERSION = 'v4-social-chat';
+import { validateScene } from './generated/studio.mjs';
+import { renderStudioDocument } from './studio-document.mjs';
+export const RENDERER_VERSION = 'v5-shared-social';
 
 /**
  * Supported platform templates. An unknown/hostile value falls back to the
@@ -130,6 +133,27 @@ export function assetToDataUri(asset) {
   return `data:${mime};base64,${base64}`;
 }
 
+// Adapt the offline renderer's older optional fields/indexed assets to the
+// canonical scene contract. Only safe raster data URIs reach React/CSS. Invalid
+// authored layout, appearance and content fail validation rather than execute.
+function socialScene(scene, surface, assetsInput) {
+  const resolvedSurface=surface==='web'?'desktop':surface;
+  const selfId=typeof scene.selfId==='string'&&scene.selfId ? scene.selfId : 'self';
+  const participants=Array.isArray(scene.participants)&&scene.participants.length ? scene.participants.map(p=>({...p,avatar:assetToDataUri(p.avatar)||undefined})) : [{id:selfId,name:'?'}];
+  const messages=(Array.isArray(scene.messages)?scene.messages:[]).map((m,index)=>{
+    if(m.assetIndex!==undefined&&(!Number.isInteger(m.assetIndex)||m.assetIndex<0||m.assetIndex>=assetsInput.length)) throw new TypeError('Invalid image asset index');
+    return {...m,id:m.id||`message-${index}`,text:typeof m.text==='string'?m.text:'',time:typeof m.time==='string'?m.time:'',
+      asset:assetToDataUri(m.assetIndex!==undefined?assetsInput[m.assetIndex]:m.asset)||undefined,
+      ...(m.items===undefined?{}:{items:Array.isArray(m.items)?m.items.map(item=>({...item,asset:assetToDataUri(item.asset)||undefined})):m.items})};
+  });
+  const result=validateScene({...scene,id:scene.id||'synthetic-render',title:scene.title??'',deviceTime:scene.deviceTime??'09:41',date:scene.date??'',selfId,participants,messages,
+    surface:resolvedSurface,
+    ...(scene.surface&&scene.surface!==resolvedSurface?{deviceProfileId:undefined}:{}),
+    backgroundImage:assetToDataUri(scene.backgroundImage)||undefined});
+  if(!result.ok)throw new TypeError(`Invalid social scene: ${result.errors.join('; ')}`);
+  return result.scene;
+}
+
 function avatarColor(id) {
   // Deterministic palette index based on the participant id.
   let hash = 0;
@@ -192,6 +216,7 @@ function renderMessage(message, context) {
   const metadata = `<time>${escapeHtml(message.time)}</time>${receipt}`;
   const meta = `<span class="meta">${!isSelf && (!whatsapp || isGroup) ? `<span class="meta-name">${escapeHtml(name)}</span>` : ''}${metadata}</span>`;
   const rowTime = theme.inlineTime ? '' : `<span class="row-time">${escapeHtml(message.time ?? '')}</span>`;
+  const quote = message.quote ? `<div class="quote">${escapeHtml(message.quote)}</div>` : '';
 
   if (message.type === 'image') {
     const uri = context.assets[message.assetIndex] ?? assetToDataUri(message.asset);
@@ -199,12 +224,11 @@ function renderMessage(message, context) {
     const inner = uri
       ? `<img class="bubble-image" src="${escapeHtml(uri)}" alt="${escapeHtml(message.text || '图片消息')}" />`
       : `<div class="image-placeholder">[图片]${message.text ? ` ${escapeHtml(message.text)}` : ''}</div>`;
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${!whatsapp && theme.inlineTime ? meta : ''}${inner}${caption}${whatsapp && theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${quote}${!whatsapp && theme.inlineTime ? meta : ''}${inner}${caption}${whatsapp && theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
   // Inline media is accepted only through the same bounded data-URI filter
   // as indexed eval assets. No remote URL or scene text becomes executable.
-  const quote = message.quote ? `<div class="quote">${escapeHtml(message.quote)}</div>` : '';
   const wrapRich = (inner) => `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-rich">${quote}${inner}${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   if (message.type === 'album') {
     const items = Array.isArray(message.items) ? message.items : [];
@@ -219,7 +243,7 @@ function renderMessage(message, context) {
   }
 
   if (message.type === 'location') {
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble"><span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble">${quote}<span class="location-pin" aria-hidden="true">📍</span><span class="bubble-text">${escapeHtml(message.text || '位置')}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
 
   // Voice messages mirror the shared React SceneView semantics: the bubble
@@ -230,7 +254,7 @@ function renderMessage(message, context) {
   if (message.type === 'voice') {
     const label = escapeHtml(message.text || '语音');
     const duration = message.subtitle ? ` <small class="voice-duration">${escapeHtml(message.subtitle)}</small>` : '';
-    const bubble = `<div class="bubble bubble-voice${theme.bubbleTail ? ' bubble-tail' : ''}"><span class="bubble-text"><span class="voice-wave" aria-hidden="true">◖ ıııııııııııı</span> ${label}${duration}</span>${theme.inlineTime ? meta : ''}</div>`;
+    const bubble = `<div class="bubble bubble-voice${theme.bubbleTail ? ' bubble-tail' : ''}">${quote}<span class="bubble-text"><span class="voice-wave" aria-hidden="true">◖ ıııııııııııı</span> ${label}${duration}</span>${theme.inlineTime ? meta : ''}</div>`;
     if (hasVoiceTranscript(message)) {
       return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="voice-wrap">${bubble}<div class="voice-transcript" data-voice-transcript="true">${escapeHtml(message.voiceTranscript)}</div></div>${isSelf && avatar ? avatar : ''}</div>`;
     }
@@ -278,6 +302,10 @@ export function renderSceneHtml(scene, options = {}) {
   // Never trust scene.platform as a CSS class: normalize to a known enum before
   // it reaches the DOM; unknown/hostile values fall back to the generic skin.
   const platform = RENDERER_PLATFORMS.includes(scene.platform) ? scene.platform : 'imstage';
+  if(socialChatAdapter(platform)) {
+    const input=options.deviceProfileId===undefined?scene:{...scene,deviceProfileId:options.deviceProfileId,surface:surface==='web'?'desktop':surface};
+    return renderStudioDocument(socialScene(input,surface,Array.isArray(options.assets)?options.assets:[]),{width,height:options.height??844,outputKind});
+  }
   const theme = { ...PLATFORM_THEMES[platform], ...(platform === 'whatsapp' && surface === 'ios' ? { headerBg: '#efeae2', headerFg: '#111111' } : {}) };
   // User watermark preference: absent means on (new + legacy scenes). Nothing
   // but `watermarkEnabled === false` suppresses the disclosure/custom watermark.
@@ -481,6 +509,7 @@ export function renderSceneHtml(scene, options = {}) {
   .quote { border-left:3px solid ${theme.accent}; padding:7px 9px; background:#f1f3f5; color:#3d4650; border-radius:4px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
   .album { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; width:220px; max-width:100%; }
   .album figure { margin:0; min-width:0; }
+  .album .image-placeholder { width:100%; max-width:100%; height:100px; overflow-wrap:anywhere; }
   .album img { display:block; width:100%; height:100px; object-fit:cover; border-radius:6px; }
   .album figcaption,.rich-subtitle { font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
   .row-self .meta { color:inherit; opacity:.85; }

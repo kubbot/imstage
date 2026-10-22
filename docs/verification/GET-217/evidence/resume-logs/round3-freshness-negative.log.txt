@@ -1,0 +1,10 @@
+npm notice run imstage@0.2.0 check:renderer
+npm notice run node services/mcp/build-studio.mjs --check
+file:///Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/services/mcp/build-studio.mjs:32
+  if (await fs.readFile(generated,'utf8').catch(()=>null) !== code) throw new Error('Stale shared renderer: run npm run build:mcp and commit the generated artifact.');
+                                                                          ^
+
+Error: Stale shared renderer: run npm run build:mcp and commit the generated artifact.
+    at file:///Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/services/mcp/build-studio.mjs:32:75
+
+Node.js v22.23.2

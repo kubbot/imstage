@@ -76,11 +76,11 @@ function Avatar({ participant, locale = 'zh' }: { participant: Participant | und
 function media(message: Message, locale: 'zh' | 'en' = 'zh') {
   return message.asset ? <img src={message.asset} alt={message.text || (locale === 'en' ? 'Image' : '图片')} /> : <span className="scene-media-empty">{locale === 'en' ? 'Image not set' : '图片未设置'}</span>;
 }
-function MessageBody({ message, pending = false, locale = 'zh' }: { message: Message; pending?: boolean; locale?: 'zh' | 'en' }) {
+function MessageBody({ message, pending = false, locale = 'zh', albumCaptions = false }: { message: Message; pending?: boolean; locale?: 'zh' | 'en'; albumCaptions?: boolean }) {
   // Policy guard: payment / transfer / red-packet cards can never render,
   // even if a scene reaches the view without passing through `validateScene`.
   if (isPaymentMessageType(message.type)) return <div className="scene-system">{PAYMENT_NEUTRALIZED_TEXT}</div>;
-  if (message.type === 'album') return <div className="scene-album">{message.items?.map(item => <div key={item.id} className="scene-album-item">{item.asset ? <img src={item.asset} alt={item.caption} /> : <span>{item.caption || (locale === 'en' ? 'Image not set' : '图片未设置')}</span>}{item.kind === 'video' && <span className="scene-play">▶</span>}</div>)}</div>;
+  if (message.type === 'album') return <div className="scene-album" data-captions={albumCaptions ? 'true' : undefined}>{message.items?.map(item => <div key={item.id} className="scene-album-item"><div className="scene-album-media">{item.asset ? <img src={item.asset} alt={item.caption} /> : <span>{item.caption || (locale === 'en' ? 'Image not set' : '图片未设置')}</span>}{item.kind === 'video' && <span className="scene-play">▶</span>}</div>{albumCaptions && item.asset && item.caption && <span className="scene-album-caption">{item.caption}</span>}</div>)}</div>;
   if (message.type === 'video') return <div className="scene-video">{media(message, locale)}<span className="scene-play">▶</span><small>{message.subtitle || '0:10'}</small></div>;
   if (message.type === 'voice') return <div className="scene-bubble">◖ ıııııııııııı {message.text || (locale === 'en' ? 'Voice' : '语音')} <small>{message.subtitle}</small></div>;
   if (message.type === 'contact') return <div className="scene-card scene-contact"><div className="scene-contact-main">{message.asset && media(message, locale)}<strong>{message.text}</strong></div><span>{message.subtitle || 'Contact Card'}</span></div>;
@@ -287,7 +287,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
                     <span className="scene-sender">{participant?.name}</span>
                   ) : null}
                   {message.quote && <div className="scene-quote">{message.quote}</div>}
-                  {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} />}
+                  {whatsappText ? <div className="scene-bubble scene-whatsapp-text"><span className="scene-message-text">{message.text}</span>{hasMetadata && <><span className="scene-meta-space" aria-hidden="true">{metadata}</span><span className="scene-message-meta">{metadata}</span></>}</div> : <MessageBody message={message} pending={pendingAssets} locale={locale} albumCaptions={Boolean(socialChatAdapter(scene.platform))} />}
                   {!whatsappText && template.inlineTime && message.type !== 'system' && <div className="scene-message-meta">{metadata}</div>}
                 </Bubble>
           );

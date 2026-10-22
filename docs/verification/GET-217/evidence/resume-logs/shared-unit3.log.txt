@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: x: scene round-trip, real template tool, MCP and deterministic render
+ok 1 - x: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 8.085625
+  type: 'test'
+  ...
+# Subtest: jike: scene round-trip, real template tool, MCP and deterministic render
+ok 2 - jike: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 1.582541
+  type: 'test'
+  ...
+# Subtest: threads: scene round-trip, real template tool, MCP and deterministic render
+ok 3 - threads: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 2.063834
+  type: 'test'
+  ...
+# Subtest: xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+ok 4 - xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 1.596209
+  type: 'test'
+  ...
+# Subtest: social HTML preserves quotes, safe inline media, album captions and link subtitles
+ok 5 - social HTML preserves quotes, safe inline media, album captions and link subtitles
+  ---
+  duration_ms: 5.430542
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored image quotes
+ok 6 - HTML preserves authored image quotes
+  ---
+  duration_ms: 1.189208
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored location quotes
+ok 7 - HTML preserves authored location quotes
+  ---
+  duration_ms: 1.163541
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored voice quotes
+ok 8 - HTML preserves authored voice quotes
+  ---
+  duration_ms: 1.955583
+  type: 'test'
+  ...
+# Subtest: shared social HTML adapts indexed assets without remote resources or executable scene strings
+ok 9 - shared social HTML adapts indexed assets without remote resources or executable scene strings
+  ---
+  duration_ms: 3.897458
+  type: 'test'
+  ...
+# Subtest: social custom layouts keep canonical content, explicit appearance and watermark policy
+ok 10 - social custom layouts keep canonical content, explicit appearance and watermark policy
+  ---
+  duration_ms: 2.66625
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 383.026958

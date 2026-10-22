@@ -56,7 +56,7 @@ export async function renderScenePng(scene, options = {}) {
   const timeoutMs = Number.isInteger(options.timeoutMs) ? options.timeoutMs : 30_000;
 
   abortIfCancelled(signal);
-  const html = renderSceneHtml(scene, { surface, width, outputKind, assets });
+  const html = renderSceneHtml(scene, { surface, width, height:viewportHeight, outputKind, assets });
 
   let chromium;
   try {
@@ -123,6 +123,10 @@ export async function renderScenePng(scene, options = {}) {
       const contentHeight = await page.evaluate(() =>
         Math.ceil(document.querySelector('.device').getBoundingClientRect().height),
       );
+      // The shared SceneView uses a bounded scroll region for ordinary
+      // screenshots. Measuring only its outer frame would silently clip long
+      // content. Match the MCP capture guard before returning any PNG.
+      const scrollOverflow = await page.locator('.scene-messages').evaluateAll(nodes=>nodes.some(el=>el.scrollHeight>el.clientHeight+1));
 
       if (outputKind === 'long-screenshot') {
         const measured = Math.max(1, Math.ceil(contentHeight));
@@ -136,7 +140,7 @@ export async function renderScenePng(scene, options = {}) {
           throw err;
         }
         await page.setViewportSize({ width, height: measured });
-      } else if (contentHeight > viewportHeight + 1) {
+      } else if (contentHeight > viewportHeight + 1 || scrollOverflow) {
         const err = new AppError(
           'output_too_tall',
           `内容高度 ${Math.ceil(contentHeight)}px 超过视口 ${viewportHeight}px，请改选长截图 (long-screenshot)`,

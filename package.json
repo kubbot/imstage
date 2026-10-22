@@ -22,8 +22,9 @@
     "test:mcp": "node --test tests/mcp*.test.mjs",
     "test:timeline": "node --test tests/timeline.test.mjs && node tools/eval/timeline.mjs",
     "build:mcp": "node services/mcp/build-studio.mjs",
+    "check:renderer": "node services/mcp/build-studio.mjs --check",
     "pretest:mcp": "npm run build:mcp",
-    "pretest": "npm run build:mcp"
+    "pretest": "npm run check:renderer && npm run build:mcp"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",

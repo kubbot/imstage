@@ -1084,6 +1084,7 @@
 .scene-album-item { position:relative; height:120px; background:#ddd; }
 .scene-album-item:first-child:nth-last-child(3) { grid-row:span 2; height:242px; }
 .scene-album-item img { width:100%; height:100%; object-fit:cover; }
+.scene-album-media { position:relative; height:100%; }
 .scene-video { position:relative; width:240px; min-height:140px; background:#ddd; overflow:hidden; border-radius:var(--scene-radius); }
 .scene-video img { width:100%; display:block; }
 .scene-video small { position:absolute; bottom:8px; left:8px; color:white; }
@@ -1553,12 +1554,10 @@
 /* Code-owned social conversation adapters. Custom layouts bypass these tokens. */
 .scene-view[data-social-chat='true'] .scene-header { background:var(--social-header); color:#17191c; border-bottom:1px solid var(--social-border); }
 .scene-view[data-social-chat='true'] .scene-header-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.scene-view[data-social-chat='true'] .scene-header-sub { color:#626870; font-size:11px; }
+.scene-view[data-social-chat='true'] .scene-header-sub { color:#50565e; font-size:11px; opacity:1; }
 .scene-view[data-social-chat='true'] .scene-avatar { border-radius:50%; }
 .scene-view[data-social-chat='true'] .scene-bubble { border-radius:var(--scene-radius,var(--social-radius)); background:var(--scene-bubble,var(--social-incoming)); color:var(--scene-text,#17191c); padding:10px 14px; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
 .scene-view[data-social-chat='true'] .scene-row.is-self .scene-bubble { background:var(--scene-bubble,var(--social-outgoing)); color:var(--scene-text,var(--social-outgoing-text)); }
-.scene-view[data-social-chat='true'] .scene-row.is-other .scene-bubble { border-bottom-left-radius:5px; }
-.scene-view[data-social-chat='true'] .scene-row.is-self .scene-bubble { border-bottom-right-radius:5px; }
 .scene-view[data-social-chat='true'] .scene-message-meta { color:#626870; padding:4px 2px 0; }
 .scene-view[data-social-chat='true'] .scene-composer { background:#fff; border-top:1px solid var(--social-border); color:var(--social-accent); gap:10px; }
 .scene-view[data-social-chat='true'] .scene-composer-field { background:#f3f4f5; color:#626870; border:1px solid var(--social-border); border-radius:20px; padding:8px 12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1567,12 +1566,19 @@
 .scene-view[data-social-chat='true'] .scene-card { border:1px solid var(--social-border); border-radius:12px; overflow:hidden; }
 .scene-view[data-social-chat='true'] .scene-image { border-radius:14px; }
 .scene-view[data-social-chat='true'] .scene-album { max-width:100%; }
-.scene-view[data-social-chat='true'] .scene-album-item { min-width:0; }
+.scene-album[data-captions='true'] .scene-album-item { min-width:0; height:auto; display:flex; flex-direction:column; }
+.scene-album[data-captions='true'] .scene-album-item:first-child:nth-last-child(3) { height:auto; }
+.scene-album[data-captions='true'] .scene-album-media { height:120px; flex:1 0 120px; }
+.scene-album[data-captions='true'] .scene-album-caption { display:block; padding:6px 8px; background:#f1f3f5; color:#3d4650; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .scene-view[data-social-chat='true'] .scene-album img { max-width:100%; }
 .scene-view[data-platform='jike'][data-social-chat='true'] .scene-composer-field { border-radius:12px; }
 
 /* Avatar-bearing social headers have four explicit, bounded columns. */
 .scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'] .scene-header { grid-template-columns:26px 36px minmax(0,1fr) 26px; gap:8px; }
+.scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'][data-device='macos-window'] .scene-header { grid-template-columns:36px minmax(0,1fr) 26px; }
 .scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'] .scene-header-title { align-items:flex-start; }
 .scene-view[data-social-chat='true'] { --scene-radius:var(--social-radius); }
 .scene-view[data-social-chat='true'] .scene-card span { color:#626870; }
+[data-mode='full'] .scene-view:is([data-platform='x'],[data-platform='jike'],[data-platform='threads'],[data-platform='xiaohongshu']) .scene-messages { flex:1 0 auto; overflow:visible; }
+
+.scene-album-media>span:not(.scene-play) { display:grid; place-items:center; height:100%; padding:8px; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }

@@ -1,0 +1,1831 @@
+{
+  "issue": "GET-217",
+  "round": 2,
+  "verdict": "FAIL",
+  "requested_native_model_identifier": "gpt-6-astra",
+  "model_identity_note": "This native Codex sub-agent was requested with gpt-6-astra. The actual provider-side routing/model identifier is not exposed to the judge and cannot be independently attested. No external model/API/key/Pi was used.",
+  "judge_invocations_this_round": 1,
+  "judge_invocations_cumulative": 2,
+  "rubric": {
+    "H": 20,
+    "T": 25,
+    "F": 25,
+    "E": 20,
+    "R": 10,
+    "threshold_every_row": 98,
+    "rounding_or_score_topup": false,
+    "path": "/Users/cubxxw/ops/symphony/runtime/workspaces/GET-217/docs/verification/GET-217/plan.md",
+    "sha256": "2a1a13ee17d234b75c14973b709f9037136c9ea4fce53aeb59e25596da1b8fff"
+  },
+  "artifact_root_at_review": "/private/tmp/ai-test-GET-217-resume.dJCkx6/final-local",
+  "scope": "24 designated shared/HTML PNGs, 12 actual editor downloads, 12 desktop and 12 mobile screenshots, 12 inputs and 12 operation records; plus read-only corroboration of tests/ui/social-platforms.spec.ts. No browser/build/test rerun, no product-code mutation.",
+  "preserved_prior_attempts": {
+    "judge-round1.json": "aa263a9a21e1bdb38b3b5f16016e7829d695df1160b94609379db67d9c300b3a",
+    "judge-round1.md": "3069c90f71af4f1e1b83badc76ea4b36171c2552bc1c02c1f964ae4bf481186e"
+  },
+  "observed_successes": [
+    "All four platforms present; X/Threads header title and menu now share an intact row.",
+    "All 36 scene/export PNGs visibly contain the default AI-generated/Fictional disclosure. Read-only pixel sampling additionally confirms A download disclosure band y=92..141.",
+    "A bilingual text, emoji and quote are present in every route.",
+    "B multilingual body and long token wrap inside the image; all routes contain the single image and two album images.",
+    "C complete long body, system state, 12-second voice visual, both transcript lines, link thumbnail/title/subtitle and END marker are present.",
+    "The editor screenshots and actual downloads use the same message content and broadly matching React appearance; 390px UI shows platform selection and export controls without horizontal page overflow."
+  ],
+  "blocking_findings": [
+    {
+      "id": "B-ALBUM-CAPTIONS-OMITTED",
+      "priority": "P1",
+      "affected_platforms": [
+        "x",
+        "jike",
+        "threads",
+        "xiaohongshu"
+      ],
+      "cases": [
+        "B"
+      ],
+      "finding": "Both album item captions from input are absent in shared PNG and actual editor download; HTML preserves them. This is output content omission, not a display-tool crop.",
+      "basis": "Exact content/media completeness and the broken-export/content-loss blocking gate.",
+      "repair": "Render each album item caption in the shared React path and therefore editor/MCP PNG, then rerun B input-to-preview-to-download assertions for caption text as well as image count."
+    }
+  ],
+  "nonblocking_findings": [
+    {
+      "id": "HTML-FORMAT-DIVERGENCE",
+      "finding": "All HTML cases have visibly different header identity, avatars, timestamp placement, composer icons and card/quote containment compared with shared/actual downloads.",
+      "repair": "Use one rendering structure or map all relevant adapter fields consistently; compare like-for-like widths after unifying the structure."
+    },
+    {
+      "id": "A-COMPOSER-TRAILING-SPACE",
+      "finding": "A actual downloads retain roughly 99–122 logical pixels of empty area below composer whereas A shared composer is at bottom.",
+      "repair": "Make the scene height and flex/min-height behavior consistent so short conversations anchor composer to the intended scene bottom."
+    },
+    {
+      "id": "SECONDARY-TEXT-CONTRAST",
+      "finding": "Shared platform subtitle and C link/system secondary text are faint; HTML message metadata is particularly small/faint.",
+      "repair": "Raise secondary text contrast and choose a legible metadata size; keep the current body text, which is readable."
+    }
+  ],
+  "editing_recovery_evidence": {
+    "score_per_row": 10,
+    "basis": "All 12 operation records exist, report errors=[], and pair with matching platform screenshots/download dimensions. Read-only inspection of the generating test shows these records are written only after actual select/edit/undo, saved-local UI status, IndexedDB equality assertion for platform/text/count, reload, download, watermark pixel assertion and mobile overflow assertion. The seed is WeChat before application boot; it does not replace the later platform select/edit operations. No route interception appears in this test.",
+    "limits": "The operation JSON stores action names, not a timestamped assertion trace or raw IndexedDB result. This judge did not independently execute the UI. The score credits the supplied completion evidence and inspected sequential assertions, not an independently repeated run."
+  },
+  "not_independently_verified": [
+    "696/696 host tests and build/new boundary regression result claims",
+    "Full 39-test browser suite, including the reported X/Xiaohongshu selector fix",
+    "Independent code review and latest-head CI",
+    "Production deployment and production behavior acceptance",
+    "Real generation provider availability or successful generation",
+    "Real social-platform login, publishing, feed support or API capability",
+    "Separate WeChat/WhatsApp regression acceptance"
+  ],
+  "capability_boundary": "These artifacts demonstrate synthetic chat/private-message rendering only. Static templates do not demonstrate public feed support or real social APIs. Production, real providers and CI remain separate unverified gates.",
+  "summary": {
+    "rows": 24,
+    "score_pass_rows": 4,
+    "score_fail_rows": 20,
+    "minimum": 91,
+    "maximum": 98,
+    "all_designated_cases_pass": false,
+    "blocking_defect_present": true
+  },
+  "rows": [
+    {
+      "platform": "x",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 18,
+        "R": 10
+      },
+      "total": 97,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "E",
+          "points": 2,
+          "finding": "真实下载和桌面预览中输入栏之后仍留有大块空白，而 shared A 输入栏贴底。X/Threads 下载 y=1036..1279 是灰色空带；即刻 y=1082..1279 是灰色空带；小红书输入栏下方也有对应白色空带。此为短对话的整体构图差异，不是长图裁切。"
+        }
+      ],
+      "artifact": "x-A-shared.png",
+      "paired_editor_export": "x-A-editor-export.png",
+      "editor_evidence": [
+        "x-A-editor-operations.json",
+        "x-A-editor-desktop.png",
+        "x-A-editor-mobile.png",
+        "x-A-input.json"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "x-A-html.png",
+      "paired_editor_export": "x-A-editor-export.png",
+      "editor_evidence": [
+        "x-A-editor-operations.json",
+        "x-A-editor-desktop.png",
+        "x-A-editor-mobile.png",
+        "x-A-input.json"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 21,
+        "E": 20,
+        "R": 10
+      },
+      "total": 95,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "F",
+          "points": 4,
+          "finding": "输入相册两项 caption「样本 A」「样本 B」均未出现在 shared 或真实下载中；对应 HTML 明确显示。每条遗漏扣2分。"
+        }
+      ],
+      "artifact": "x-B-shared.png",
+      "paired_editor_export": "x-B-editor-export.png",
+      "editor_evidence": [
+        "x-B-editor-operations.json",
+        "x-B-editor-desktop.png",
+        "x-B-editor-mobile.png",
+        "x-B-input.json"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 15,
+        "R": 10
+      },
+      "total": 91,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        },
+        {
+          "category": "E",
+          "points": 1,
+          "finding": "此 HTML 中两条相册 caption 可见，但对应真实下载不包含它们，内容格式转换不一致。"
+        }
+      ],
+      "artifact": "x-B-html.png",
+      "paired_editor_export": "x-B-editor-export.png",
+      "editor_evidence": [
+        "x-B-editor-operations.json",
+        "x-B-editor-desktop.png",
+        "x-B-editor-mobile.png",
+        "x-B-input.json"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 23,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 98,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题使用较淡的小字号，系统状态文字与淡底之间的层级偏弱；正文可读且未见缺字。"
+        }
+      ],
+      "artifact": "x-C-shared.png",
+      "paired_editor_export": "x-C-editor-export.png",
+      "editor_evidence": [
+        "x-C-editor-operations.json",
+        "x-C-editor-desktop.png",
+        "x-C-editor-mobile.png",
+        "x-C-input.json"
+      ]
+    },
+    {
+      "platform": "x",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "x-C-html.png",
+      "paired_editor_export": "x-C-editor-export.png",
+      "editor_evidence": [
+        "x-C-editor-operations.json",
+        "x-C-editor-desktop.png",
+        "x-C-editor-mobile.png",
+        "x-C-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 18,
+        "R": 10
+      },
+      "total": 97,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "E",
+          "points": 2,
+          "finding": "真实下载和桌面预览中输入栏之后仍留有大块空白，而 shared A 输入栏贴底。X/Threads 下载 y=1036..1279 是灰色空带；即刻 y=1082..1279 是灰色空带；小红书输入栏下方也有对应白色空带。此为短对话的整体构图差异，不是长图裁切。"
+        }
+      ],
+      "artifact": "jike-A-shared.png",
+      "paired_editor_export": "jike-A-editor-export.png",
+      "editor_evidence": [
+        "jike-A-editor-operations.json",
+        "jike-A-editor-desktop.png",
+        "jike-A-editor-mobile.png",
+        "jike-A-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "jike-A-html.png",
+      "paired_editor_export": "jike-A-editor-export.png",
+      "editor_evidence": [
+        "jike-A-editor-operations.json",
+        "jike-A-editor-desktop.png",
+        "jike-A-editor-mobile.png",
+        "jike-A-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 21,
+        "E": 20,
+        "R": 10
+      },
+      "total": 95,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "F",
+          "points": 4,
+          "finding": "输入相册两项 caption「样本 A」「样本 B」均未出现在 shared 或真实下载中；对应 HTML 明确显示。每条遗漏扣2分。"
+        }
+      ],
+      "artifact": "jike-B-shared.png",
+      "paired_editor_export": "jike-B-editor-export.png",
+      "editor_evidence": [
+        "jike-B-editor-operations.json",
+        "jike-B-editor-desktop.png",
+        "jike-B-editor-mobile.png",
+        "jike-B-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 15,
+        "R": 10
+      },
+      "total": 91,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        },
+        {
+          "category": "E",
+          "points": 1,
+          "finding": "此 HTML 中两条相册 caption 可见，但对应真实下载不包含它们，内容格式转换不一致。"
+        }
+      ],
+      "artifact": "jike-B-html.png",
+      "paired_editor_export": "jike-B-editor-export.png",
+      "editor_evidence": [
+        "jike-B-editor-operations.json",
+        "jike-B-editor-desktop.png",
+        "jike-B-editor-mobile.png",
+        "jike-B-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 23,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 98,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题使用较淡的小字号，系统状态文字与淡底之间的层级偏弱；正文可读且未见缺字。"
+        }
+      ],
+      "artifact": "jike-C-shared.png",
+      "paired_editor_export": "jike-C-editor-export.png",
+      "editor_evidence": [
+        "jike-C-editor-operations.json",
+        "jike-C-editor-desktop.png",
+        "jike-C-editor-mobile.png",
+        "jike-C-input.json"
+      ]
+    },
+    {
+      "platform": "jike",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "jike-C-html.png",
+      "paired_editor_export": "jike-C-editor-export.png",
+      "editor_evidence": [
+        "jike-C-editor-operations.json",
+        "jike-C-editor-desktop.png",
+        "jike-C-editor-mobile.png",
+        "jike-C-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 18,
+        "R": 10
+      },
+      "total": 97,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "E",
+          "points": 2,
+          "finding": "真实下载和桌面预览中输入栏之后仍留有大块空白，而 shared A 输入栏贴底。X/Threads 下载 y=1036..1279 是灰色空带；即刻 y=1082..1279 是灰色空带；小红书输入栏下方也有对应白色空带。此为短对话的整体构图差异，不是长图裁切。"
+        }
+      ],
+      "artifact": "threads-A-shared.png",
+      "paired_editor_export": "threads-A-editor-export.png",
+      "editor_evidence": [
+        "threads-A-editor-operations.json",
+        "threads-A-editor-desktop.png",
+        "threads-A-editor-mobile.png",
+        "threads-A-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "threads-A-html.png",
+      "paired_editor_export": "threads-A-editor-export.png",
+      "editor_evidence": [
+        "threads-A-editor-operations.json",
+        "threads-A-editor-desktop.png",
+        "threads-A-editor-mobile.png",
+        "threads-A-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 21,
+        "E": 20,
+        "R": 10
+      },
+      "total": 95,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "F",
+          "points": 4,
+          "finding": "输入相册两项 caption「样本 A」「样本 B」均未出现在 shared 或真实下载中；对应 HTML 明确显示。每条遗漏扣2分。"
+        }
+      ],
+      "artifact": "threads-B-shared.png",
+      "paired_editor_export": "threads-B-editor-export.png",
+      "editor_evidence": [
+        "threads-B-editor-operations.json",
+        "threads-B-editor-desktop.png",
+        "threads-B-editor-mobile.png",
+        "threads-B-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 15,
+        "R": 10
+      },
+      "total": 91,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        },
+        {
+          "category": "E",
+          "points": 1,
+          "finding": "此 HTML 中两条相册 caption 可见，但对应真实下载不包含它们，内容格式转换不一致。"
+        }
+      ],
+      "artifact": "threads-B-html.png",
+      "paired_editor_export": "threads-B-editor-export.png",
+      "editor_evidence": [
+        "threads-B-editor-operations.json",
+        "threads-B-editor-desktop.png",
+        "threads-B-editor-mobile.png",
+        "threads-B-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 23,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 98,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题使用较淡的小字号，系统状态文字与淡底之间的层级偏弱；正文可读且未见缺字。"
+        }
+      ],
+      "artifact": "threads-C-shared.png",
+      "paired_editor_export": "threads-C-editor-export.png",
+      "editor_evidence": [
+        "threads-C-editor-operations.json",
+        "threads-C-editor-desktop.png",
+        "threads-C-editor-mobile.png",
+        "threads-C-input.json"
+      ]
+    },
+    {
+      "platform": "threads",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "threads-C-html.png",
+      "paired_editor_export": "threads-C-editor-export.png",
+      "editor_evidence": [
+        "threads-C-editor-operations.json",
+        "threads-C-editor-desktop.png",
+        "threads-C-editor-mobile.png",
+        "threads-C-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "A",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 25,
+        "E": 18,
+        "R": 10
+      },
+      "total": 97,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "E",
+          "points": 2,
+          "finding": "真实下载和桌面预览中输入栏之后仍留有大块空白，而 shared A 输入栏贴底。X/Threads 下载 y=1036..1279 是灰色空带；即刻 y=1082..1279 是灰色空带；小红书输入栏下方也有对应白色空带。此为短对话的整体构图差异，不是长图裁切。"
+        }
+      ],
+      "artifact": "xiaohongshu-A-shared.png",
+      "paired_editor_export": "xiaohongshu-A-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-A-editor-operations.json",
+        "xiaohongshu-A-editor-desktop.png",
+        "xiaohongshu-A-editor-mobile.png",
+        "xiaohongshu-A-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "A",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "xiaohongshu-A-html.png",
+      "paired_editor_export": "xiaohongshu-A-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-A-editor-operations.json",
+        "xiaohongshu-A-editor-desktop.png",
+        "xiaohongshu-A-editor-mobile.png",
+        "xiaohongshu-A-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "B",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 24,
+        "F": 21,
+        "E": 20,
+        "R": 10
+      },
+      "total": 95,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "F",
+          "points": 4,
+          "finding": "输入相册两项 caption「样本 A」「样本 B」均未出现在 shared 或真实下载中；对应 HTML 明确显示。每条遗漏扣2分。"
+        }
+      ],
+      "artifact": "xiaohongshu-B-shared.png",
+      "paired_editor_export": "xiaohongshu-B-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-B-editor-operations.json",
+        "xiaohongshu-B-editor-desktop.png",
+        "xiaohongshu-B-editor-mobile.png",
+        "xiaohongshu-B-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "B",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 15,
+        "R": 10
+      },
+      "total": 91,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": true,
+      "blocking_defects": [
+        "B-ALBUM-CAPTIONS-OMITTED"
+      ],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        },
+        {
+          "category": "E",
+          "points": 1,
+          "finding": "此 HTML 中两条相册 caption 可见，但对应真实下载不包含它们，内容格式转换不一致。"
+        }
+      ],
+      "artifact": "xiaohongshu-B-html.png",
+      "paired_editor_export": "xiaohongshu-B-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-B-editor-operations.json",
+        "xiaohongshu-B-editor-desktop.png",
+        "xiaohongshu-B-editor-mobile.png",
+        "xiaohongshu-B-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "C",
+      "renderer": "shared",
+      "scores": {
+        "H": 20,
+        "T": 23,
+        "F": 25,
+        "E": 20,
+        "R": 10
+      },
+      "total": 98,
+      "threshold": 98,
+      "passes_score_threshold": true,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "页头平台/合成私信副标题颜色很浅，原尺寸下辨识较弱。"
+        },
+        {
+          "category": "T",
+          "points": 1,
+          "finding": "链接副标题使用较淡的小字号，系统状态文字与淡底之间的层级偏弱；正文可读且未见缺字。"
+        }
+      ],
+      "artifact": "xiaohongshu-C-shared.png",
+      "paired_editor_export": "xiaohongshu-C-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-C-editor-operations.json",
+        "xiaohongshu-C-editor-desktop.png",
+        "xiaohongshu-C-editor-mobile.png",
+        "xiaohongshu-C-input.json"
+      ]
+    },
+    {
+      "platform": "xiaohongshu",
+      "case": "C",
+      "renderer": "html",
+      "scores": {
+        "H": 18,
+        "T": 23,
+        "F": 25,
+        "E": 16,
+        "R": 10
+      },
+      "total": 92,
+      "threshold": 98,
+      "passes_score_threshold": false,
+      "blocking": false,
+      "blocking_defects": [],
+      "deductions": [
+        {
+          "category": "H",
+          "points": 2,
+          "finding": "平台/合成私信页头副标题消失，输入栏两端变为无语义空圆，平台信息层级和可辨识 chrome 弱于实际预览。"
+        },
+        {
+          "category": "T",
+          "points": 2,
+          "finding": "时间及发送者元信息字号很小且颜色浅；即刻/小红书长段落时间位于侧边中段，难以快速关联消息起始。"
+        },
+        {
+          "category": "E",
+          "points": 4,
+          "finding": "与 shared/真实下载的头像文字及配色、时间布局、输入栏样式和内容容器结构不同。A 的引用从独立块变成气泡内部；B 的媒体带平台色包裹、相册尺寸/说明不同；C 的卡片由独立边框结构变为聊天气泡包裹。扣分不包含不同画布宽度带来的正常换行。"
+        }
+      ],
+      "artifact": "xiaohongshu-C-html.png",
+      "paired_editor_export": "xiaohongshu-C-editor-export.png",
+      "editor_evidence": [
+        "xiaohongshu-C-editor-operations.json",
+        "xiaohongshu-C-editor-desktop.png",
+        "xiaohongshu-C-editor-mobile.png",
+        "xiaohongshu-C-input.json"
+      ]
+    }
+  ],
+  "evidence_manifest": [
+    {
+      "file": "x-A-shared.png",
+      "sha256": "3fa6ee419890a2d2a2d232cd6ee1e69f8e99dce833f1ebf9fd25f8a2638b8790",
+      "bytes": 35124,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "x-A-html.png",
+      "sha256": "634c4a5344e2c4088e25e0942fdb282e76a3d4c2b2ffa41b5f76bef674675748",
+      "bytes": 32298,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        456
+      ]
+    },
+    {
+      "file": "x-A-editor-export.png",
+      "sha256": "90e1b23008c84297591da76020c39a4e5929d3bb40d8ef0d02f5a31ee816f85a",
+      "bytes": 108296,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "x-A-editor-desktop.png",
+      "sha256": "b70566f13a61f58561a084b710a27fdc1c9e129e52854b5cc00037219c293882",
+      "bytes": 126130,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-A-editor-mobile.png",
+      "sha256": "9404a6f8d5f25ee435eb0d2bdf624ca50dc8b926efe23e65a2cbeb4e9557ea4c",
+      "bytes": 55407,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-A-input.json",
+      "sha256": "4cc0bc14746c553cec352af30152a71037a1b492c96a5caee53e49c830c86b55",
+      "bytes": 949,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-A-editor-operations.json",
+      "sha256": "60079fb7a52aa7e53c3ff613a016d1b6d89dcf7e4e535681a37c04b425241289",
+      "bytes": 1621,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-B-shared.png",
+      "sha256": "95833a86ab729f72f443eb4981bbad6804809603bc7167a269eaa078c2134499",
+      "bytes": 49919,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        926
+      ]
+    },
+    {
+      "file": "x-B-html.png",
+      "sha256": "4e933bd7dcac5561f4a4d76a322589eeb977e37f94127a7743a17980569a87d3",
+      "bytes": 50627,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        866
+      ]
+    },
+    {
+      "file": "x-B-editor-export.png",
+      "sha256": "df792ab3006886e19201968395e1622a5ce30352918c5a0f68d4e786c24e6b01",
+      "bytes": 166741,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1802
+      ]
+    },
+    {
+      "file": "x-B-editor-desktop.png",
+      "sha256": "160536a57e701180a261603c40c2f14212e8d97833695cc099a2db18fe1328ce",
+      "bytes": 138027,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-B-editor-mobile.png",
+      "sha256": "28872e631dff794263f81c84e3c8c20abdf7ac5002b6877cc5ec516a2ce4f5d8",
+      "bytes": 55211,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-B-input.json",
+      "sha256": "bc6f1bd4ba94edaf0e8fc7ccf800bf2a380d67d201c17916d0daed9e8bf3e928",
+      "bytes": 39736,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-B-editor-operations.json",
+      "sha256": "6f8a86f8b1f23c33f9c45df830d9bd29e38272f2e1f1167028c111e30a601f81",
+      "bytes": 40436,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-C-shared.png",
+      "sha256": "41742d4f652ceafe564bfccdec94fdec64abcf9e4e4c74e63c1e3a3fa1be48e3",
+      "bytes": 68001,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "x-C-html.png",
+      "sha256": "de0f87848670720573984f84af3d498402e473e995a4bfae6f36c0f80ec0adbe",
+      "bytes": 64702,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1091
+      ]
+    },
+    {
+      "file": "x-C-editor-export.png",
+      "sha256": "26b6298ec84b60066c19b2b799643c7ec3d1d8fa027ff2e20c0eb6f2e6777744",
+      "bytes": 376370,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        2544
+      ]
+    },
+    {
+      "file": "x-C-editor-desktop.png",
+      "sha256": "df4e052b1f09e22e69660690ff5a7a02ae3619db913217a95fd169514ab5db6f",
+      "bytes": 193614,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "x-C-editor-mobile.png",
+      "sha256": "e4c992c610c2ea23ad3d52254396cbc41f5c5668c1b89cf481eb1ff458bd52cc",
+      "bytes": 67794,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "x-C-input.json",
+      "sha256": "0b761039f4385a8cfc4e1ddeb4f325039e304499c66036d1f907ae02ecf2be5a",
+      "bytes": 14948,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "x-C-editor-operations.json",
+      "sha256": "e7df125b6757274a1631cee94d4118869d65620756e72b195a27804f6c34791c",
+      "bytes": 15652,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-A-shared.png",
+      "sha256": "4672b5d5ccb8ae4acae4f065d70c2fd9135adfe73a0ccc5802f137a9691cc8ac",
+      "bytes": 34054,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "jike-A-html.png",
+      "sha256": "bc0dc762a56ce7a7b2ed5d7d215dccb7dda8d1e8271a5579427985a745b92570",
+      "bytes": 31222,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        401
+      ]
+    },
+    {
+      "file": "jike-A-editor-export.png",
+      "sha256": "96a468394caccedf161207d9d9ab0d343e035697e283ee3e8bac9171b8986d6c",
+      "bytes": 105704,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "jike-A-editor-desktop.png",
+      "sha256": "988d3811515080efc8261efa4781fd4fbd6a924cd57d6c0143b8600d859fb7da",
+      "bytes": 125451,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-A-editor-mobile.png",
+      "sha256": "aa246683dfff5defe94639c457f7c2e6764f21fdd0f10b850e076b841d6b563f",
+      "bytes": 55400,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-A-input.json",
+      "sha256": "2ca64ceef568142ce33245c2bc026a0b3977ceb5bcc68095def6852d9ada05e4",
+      "bytes": 955,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-A-editor-operations.json",
+      "sha256": "22e1a39c18f9a1e54e4bf725c4372d2f029e72cf9fb2196b6fa83f974087dcf7",
+      "bytes": 1624,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-B-shared.png",
+      "sha256": "30eea45a6bc3b943157b12f93bb058abe4b0de1d5e3f838653d0cabdedc0b399",
+      "bytes": 49879,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        948
+      ]
+    },
+    {
+      "file": "jike-B-html.png",
+      "sha256": "bfa7f81b5629f40e4fb36e4de540fca3cb09a1b1bf5c393eb10df73a232ccdbb",
+      "bytes": 50881,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        810
+      ]
+    },
+    {
+      "file": "jike-B-editor-export.png",
+      "sha256": "322d150f6144e2290466457142dd4c020f59f0d45bca1e16efdc6523ace5ed89",
+      "bytes": 166797,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1848
+      ]
+    },
+    {
+      "file": "jike-B-editor-desktop.png",
+      "sha256": "e3db774aa497a7f585e38cc74e4062e7bc171a119c4317c52172078bae850933",
+      "bytes": 138103,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-B-editor-mobile.png",
+      "sha256": "ce7388e5e658d394dd6b686376cdd106dc162f4915fdcbc0331a18d56382aa3c",
+      "bytes": 54863,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-B-input.json",
+      "sha256": "c6c3a684401c1bef8523e0819f685ecea440d830fa592e22fd544a09c002196c",
+      "bytes": 39742,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-B-editor-operations.json",
+      "sha256": "db42436bec904a6ce8cb1b4d0ad6229db5dc0555e9ca40c2687974b543bb7ccf",
+      "bytes": 40439,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-C-shared.png",
+      "sha256": "c98dc910e8c232047080a998490b9d80e9fc2b421bd4b3f8f9c0cfd06e65f917",
+      "bytes": 68113,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "jike-C-html.png",
+      "sha256": "c119f0c6babcb4b19ea4add5f6097be732c5bc8d945a51d20825d1c7f8a0788a",
+      "bytes": 65086,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1020
+      ]
+    },
+    {
+      "file": "jike-C-editor-export.png",
+      "sha256": "fd2bd1955867c5265fbac13a5276e6b0949e00dea097514e786364cfadc5c3fc",
+      "bytes": 388205,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        2604
+      ]
+    },
+    {
+      "file": "jike-C-editor-desktop.png",
+      "sha256": "7cb460143b8244c02b7e2d6ae1dc6f777c7e9db75aa9b22607187f239afc5d4f",
+      "bytes": 195309,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "jike-C-editor-mobile.png",
+      "sha256": "017232f0d795a091a2ca65b1029faeb5a0f0eeba6b86bf7a67f68ef885ab2e81",
+      "bytes": 67702,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "jike-C-input.json",
+      "sha256": "1aedf05a4bb2249ac6fd4ca5c6979b63901cc7fa1f37f3a44771ed7740e30712",
+      "bytes": 14954,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "jike-C-editor-operations.json",
+      "sha256": "48290220ba04a2a0756621e0a84e684e204cc7b1c50d43149f1807870b302c1e",
+      "bytes": 15655,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-A-shared.png",
+      "sha256": "7872d853e80089e20edf384a1ae58836b559b6781e1014abdc87ac5f61ebdbe9",
+      "bytes": 35217,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "threads-A-html.png",
+      "sha256": "78e9b512bb3999776d0d6a62d0a1e686972290daa730ed80a2ad450b7e778d5c",
+      "bytes": 31885,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        456
+      ]
+    },
+    {
+      "file": "threads-A-editor-export.png",
+      "sha256": "5a44330d5dfd7f562e1693c64781596569ebc4d1e9d4cf20b66ce797f2e91905",
+      "bytes": 109005,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "threads-A-editor-desktop.png",
+      "sha256": "904351e5a007a7dc21b205ff7f04486ecbc33c6598348c5e63e4bfc0dc37f75c",
+      "bytes": 126727,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-A-editor-mobile.png",
+      "sha256": "abf3891096a27801305ecce7d207da95607026988579c43cc787d814e68b241c",
+      "bytes": 55863,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-A-input.json",
+      "sha256": "e0ba12e07969a76134b4526b49bc2b69e3b7d649b88a66a303d171000bc2ac44",
+      "bytes": 961,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-A-editor-operations.json",
+      "sha256": "12ddf8287bc0c190aab8dd87c9a16c77cac914dcaed64ea9c7ce85c92dfe1c74",
+      "bytes": 1627,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-B-shared.png",
+      "sha256": "023579ff5fc8873f4becf7475d4642f42351eb7317a67c02702235c7923e7ef5",
+      "bytes": 50911,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        926
+      ]
+    },
+    {
+      "file": "threads-B-html.png",
+      "sha256": "de8981b73ae3d0392441e6e51922aafd4d09773f84c3e1b068b56e3e975845bb",
+      "bytes": 50673,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        866
+      ]
+    },
+    {
+      "file": "threads-B-editor-export.png",
+      "sha256": "fc62c94f1deb7948b0ffd686e5fe4c4f81cdce2634ce8da9baaa624e0a2c9c90",
+      "bytes": 169545,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1802
+      ]
+    },
+    {
+      "file": "threads-B-editor-desktop.png",
+      "sha256": "c2a499b8c966b87aa0df47fbba1a58ab544021633d045aa19ddd3b3e6caaadc5",
+      "bytes": 139437,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-B-editor-mobile.png",
+      "sha256": "20192ec65edc5bc00b7e5fa7416f4e81213a0fb51e161503b78d94a2b7228535",
+      "bytes": 56403,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-B-input.json",
+      "sha256": "61a62b654109c74088a68b2fdea8c154d605344277804bb8b47195c73c23c9f4",
+      "bytes": 39748,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-B-editor-operations.json",
+      "sha256": "a193d2480842d4ea6810fe4ad836142c31db3b9ab9b4be139fe9784673134059",
+      "bytes": 40442,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-C-shared.png",
+      "sha256": "a659e472fecdad36454f9eb1795e66cf15f1136c90aea5f8fa6e27a319d47c3d",
+      "bytes": 68136,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1231
+      ]
+    },
+    {
+      "file": "threads-C-html.png",
+      "sha256": "80bc8d7ce388ca73d746fdf3e1ec1ee91aa0e4225461e1cc93d3aad64dad246b",
+      "bytes": 64703,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1091
+      ]
+    },
+    {
+      "file": "threads-C-editor-export.png",
+      "sha256": "e021d08af411f5c8ddda26a50e8ecc15c1821de91c582ebba9e383005295ad9b",
+      "bytes": 388866,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        2544
+      ]
+    },
+    {
+      "file": "threads-C-editor-desktop.png",
+      "sha256": "5bd5a76d8ae9419c53f1830418e103603d5d26371db683a40bec371e1e12d38d",
+      "bytes": 196892,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "threads-C-editor-mobile.png",
+      "sha256": "10957d79631078d68ac3a6ad1bfa7e5f27c47c27d18a11d017238adbcab4b54b",
+      "bytes": 70373,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "threads-C-input.json",
+      "sha256": "71139eca215a4a60c76194cfb7b8015d1ac88ee21141a290153817aa7b2ab25c",
+      "bytes": 14960,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "threads-C-editor-operations.json",
+      "sha256": "1b03ca57eb52028a4574b6578b1bdf47601c2b9e645eaabd0eb40b5413b5b564",
+      "bytes": 15658,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-A-shared.png",
+      "sha256": "9c4514bcf14efcb217515989f4688a6d9bd6e3d7b96a0193e92db3356885d710",
+      "bytes": 34313,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        640
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-html.png",
+      "sha256": "98e66e1a073241e1f294c6cd5115a7ac55a0892e21965decafd9d8d0b6857321",
+      "bytes": 30258,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        401
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-export.png",
+      "sha256": "ae175c72c5aa2d33ebe3b1abe7f196ea7d89a21a77dff3f8bc9e5ac8f3a71048",
+      "bytes": 106938,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1280
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-desktop.png",
+      "sha256": "c86b52050dd7f381eaebb456a9276badd27eb05fb37bc20d2b82b3c1a677b055",
+      "bytes": 126888,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-editor-mobile.png",
+      "sha256": "ab13eddf8f6a170947456f6cb68d9490b573238c3bd535b91e2f041bd4a70cec",
+      "bytes": 56396,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-A-input.json",
+      "sha256": "f86f82c3397359d70e2ac08476ae86b65f0acaa873286a911a4ef5f23dce644c",
+      "bytes": 969,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-A-editor-operations.json",
+      "sha256": "9435abe21e8ee0e8724a38129de38ee6cd95653570e317d5625639e365f22fe8",
+      "bytes": 1631,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-B-shared.png",
+      "sha256": "ff4dcaa1a557fca28a3b01913f48e43d94bc6782652b2d37e0fa4428dc992a5e",
+      "bytes": 49741,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        948
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-html.png",
+      "sha256": "864baddfce9fa9ab29d3cde5e935690245b115a5d944c91973dc8a7239b31cdc",
+      "bytes": 49317,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        320,
+        810
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-export.png",
+      "sha256": "f0670e9f075619eb863699d99e999e19efdb3401032070908c1fa6eb4139e2cd",
+      "bytes": 167487,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        1848
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-desktop.png",
+      "sha256": "455ff50c23f8bd16b86a158726d893420bcc7a52ed7d3598ee01a05c8cee88db",
+      "bytes": 138862,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-editor-mobile.png",
+      "sha256": "0258d56cb156b03521c7f0e05eb754942d7975499df9f4f8d8554f2160d7bac0",
+      "bytes": 56055,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-B-input.json",
+      "sha256": "cb6154be0aab7ba62bfd58a2fc0966187486ce0f7b27fa913d6404514714f9c1",
+      "bytes": 39756,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-B-editor-operations.json",
+      "sha256": "a4f935eb56c69101c4d4d04573f5d3bae8bae8ac1af4d22d8c5637872478827b",
+      "bytes": 40446,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-C-shared.png",
+      "sha256": "65636f9cfae7c85d1dd7f20fef1fd11ed83faa2c9781c51fc356660e2ff7036b",
+      "bytes": 68216,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1260
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-html.png",
+      "sha256": "e78c0629d91a41fd3ff34cd8bd3d5ff92090809fbb76f530e5fe6501baefc5bf",
+      "bytes": 63167,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        1020
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-export.png",
+      "sha256": "4f184637c538dfcd4c58e85a1bfe9e5737869ef93bc5baa1be0bc52c93c2591f",
+      "bytes": 386077,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        720,
+        2604
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-desktop.png",
+      "sha256": "2f0da26a6bfce222adb70c303050219caba61907d87bea8ed19afec8e3cdad57",
+      "bytes": 196226,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-editor-mobile.png",
+      "sha256": "2856268b1373f65ae3071b947e9630f0f100337d9161526a0cfaf6a2c60edf9c",
+      "bytes": 68576,
+      "inspection": "visually_viewed_full_image",
+      "dimensions": [
+        390,
+        900
+      ]
+    },
+    {
+      "file": "xiaohongshu-C-input.json",
+      "sha256": "ff5c4e805332c8037dc530ca82b07ca11230a7860224b271bf40671f269be77d",
+      "bytes": 14968,
+      "inspection": "read_and_compared"
+    },
+    {
+      "file": "xiaohongshu-C-editor-operations.json",
+      "sha256": "f37eeff73a534f7686c10796c67383f41c01a591a71a45cd7c5189f085916709",
+      "bytes": 15662,
+      "inspection": "read_and_compared"
+    }
+  ],
+  "resource_lifecycle": {
+    "started_services": [],
+    "started_browsers": [],
+    "terminated_pids": [],
+    "reclaimed_gib": 0
+  }
+}

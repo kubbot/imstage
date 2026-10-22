@@ -1,0 +1,37 @@
+{
+  "issue": "GET-217",
+  "local_host_tests": {
+    "passed": 699,
+    "total": 699,
+    "command": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "evidence": "evidence/resume-logs/round3-unit-serial.log.txt"
+  },
+  "browser_tests": {
+    "passed": 42,
+    "total": 42,
+    "evidence": "evidence/resume-logs/round3-browser.log.txt"
+  },
+  "real_png_bounds": {
+    "passed": 3,
+    "total": 3,
+    "evidence": "evidence/resume-logs/round3-real-render.log.txt"
+  },
+  "freshness": {
+    "tampered_rejected": true,
+    "restored_accepted": true
+  },
+  "earlier_failure_preserved": "evidence/resume-logs/round3-unit-final.log.txt",
+  "ci": "pending PR",
+  "production": "pending release; API rewrite origin returned 421 on latest read; SSH host identity unverified",
+  "linear_status": "In Progress",
+  "llm_artifact_judge": {
+    "passed": 24,
+    "total": 24,
+    "min_score": 99,
+    "max_score": 100,
+    "blocking_findings": 0,
+    "evidence": "judge-round3.json",
+    "scope": "local real artifacts only"
+  },
+  "checkpoint": "local acceptance immediately before PR creation; release state recorded separately"
+}

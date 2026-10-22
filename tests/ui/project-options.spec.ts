@@ -35,7 +35,7 @@ async function registerAndOpenProjects(page: Page, name = '模板验收') {
   await page.goto('/#/projects');
 }
 
-const CARD_NAMES = ['IMStage 通用聊天', '微信 WeChat', 'WhatsApp', 'iMessage', '小红书 Xiaohongshu', 'Instagram', 'Slack'];
+const CARD_NAMES = ['IMStage 通用聊天', '微信 WeChat', 'WhatsApp', 'iMessage', '小红书 Xiaohongshu', 'Instagram', 'Slack', 'X', '即刻 Jike', 'Threads'];
 
 test('project creation shows every template card with real previews and a live watermark toggle', async ({ page }) => {
   await registerAndOpenProjects(page);
@@ -43,17 +43,19 @@ test('project creation shows every template card with real previews and a live w
   // Every supported template is offered as a real card — no dropdown hiding
   // options — and each card renders the shared synthetic sample locally.
   for (const label of CARD_NAMES) {
-    await expect(page.getByRole('radio', { name: label })).toHaveCount(1);
-    await expect(page.locator('.project-template-card', { has: page.getByRole('radio', { name: label }) })).toBeVisible();
+    await expect(page.getByRole('radio', { name: label, exact: true })).toHaveCount(1);
+    await expect(page.locator('.project-template-card', { has: page.getByRole('radio', { name: label, exact: true }) })).toBeVisible();
   }
   await expect(page.locator('.project-template-card')).toHaveCount(10);
   await expect(page.locator('.project-template-card .scene-view')).toHaveCount(10);
   const assertLabelsFit = async () => {
     expect(await page.locator('.project-template-card').evaluateAll(cards => cards.every(card => {
       const bounds = card.getBoundingClientRect();
-      const label = card.querySelector('strong')!.getBoundingClientRect();
+      const title = card.querySelector('strong')!;
+      const label = title.getBoundingClientRect();
       const radio = card.querySelector('input')!.getBoundingClientRect();
-      return label.width > 20 && label.left >= bounds.left && label.right <= bounds.right && radio.width <= 20;
+      // A one-letter platform name (X) is legitimately narrower than 20px.
+      return label.width > 0 && Boolean(title.textContent?.trim()) && label.left >= bounds.left && label.right <= bounds.right && radio.width <= 20;
     }))).toBe(true);
   };
   await assertLabelsFit();
