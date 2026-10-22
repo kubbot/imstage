@@ -46,8 +46,8 @@ test('project creation shows every template card with real previews and a live w
     await expect(page.getByRole('radio', { name: label })).toHaveCount(1);
     await expect(page.locator('.project-template-card', { has: page.getByRole('radio', { name: label }) })).toBeVisible();
   }
-  await expect(page.locator('.project-template-card')).toHaveCount(7);
-  await expect(page.locator('.project-template-card .scene-view')).toHaveCount(7);
+  await expect(page.locator('.project-template-card')).toHaveCount(10);
+  await expect(page.locator('.project-template-card .scene-view')).toHaveCount(10);
   const assertLabelsFit = async () => {
     expect(await page.locator('.project-template-card').evaluateAll(cards => cards.every(card => {
       const bounds = card.getBoundingClientRect();
@@ -87,11 +87,11 @@ test('project creation shows every template card with real previews and a live w
   // The watermark is on by default and the previews react immediately.
   const watermark = page.getByLabel('为新作品添加水印（AI生成 / 虚构标识）', { exact: true });
   await expect(watermark).toBeChecked();
-  await expect(page.locator('.project-template-card .imstage-disclosure')).toHaveCount(7);
+  await expect(page.locator('.project-template-card .imstage-disclosure')).toHaveCount(10);
   await watermark.uncheck();
   await expect(page.locator('.project-template-card .imstage-disclosure')).toHaveCount(0);
   await watermark.check();
-  await expect(page.locator('.project-template-card .imstage-disclosure')).toHaveCount(7);
+  await expect(page.locator('.project-template-card .imstage-disclosure')).toHaveCount(10);
 
   // Mobile 390: the card grid reflows without any horizontal overflow.
   await page.setViewportSize({ width: 390, height: 900 });

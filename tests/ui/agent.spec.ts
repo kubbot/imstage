@@ -131,7 +131,7 @@ test('a fresh blank creation starts on WeChat with a visible 7-platform selector
   await expect(platform).toHaveValue('wechat');
   // All seven skins are offered and the control works on a 390px viewport.
   const values=await platform.locator('option').evaluateAll(options=>options.map(o=>(o as HTMLOptionElement).value));
-  expect(values).toEqual(['imstage','wechat','xiaohongshu','imessage','whatsapp','slack','instagram']);
+  expect(values).toEqual(['imstage','wechat','xiaohongshu','imessage','whatsapp','slack','instagram','x','jike','threads']);
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:/渲染画面/}).click();
   await expect(platform).toBeVisible();

@@ -33,13 +33,14 @@ import {
 } from '../schema/policy.mjs';
 import { hasVoiceTranscript } from '../schema/voice.mjs';
 
-export const RENDERER_VERSION = 'v3';
+import { PLATFORM_IDS, SOCIAL_CHAT_ADAPTERS, socialChatAdapter } from '../schema/platforms.mjs';
+export const RENDERER_VERSION = 'v4-social-chat';
 
 /**
  * Supported platform templates. An unknown/hostile value falls back to the
  * IMStage generic template — the value is never echoed into a class or style.
  */
-export const RENDERER_PLATFORMS = Object.freeze(['imstage', 'wechat', 'telegram', 'whatsapp', 'xiaohongshu', 'imessage', 'slack', 'instagram']);
+export const RENDERER_PLATFORMS = Object.freeze([...PLATFORM_IDS, 'telegram']);
 export const RENDERER_SURFACES = Object.freeze(['ios', 'android', 'desktop', 'web']);
 
 /**
@@ -47,7 +48,9 @@ export const RENDERER_SURFACES = Object.freeze(['ios', 'android', 'desktop', 'we
  * browser skins (`apps/web/src/studio/platform-templates.ts` + `studio.css`)
  * so the deterministic HTML and the React preview render the same platform.
  */
+const socialThemes = Object.fromEntries(Object.entries(SOCIAL_CHAT_ADAPTERS).map(([id,a]) => [id,{label:a.label,headerBg:a.headerBackground,headerFg:'#17191c',headerBorder:a.border,bg:a.background,selfBubble:a.outgoing,selfFg:a.outgoingText,otherBubble:a.incoming,bubbleFg:'#17191c',metaFg:'#626870',accent:a.accent,bubbleRadius:`${a.radius}px`,avatarRadius:'50%',headerAvatar:a.headerAvatar,messageAvatars:a.messageAvatars,inlineTime:a.inlineTime,bubbleTail:false,composer:a.composer}]));
 const PLATFORM_THEMES = Object.freeze({
+  ...socialThemes,
   imstage: {
     label: 'IMStage', headerBg: '#f5f7fa', headerFg: '#16202e', headerBorder: '#d5dce5',
     bg: '#e9edf2', selfBubble: '#d6e5ff', selfFg: '#16202e', otherBubble: '#ffffff', bubbleFg: '#16202e',
@@ -191,12 +194,28 @@ function renderMessage(message, context) {
   const rowTime = theme.inlineTime ? '' : `<span class="row-time">${escapeHtml(message.time ?? '')}</span>`;
 
   if (message.type === 'image') {
-    const uri = context.assets[message.assetIndex] ?? null;
+    const uri = context.assets[message.assetIndex] ?? assetToDataUri(message.asset);
     const caption = message.text ? `<div class="caption">${escapeHtml(message.text)}</div>` : '';
     const inner = uri
       ? `<img class="bubble-image" src="${escapeHtml(uri)}" alt="${escapeHtml(message.text || '图片消息')}" />`
       : `<div class="image-placeholder">[图片]${message.text ? ` ${escapeHtml(message.text)}` : ''}</div>`;
     return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-image-wrap">${!whatsapp && theme.inlineTime ? meta : ''}${inner}${caption}${whatsapp && theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+  }
+
+  // Inline media is accepted only through the same bounded data-URI filter
+  // as indexed eval assets. No remote URL or scene text becomes executable.
+  const quote = message.quote ? `<div class="quote">${escapeHtml(message.quote)}</div>` : '';
+  const wrapRich = (inner) => `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble bubble-rich">${quote}${inner}${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+  if (message.type === 'album') {
+    const items = Array.isArray(message.items) ? message.items : [];
+    return wrapRich(`<div class="album">${items.map(item => {
+      const uri=assetToDataUri(item.asset);
+      return `<figure>${uri ? `<img src="${escapeHtml(uri)}" alt="${escapeHtml(item.caption || '合成媒体')}" />` : '<div class="image-placeholder">图片未设置</div>'}${item.kind === 'video' ? '<span aria-label="视频缩略图">▶</span>' : ''}${item.caption ? `<figcaption>${escapeHtml(item.caption)}</figcaption>` : ''}</figure>`;
+    }).join('')}</div>`);
+  }
+  if (['link','contact','video'].includes(message.type)) {
+    const uri=assetToDataUri(message.asset);
+    return wrapRich(`${uri ? `<img class="bubble-image" src="${escapeHtml(uri)}" alt="${escapeHtml(message.text || '合成媒体')}" />` : ''}${message.type==='video' ? '<span aria-label="视频缩略图">▶</span>' : ''}<strong class="bubble-text">${escapeHtml(message.text)}</strong>${message.subtitle ? `<span class="rich-subtitle">${escapeHtml(message.subtitle)}</span>` : ''}`);
   }
 
   if (message.type === 'location') {
@@ -220,9 +239,9 @@ function renderMessage(message, context) {
 
   if (whatsapp && message.type === 'text') {
     const footer = message.time || isSelf ? `<span class="meta-space" aria-hidden="true">${metadata}</span><span class="meta">${metadata}</span>` : '';
-    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble bubble-whatsapp-text">${!isSelf && isGroup ? `<span class="sender-name">${escapeHtml(name)}</span>` : ''}<span class="bubble-text">${escapeHtml(message.text)}</span>${footer}</div>${isSelf && avatar ? avatar : ''}</div>`;
+    return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}<div class="bubble bubble-whatsapp-text">${!isSelf && isGroup ? `<span class="sender-name">${escapeHtml(name)}</span>` : ''}${quote}<span class="bubble-text">${escapeHtml(message.text)}</span>${footer}</div>${isSelf && avatar ? avatar : ''}</div>`;
   }
-  return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble${theme.bubbleTail ? ' bubble-tail' : ''}"><span class="bubble-text">${escapeHtml(message.text)}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
+  return `<div class="row ${isSelf ? 'row-self' : 'row-other'}">${isSelf ? '' : avatar}${rowTime}<div class="bubble${theme.bubbleTail ? ' bubble-tail' : ''}">${quote}<span class="bubble-text">${escapeHtml(message.text)}</span>${theme.inlineTime ? meta : ''}</div>${isSelf && avatar ? avatar : ''}</div>`;
 }
 
 function renderComposer(theme, composerText) {
@@ -441,6 +460,7 @@ export function renderSceneHtml(scene, options = {}) {
     transform: rotate(45deg); background: inherit; border-radius: 1px;
   }
   .row-self .bubble-tail::before { left: auto; right: -4px; }
+  .bubble { min-width:0; overflow-wrap:anywhere; }
   .bubble-text { font-size: ${fontPx === null ? '15px' : `${fontPx}px`}; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .meta { display: flex; align-items: center; gap: 6px; font-size: 10px; color: ${theme.metaFg}; }
   .row-self .meta { justify-content: flex-end; }
@@ -458,6 +478,12 @@ export function renderSceneHtml(scene, options = {}) {
     width: 180px; height: 120px; border-radius: 6px; background: rgba(0,0,0,0.08);
     display: flex; align-items: center; justify-content: center; color: ${theme.metaFg}; font-size: 13px;
   }
+  .quote { border-left:3px solid ${theme.accent}; padding:7px 9px; background:#f1f3f5; color:#3d4650; border-radius:4px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+  .album { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; width:220px; max-width:100%; }
+  .album figure { margin:0; min-width:0; }
+  .album img { display:block; width:100%; height:100px; object-fit:cover; border-radius:6px; }
+  .album figcaption,.rich-subtitle { font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+  .row-self .meta { color:inherit; opacity:.85; }
   .caption { font-size: 13px; line-height: 1.35; white-space: pre-wrap; word-break: break-word; }
   .location-pin { font-size: 14px; }
 
@@ -549,7 +575,7 @@ export function renderSceneHtml(scene, options = {}) {
       ${dateDivider}
       ${body}
     </main>
-    ${renderComposer(theme, scene.composerText)}
+    ${renderComposer(theme, scene.composerText ?? socialChatAdapter(platform)?.placeholder.zh)}
     ${twoPane ? '</div></div>' : ''}
     ${watermark}
   </div>

@@ -297,7 +297,7 @@ test('widget markup is self-contained, uses the MCP Apps bridge and never trusts
 
 test('capabilities describe the honest fidelity subset', () => {
   const capabilities = buildCapabilities();
-  assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+  assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram', 'x', 'jike', 'threads']);
   assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
   assert.deepEqual(capabilities.supportedSubset.degradedMessageTypes, []);
   assert.deepEqual(capabilities.supportedSubset.persistedNotRendered, []);

@@ -156,7 +156,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       const result = await client.callTool({ name: 'imstage_get_capabilities', arguments: {} });
       assert.notEqual(result.isError, true);
       const capabilities = result.structuredContent;
-      assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+      assert.deepEqual(capabilities.supportedSubset.platforms, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram', 'x', 'jike', 'threads']);
       assert.deepEqual(capabilities.supportedSubset.surfaces, ['ios', 'android', 'desktop']);
       assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
       assert.equal(capabilities.canonicalValidator, 'apps/web/src/studio/model.ts#validateScene');
@@ -371,7 +371,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
         }),
       );
       assert.equal(badPlatform.code, 'unsupported_platform');
-      assert.deepEqual(badPlatform.details.supported, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram']);
+      assert.deepEqual(badPlatform.details.supported, ['imstage', 'wechat', 'xiaohongshu', 'imessage', 'whatsapp', 'slack', 'instagram', 'x', 'jike', 'threads']);
 
       const remoteAsset = toolError(
         await client.callTool({

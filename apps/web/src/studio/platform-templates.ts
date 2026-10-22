@@ -1,4 +1,5 @@
 import type {Platform} from './model';
+import { SOCIAL_CHAT_ADAPTERS } from '../../../../packages/schema/platforms.mjs';
 /**
  * Platform chat templates belong to code. Agent content cannot redefine
  * platform structure. Each entry is an approximate style preview for synthetic
@@ -31,7 +32,7 @@ export const PLATFORM_TEMPLATES: Record<Platform, PlatformTemplate> = {
   whatsapp: { version: 'whatsapp-ios-2026-v1', headerAvatar: true, messageAvatars: 'group', inlineTime: true, composer: 'whatsapp', background: '#ece5dd' },
   instagram: { version: 'instagram-ios-2026-v1', headerAvatar: true, messageAvatars: 'incoming', inlineTime: false, composer: 'instagram', background: '#ffffff' },
   imessage: { version: 'imessage-v1', headerAvatar: false, messageAvatars: 'none', inlineTime: false, composer: 'imessage', background: '#ffffff' },
-  xiaohongshu: { version: 'xiaohongshu-v1', headerAvatar: false, messageAvatars: 'all', inlineTime: false, composer: 'default', background: '#ffffff' },
+  ...SOCIAL_CHAT_ADAPTERS,
   slack: { version: 'slack-v1', headerAvatar: false, messageAvatars: 'all', inlineTime: true, composer: 'slack', background: '#ffffff' },
 };
 

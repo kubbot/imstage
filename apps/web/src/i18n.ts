@@ -770,7 +770,7 @@ export interface AppCopy {
 const zh: AppCopy = {
   devices: {'legacy360':'通用手机 360×640','macos-window':'macOS 桌面窗口'},
   messageTypes: { text:'文字', image:'图片', location:'位置', system:'系统提示', contact:'联系人', voice:'语音', video:'视频', link:'链接', album:'相册' },
-  platforms: {imstage:'IMStage 通用聊天',wechat:'微信 WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'小红书 Xiaohongshu',instagram:'Instagram',slack:'Slack'},
+  platforms: {imstage:'IMStage 通用聊天',wechat:'微信 WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'小红书 Xiaohongshu',instagram:'Instagram',slack:'Slack',x:'X',jike:'即刻 Jike',threads:'Threads'},
   reference: {title:'编辑层与位置',selected:'选中编辑层',all:'全部编辑层',text:'文字',image:'图片素材',axes:['左','上','宽','高'],font:'字号（源像素）',color:'文字颜色',background:'底色',remove:'移除此编辑层'},
   common: {
     retry: '重试', cancel: '取消', close: '关闭', save: '保存', saved: '已保存', loading: '正在准备…',
@@ -1060,7 +1060,7 @@ const zh: AppCopy = {
 const en: AppCopy = {
   devices: {'legacy360':'Generic phone 360×640','macos-window':'macOS window'},
   messageTypes: { text:'Text', image:'Image', location:'Location', system:'System notice', contact:'Contact', voice:'Voice', video:'Video', link:'Link', album:'Album' },
-  platforms: {imstage:'IMStage generic',wechat:'WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'Xiaohongshu',instagram:'Instagram',slack:'Slack'},
+  platforms: {imstage:'IMStage generic',wechat:'WeChat',whatsapp:'WhatsApp',imessage:'iMessage',xiaohongshu:'Xiaohongshu',instagram:'Instagram',slack:'Slack',x:'X',jike:'即刻 Jike',threads:'Threads'},
   reference: {title:'Edit layers & position',selected:'Selected layer',all:'All layers',text:'Text',image:'Image asset',axes:['Left','Top','Width','Height'],font:'Font size (source pixels)',color:'Text color',background:'Background',remove:'Remove this layer'},
   common: {
     retry: 'Retry', cancel: 'Cancel', close: 'Close', save: 'Save', saved: 'Saved', loading: 'Getting ready…',
