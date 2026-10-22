@@ -1,0 +1,47 @@
+npm notice run imstage@0.2.0 build
+npm notice run tsc --noEmit && vite build
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 6323 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              3.57 kB │ gzip:   1.54 kB
+dist/assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff    13.14 kB
+dist/assets/syne-latin-700-normal-AF3Rs61n.woff2            14.07 kB
+dist/assets/syne-latin-600-normal-BiwQbQXw.woff2            14.34 kB
+dist/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2   14.70 kB
+dist/assets/syne-latin-700-normal-Cd-_iCn5.woff             18.08 kB
+dist/assets/syne-latin-600-normal-dRu9QuIh.woff             18.23 kB
+dist/assets/TemplatesPage-BSZV5o9r.css                       3.48 kB │ gzip:   0.96 kB
+dist/assets/AgentWorkspace-eRCMW2DT.css                      4.33 kB │ gzip:   1.23 kB
+dist/assets/Onboarding-C3T31nNJ.css                          4.51 kB │ gzip:   1.32 kB
+dist/assets/ConnectionsPage-DUAXxPfp.css                     7.07 kB │ gzip:   1.77 kB
+dist/assets/ProjectsPage-C-IPhuJU.css                       13.79 kB │ gzip:   2.99 kB
+dist/assets/AgentStudio-eNcIJ8Pr.css                        38.99 kB │ gzip:   7.45 kB
+dist/assets/index-BDk9cy_5.css                             127.12 kB │ gzip:  23.95 kB
+dist/assets/IconLoader2-BQdL_Kfx.js                          0.15 kB │ gzip:   0.15 kB
+dist/assets/IconArrowLeft-CK3zMvnQ.js                        0.22 kB │ gzip:   0.17 kB
+dist/assets/IconArrowRight-I6cIb3qS.js                       0.22 kB │ gzip:   0.18 kB
+dist/assets/IconMessageCircle-CsAc9tYR.js                    0.32 kB │ gzip:   0.25 kB
+dist/assets/IconTrash-CDzx_69y.js                            0.35 kB │ gzip:   0.22 kB
+dist/assets/IconSparkles-BYiF8-ny.js                         0.49 kB │ gzip:   0.24 kB
+dist/assets/createReactComponent-Bg748F98.js                 0.84 kB │ gzip:   0.47 kB
+dist/assets/templates-WKRWEJY1.js                            1.05 kB │ gzip:   0.59 kB
+dist/assets/IconSettings-BvlA2wn5.js                         1.19 kB │ gzip:   0.42 kB
+dist/assets/voice-transcript-Df-GoCAq.js                     1.52 kB │ gzip:   0.78 kB
+dist/assets/DevicePreview-CjaL8Lr8.js                        1.94 kB │ gzip:   0.91 kB
+dist/assets/AccountPage-QT1a0SGq.js                          2.53 kB │ gzip:   1.08 kB
+dist/assets/Workspace-B7GWuY-T.js                            5.19 kB │ gzip:   1.89 kB
+dist/assets/AuthPage-8ndRK6Xj.js                             6.66 kB │ gzip:   3.03 kB
+dist/assets/TemplatesPage-CYV41bc4.js                       11.00 kB │ gzip:   3.24 kB
+dist/assets/es-DWMIuDU2.js                                  12.92 kB │ gzip:   5.12 kB
+dist/assets/AgentWorkspace-BMFOv2mA.js                      16.14 kB │ gzip:   5.86 kB
+dist/assets/Onboarding-BW6ghRLF.js                          17.39 kB │ gzip:   6.48 kB
+dist/assets/Auth-bnIg9Xoh.js                                18.53 kB │ gzip:   7.23 kB
+dist/assets/Studio-Bmn_xwIH.js                              29.39 kB │ gzip:   8.35 kB
+dist/assets/ConnectionsPage--xzrs-hd.js                     30.00 kB │ gzip:  10.47 kB
+dist/assets/AgentStudio-Dqh8zMX_.js                         72.11 kB │ gzip:  20.37 kB
+dist/assets/ProjectsPage-Dfc45WJY.js                        74.22 kB │ gzip:  22.57 kB
+dist/assets/index-Ch9DjQNx.js                              446.18 kB │ gzip: 145.75 kB
+
+✓ built in 2.42s
