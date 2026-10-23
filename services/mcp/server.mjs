@@ -38,6 +38,7 @@ import * as templateStore from '../templates/store.mjs';
 import { asObject, integerField, objectField, optionalIdempotencyKey, rejectUnknownKeys, stringField } from './args.mjs';
 import { resolveMcpConfig } from './config.mjs';
 import { fail, invalidRequest, toErrorPayload } from './errors.mjs';
+import { assertModelWatermarkOmitted, assertModelPatchWatermarkOmitted, assertModelBatchWatermarkOmitted, preserveStoredWatermark } from './model-input.mjs';
 import {
   HEALTH_PATH,
   MAX_REQUEST_BYTES,
@@ -68,7 +69,7 @@ import {
 export const MCP_INSTANCE_SCOPE = 'mcp-instance';
 import { computeRenderId, createRenderService, resolveChromiumExecutable, resolveRenderConfig } from './render.mjs';
 import { newEphemeralSceneId, newSceneId, sha256Hex, stableStringify, timingSafeEqualString } from './util.mjs';
-import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
+import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, PREVIOUS_WIDGET_RESOURCE_URI, WIDGET_TITLE, buildWidgetResourceContent } from './widget.mjs';
 
 /* ------------------------------------------------------------------ */
 /* Tool schemas (plain JSON Schema; validated again in code)           */
@@ -145,7 +146,6 @@ const SCENE_INPUT_SCHEMA = {
     participants: { type: 'array', minItems: 1, maxItems: SCENE_LIMITS.participantsMax, items: PARTICIPANT_SCHEMA },
     messages: { type: 'array', minItems: 1, maxItems: SCENE_LIMITS.messagesMax, items: MESSAGE_SCHEMA },
     watermark: { type: 'string', maxLength: SCENE_LIMITS.watermarkMax },
-    watermarkEnabled: { type: 'boolean', description: '可选水印开关；缺省为开启。false 时预览与导出不显示水印/自定义标识。' },
     surface: { type: 'string', enum: [...RENDER_SURFACES] },
     deviceProfileId: { type: 'string' },
     background: { type: 'string' },
@@ -175,7 +175,6 @@ const PATCH_SCHEMA = {
         deviceTime: { type: 'string' },
         date: { type: 'string' },
         watermark: { type: 'string' },
-        watermarkEnabled: { type: 'boolean', description: '可选水印开关；缺省保留当前值。' },
         surface: { type: 'string', enum: [...RENDER_SURFACES] },
         deviceProfileId: { type: 'string' },
         background: { type: 'string' },
@@ -220,7 +219,7 @@ const PROJECT_INPUT_SCHEMA = {
   properties: {
     name: { type: 'string', maxLength: PROJECT_LIMITS.nameMax },
     rules: { type: 'string', maxLength: PROJECT_LIMITS.rulesMax, description: '普通创作约束文本，由调用方 AI 负责遵守。' },
-    defaults: { type: 'object', description: `可选默认值（如 platform）；键不超过 ${PROJECT_LIMITS.defaultsKeysMax} 个，JSON 不超过 ${PROJECT_LIMITS.defaultsJsonMax} 字符。` },
+    defaults: { type: 'object', not: { required: ['watermarkEnabled'] }, description: `可选默认值（如 platform）；模型不能提供 watermarkEnabled。键不超过 ${PROJECT_LIMITS.defaultsKeysMax} 个，JSON 不超过 ${PROJECT_LIMITS.defaultsJsonMax} 字符。` },
   },
   required: ['name'],
   additionalProperties: false,
@@ -586,6 +585,7 @@ async function toolGetCapabilities() {
 
 async function toolCreateScene(args, { store, sceneIdFactory, defaultSceneFill, authorizeCheck }) {
   const rawScene = objectField(args, 'scene', { required: true });
+  assertModelWatermarkOmitted(rawScene);
   const idempotencyKey = optionalIdempotencyKey(args);
   const requestHash = sha256Hex(stableStringify({ operation: 'create_scene', scene: rawScene }));
 
@@ -636,6 +636,7 @@ function toolUpdateScene(args, { store }) {
   const sceneId = stringField(args, 'sceneId', { required: true });
   const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
   const patch = objectField(args, 'patch', { required: true });
+  assertModelPatchWatermarkOmitted(patch);
   const idempotencyKey = optionalIdempotencyKey(args);
   const requestHash = sha256Hex(stableStringify({ operation: 'update_scene', sceneId, expectedRevision, patch }));
 
@@ -691,6 +692,7 @@ async function toolRenderScene(args, context) {
   const sceneId = stringField(args, 'sceneId', { min: 1 });
   const revision = integerField(args, 'revision', { min: 1 });
   const inlineScene = objectField(args, 'scene');
+  assertModelWatermarkOmitted(inlineScene);
   if (sceneId !== undefined && inlineScene !== undefined) {
     fail('invalid_request', 'sceneId 与 scene 只能二选一', {
       recovery: '渲染已保存场景时传 sceneId；仅一次性预览时传内联 scene。',
@@ -850,7 +852,7 @@ function projectInput(raw, { current = null } = {}) {
     : validateRulesField(raw.rules);
   const defaults = raw.defaults === undefined
     ? (current ? current.defaults : {})
-    : validateDefaults(raw.defaults);
+    : preserveStoredWatermark(validateDefaults(raw.defaults), current?.defaults);
   return { name, rules, defaults };
 }
 
@@ -881,6 +883,7 @@ function projectSummary(project) {
 function toolCreateProject(args, { store }) {
   const raw = objectField(args, 'project', { required: true });
   rejectUnknownKeys(raw, new Set(['name', 'rules', 'defaults']), 'project');
+  assertModelWatermarkOmitted(raw.defaults, 'project.defaults');
   const input = projectInput(raw);
   const project = store.createProject({ projectId: `prj_${cryptoRandomHex()}`, ...input });
   return textOk(`已创建项目 ${project.projectId}（revision ${project.revision}）。`, { project: projectSummary(project), next: `用 imstage_create_batch 时传 projectId=${project.projectId}。` });
@@ -906,6 +909,7 @@ function toolUpdateProject(args, { store }) {
   const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
   const raw = objectField(args, 'project', { required: true });
   rejectUnknownKeys(raw, new Set(['name', 'rules', 'defaults']), 'project');
+  assertModelWatermarkOmitted(raw.defaults, 'project.defaults');
   const current = store.getProject(projectId);
   if (!current) fail('project_not_found', `项目不存在：${projectId}`, { details: { projectId }, status: 404 });
   const input = projectInput(raw, { current });
@@ -923,6 +927,7 @@ function toolCreateTemplate(args, { store }) {
     invalidRequest(`template.description 最多 ${TEMPLATE_LIMITS.descriptionMax} 个字符`, { field: 'template.description' });
   }
   if (raw.scene === undefined) invalidRequest('template.scene 不能为空', { field: 'template.scene' });
+  assertModelWatermarkOmitted(raw.scene, 'template.scene');
   enforceSceneBounds(raw.scene, { label: 'template.scene' });
   const normalized = { ...raw, scene: { ...raw.scene, id: newSceneId() } };
   const item = templateFailCall(() => templateStore.createTemplate(store.db, MCP_INSTANCE_SCOPE, normalized));
@@ -945,8 +950,10 @@ function toolUpdateTemplate(args, { store }) {
   const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
   const raw = objectField(args, 'template', { required: true });
   rejectUnknownKeys(raw, new Set(['name', 'description', 'scene', 'variables']), 'template');
+  assertModelWatermarkOmitted(raw.scene, 'template.scene');
   if (raw.scene !== undefined) enforceSceneBounds(raw.scene, { label: 'template.scene' });
-  const normalized = raw.scene === undefined ? raw : { ...raw, scene: { ...raw.scene, id: newSceneId() } };
+  const current = templateFailCall(() => templateStore.getTemplate(store.db, MCP_INSTANCE_SCOPE, templateId));
+  const normalized = raw.scene === undefined ? raw : { ...raw, scene: preserveStoredWatermark({ ...raw.scene, id: newSceneId() }, current.definition.scene) };
   const item = templateFailCall(() => templateStore.updateTemplate(store.db, MCP_INSTANCE_SCOPE, templateId, expectedRevision, normalized));
   return textOk(`模板 ${item.id} 已更新到 revision ${item.revision}。`, { template: item });
 }
@@ -959,6 +966,7 @@ function toolCreateBatch(args, { store }) {
   const templateRevision = integerField(args, 'templateRevision', { min: 1 });
   const clientKey = clientKeyField(args);
   const rawItems = args.items;
+  assertModelBatchWatermarkOmitted(rawItems);
   if (!Array.isArray(rawItems) || rawItems.length < 1) invalidRequest('items 至少需要 1 个条目', { field: 'items' });
   if (rawItems.length > BATCH_LIMITS.itemsMax) fail('limit_exceeded', `每批最多 ${BATCH_LIMITS.itemsMax} 个条目`, { details: { count: rawItems.length } });
   const requestHash = sha256Hex(stableStringify({ operation: 'create_batch', projectId, templateId, templateRevision, clientKey, items: rawItems }));
@@ -1180,7 +1188,7 @@ function parseResourceUri(uri) {
 async function handleReadResource(request, { store }) {
   const uri = request?.params?.uri;
   if (typeof uri !== 'string') throw new McpError(ErrorCode.InvalidParams, 'uri 必须是字符串');
-  if (uri === WIDGET_RESOURCE_URI || uri === LEGACY_WIDGET_RESOURCE_URI) return {contents:[buildWidgetResourceContent(uri)]};
+  if ([WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, PREVIOUS_WIDGET_RESOURCE_URI].includes(uri)) return {contents:[buildWidgetResourceContent(uri)]};
   const parsed = parseResourceUri(uri);
   if (!parsed) throw new McpError(ErrorCode.InvalidParams, `未知资源：${uri}`);
 

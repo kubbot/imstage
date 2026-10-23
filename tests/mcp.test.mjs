@@ -28,9 +28,10 @@ import pngjs from 'pngjs';
 import { resolveMcpConfig } from '../services/mcp/config.mjs';
 import { STUDIO_RENDERER_VERSION } from '../services/mcp/studio-html.mjs';
 import { resolveChromiumExecutable } from '../services/mcp/render.mjs';
-import { EXAMPLE_CREATE_SCENE } from '../services/mcp/scene.mjs';
+import { EXAMPLE_CREATE_SCENE, prepareCreateScene } from '../services/mcp/scene.mjs';
+import { createTemplate as storeTemplate } from '../services/templates/store.mjs';
 import { startMcpServer } from '../services/mcp/server.mjs';
-import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI } from '../services/mcp/widget.mjs';
+import { WIDGET_RESOURCE_URI, LEGACY_WIDGET_RESOURCE_URI, PREVIOUS_WIDGET_RESOURCE_URI } from '../services/mcp/widget.mjs';
 
 const { PNG } = pngjs;
 const TOKEN = 'test-token-1234567890';
@@ -107,6 +108,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
 
     let sceneId;
     let latestRevision;
+    let trustedWatermarkOffSceneId;
 
     await t.test('tools/list advertises exactly the owner flow and attaches the widget only to render', async () => {
       const { tools } = await client.listTools();
@@ -141,14 +143,15 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       const createTool = tools.find((tool) => tool.name === 'imstage_create_scene');
       assert.equal(createTool.annotations.readOnlyHint, false);
       assert.equal(createTool.inputSchema.additionalProperties, false);
-      // The advertised schemas must accept the supported `watermarkEnabled`
-      // boolean that the implementation validates — and keep rejecting
-      // everything else.
+      // The user-controlled switch is readable in outputs but is not a model
+      // input. Custom watermark text remains an ordinary editable field.
       const sceneSchema = createTool.inputSchema.properties.scene;
-      assert.equal(sceneSchema.properties.watermarkEnabled.type, 'boolean');
+      assert.equal(sceneSchema.properties.watermarkEnabled, undefined);
+      assert.equal(sceneSchema.properties.watermark.type, 'string');
       assert.equal(sceneSchema.additionalProperties, false);
       const updateTool = tools.find((tool) => tool.name === 'imstage_update_scene');
-      assert.equal(updateTool.inputSchema.properties.patch.properties.set.properties.watermarkEnabled.type, 'boolean');
+      assert.equal(updateTool.inputSchema.properties.patch.properties.set.properties.watermarkEnabled, undefined);
+      assert.equal(updateTool.inputSchema.properties.patch.properties.set.properties.watermark.type, 'string');
       assert.equal(updateTool.inputSchema.properties.patch.properties.set.additionalProperties, false);
     });
 
@@ -160,6 +163,8 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.deepEqual(capabilities.supportedSubset.surfaces, ['ios', 'android', 'desktop']);
       assert.deepEqual(capabilities.supportedSubset.nativelyRenderedMessageTypes, ['text', 'image', 'location', 'system', 'contact', 'voice', 'video', 'link', 'album']);
       assert.equal(capabilities.canonicalValidator, 'apps/web/src/studio/model.ts#validateScene');
+      assert.equal(capabilities.patchOperations.set.includes('watermarkEnabled'), false);
+      assert.equal(capabilities.patchOperations.set.includes('watermark'), true);
       assert.ok(capabilities.examples.createScene.scene.participants.length >= 1);
       assert.equal(capabilities.examples.updateScene.patch.updateMessages.length, 1);
       assert.ok(capabilities.errorCodes.some((entry) => entry.code === 'revision_conflict'));
@@ -177,6 +182,7 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       assert.equal(content.revision, 1);
       assert.equal(content.deduplicated, false);
       assert.equal(content.scene.title, EXAMPLE_CREATE_SCENE.title);
+      assert.equal(content.scene.watermarkEnabled ?? true, true, 'a new model scene uses the enabled default');
       assert.equal(content.scene.messages.length, EXAMPLE_CREATE_SCENE.messages.length);
       sceneId = content.sceneId;
       latestRevision = content.revision;
@@ -238,34 +244,156 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
       latestRevision = result.structuredContent.revision;
     });
 
-    await t.test('watermarkEnabled round-trips through create/get and targeted set updates', async () => {
-      // create accepts the optional boolean and stores it verbatim…
+    await t.test('model scene create/update/inline render reject watermark switches before writing', async () => {
+      const writeCounts = () => Object.fromEntries(['scenes', 'scene_snapshots', 'renders', 'idempotency'].map((table) => [
+        table, Number(handle.store.db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get().total),
+      ]));
+      const before = writeCounts();
+      const storedBefore = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId } });
+      for (const flag of [true, false, null, 'false']) {
+        const create = toolError(await client.callTool({
+          name: 'imstage_create_scene',
+          arguments: { scene: createSceneArgument({ watermarkEnabled: flag }), idempotencyKey: `blocked-create-${flag}` },
+        }));
+        assert.equal(create.code, 'invalid_request', `create rejects ${JSON.stringify(flag)}`);
+        const update = toolError(await client.callTool({
+          name: 'imstage_update_scene',
+          arguments: { sceneId, expectedRevision: latestRevision, patch: { set: { title: 'must not persist', watermarkEnabled: flag } } },
+        }));
+        assert.equal(update.code, 'invalid_request', `update rejects ${JSON.stringify(flag)}`);
+        const inline = toolError(await client.callTool({
+          name: 'imstage_render_scene',
+          arguments: { scene: createSceneArgument({ watermarkEnabled: flag }) },
+        }));
+        assert.equal(inline.code, 'invalid_request', `inline render rejects ${JSON.stringify(flag)}`);
+      }
+      assert.deepEqual(writeCounts(), before, 'rejected inputs write neither scenes, revisions, renders nor replay receipts');
+      const storedAfter = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId } });
+      assert.deepEqual(storedAfter.structuredContent, storedBefore.structuredContent);
+    });
+
+    await t.test('owner scene ids retain a trusted user switch through get and unrelated edits', async () => {
+      // Trusted persistence represents the Web user's choice, never an MCP
+      // raw-scene argument that the new model boundary must reject.
+      const trusted = prepareCreateScene(createSceneArgument({ watermarkEnabled: false, watermark: '用户文字' }));
+      handle.store.createScene({ scene: trusted, requestHash: 'trusted-user-watermark-choice' });
+      trustedWatermarkOffSceneId = trusted.id;
+      const read = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: trusted.id } });
+      assert.notEqual(read.isError, true);
+      assert.equal(read.structuredContent.scene.watermarkEnabled, false);
+      const edited = await client.callTool({
+        name: 'imstage_update_scene',
+        arguments: { sceneId: trusted.id, expectedRevision: 1, patch: { set: { title: '用户作品继续编辑', watermark: '新的自定义文字' } } },
+      });
+      assert.notEqual(edited.isError, true, JSON.stringify(edited.structuredContent));
+      assert.equal(edited.structuredContent.revision, 2);
+      assert.equal(edited.structuredContent.scene.watermarkEnabled, false);
+      assert.equal(edited.structuredContent.scene.watermark, '新的自定义文字');
+    });
+
+    await t.test('standalone project defaults reject model switches and preserve the stored user choice', async () => {
+      const before = handle.store.listProjects().length;
+      for (const flag of [true, false]) {
+        const rejected = toolError(await client.callTool({
+          name: 'imstage_create_project', arguments: { project: { name: 'blocked project', defaults: { watermarkEnabled: flag } } },
+        }));
+        assert.equal(rejected.code, 'invalid_request');
+      }
+      assert.equal(handle.store.listProjects().length, before);
+      const trusted = handle.store.createProject({
+        projectId: 'prj_' + 'a'.repeat(32), name: '用户项目', rules: '', defaults: { platform: 'wechat', watermarkEnabled: false },
+      });
+      for (const flag of [true, false]) {
+        const rejected = toolError(await client.callTool({
+          name: 'imstage_update_project',
+          arguments: { projectId: trusted.projectId, expectedRevision: 1, project: { defaults: { watermarkEnabled: flag } } },
+        }));
+        assert.equal(rejected.code, 'invalid_request');
+        assert.deepEqual(handle.store.getProject(trusted.projectId), trusted);
+      }
+      const edited = await client.callTool({
+        name: 'imstage_update_project',
+        arguments: { projectId: trusted.projectId, expectedRevision: 1, project: { defaults: { platform: 'whatsapp' } } },
+      });
+      assert.notEqual(edited.isError, true, JSON.stringify(edited.structuredContent));
+      assert.equal(edited.structuredContent.project.defaults.watermarkEnabled, false, 'replacing other defaults cannot reset a user switch');
+      assert.equal(edited.structuredContent.project.defaults.platform, 'whatsapp');
+    });
+
+    await t.test('standalone templates reject raw switches and retain a trusted switch when replacement omits it', async () => {
+      const countBefore = Number(handle.store.db.prepare('SELECT COUNT(*) AS total FROM template_records').get().total);
+      for (const flag of [true, false]) {
+        const rejected = toolError(await client.callTool({
+          name: 'imstage_create_template',
+          arguments: { template: { name: 'blocked template', scene: createSceneArgument({ watermarkEnabled: flag }), variables: [] } },
+        }));
+        assert.equal(rejected.code, 'invalid_request');
+      }
+      assert.equal(Number(handle.store.db.prepare('SELECT COUNT(*) AS total FROM template_records').get().total), countBefore);
+      for (const flag of [false, undefined]) {
+        const scene = prepareCreateScene(createSceneArgument(flag === undefined ? {} : { watermarkEnabled: flag }));
+        const trusted = storeTemplate(handle.store.db, 'mcp-instance', { name: '用户模板', scene, variables: [] });
+        for (const supplied of [true, false]) {
+          const rejected = toolError(await client.callTool({
+            name: 'imstage_update_template',
+            arguments: { templateId: trusted.id, expectedRevision: 1, template: { name: trusted.name, scene: createSceneArgument({ watermarkEnabled: supplied }), variables: [] } },
+          }));
+          assert.equal(rejected.code, 'invalid_request');
+          const after = await client.callTool({ name: 'imstage_get_template', arguments: { templateId: trusted.id } });
+          assert.deepEqual(after.structuredContent.template, trusted, 'a rejected replacement cannot change the template');
+        }
+        const edited = await client.callTool({
+          name: 'imstage_update_template',
+          arguments: { templateId: trusted.id, expectedRevision: 1, template: { name: trusted.name, scene: createSceneArgument({ title: '模板正文已更新', watermark: '自定义文字仍可改' }), variables: [] } },
+        });
+        assert.notEqual(edited.isError, true, JSON.stringify(edited.structuredContent));
+        assert.equal(edited.structuredContent.template.definition.scene.watermarkEnabled, flag);
+        assert.equal(Object.hasOwn(edited.structuredContent.template.definition.scene, 'watermarkEnabled'), flag !== undefined);
+        assert.equal(edited.structuredContent.template.definition.scene.watermark, '自定义文字仍可改');
+      }
+    });
+
+    await t.test('standalone batches reject raw and patch switches atomically while trusted template ids retain false', async () => {
+      const project = handle.store.createProject({ projectId: 'prj_' + 'b'.repeat(32), name: '批次项目', rules: '', defaults: {} });
+      const trusted = storeTemplate(handle.store.db, 'mcp-instance', {
+        name: '关闭水印的用户模板', scene: prepareCreateScene(createSceneArgument({ watermarkEnabled: false })), variables: [],
+      });
+      const before = Number(handle.store.db.prepare('SELECT COUNT(*) AS total FROM scenes').get().total);
+      for (const flag of [true, false]) {
+        for (const item of [
+          { name: 'raw', prompt: 'synthetic raw scene', scene: createSceneArgument({ watermarkEnabled: flag }) },
+          { name: 'patch', prompt: 'synthetic template patch', values: {}, patch: { set: { watermarkEnabled: flag } } },
+        ]) {
+          const rejected = toolError(await client.callTool({
+            name: 'imstage_create_batch', arguments: { projectId: project.projectId, templateId: trusted.id, items: [item] },
+          }));
+          assert.equal(rejected.code, 'invalid_request');
+          assert.equal(Number(handle.store.db.prepare('SELECT COUNT(*) AS total FROM scenes').get().total), before);
+          assert.equal(handle.store.listBatches({ projectId: project.projectId }).length, 0);
+        }
+      }
       const created = await client.callTool({
-        name: 'imstage_create_scene',
-        arguments: { scene: createSceneArgument({ watermarkEnabled: false }) },
+        name: 'imstage_create_batch',
+        arguments: { projectId: project.projectId, templateId: trusted.id, items: [
+          { name: '原模板', prompt: 'reuse stored template', values: {} },
+          { name: '修改正文', prompt: 'edit stored template', values: {}, patch: { set: { title: '仍保留用户开关', watermark: '可编辑文字' } } },
+        ] },
       });
       assert.notEqual(created.isError, true, JSON.stringify(created.structuredContent));
-      const id = created.structuredContent.sceneId;
-      assert.equal(created.structuredContent.scene.watermarkEnabled, false);
-      const read = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: id } });
-      assert.equal(read.structuredContent.scene.watermarkEnabled, false, 'the flag survives storage');
-      // …targeted set updates flip it…
-      const flipped = await client.callTool({
-        name: 'imstage_update_scene',
-        arguments: { sceneId: id, expectedRevision: 1, patch: { set: { watermarkEnabled: true } } },
-      });
-      assert.notEqual(flipped.isError, true, JSON.stringify(flipped.structuredContent));
-      assert.equal(flipped.structuredContent.scene.watermarkEnabled, true);
-      // …and a non-boolean is rejected without mutating stored state.
-      const bad = toolError(
-        await client.callTool({
-          name: 'imstage_update_scene',
-          arguments: { sceneId: id, expectedRevision: 2, patch: { set: { watermarkEnabled: 'no' } } },
-        }),
-      );
-      assert.equal(bad.code, 'invalid_request');
-      const after = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: id } });
-      assert.equal(after.structuredContent.scene.watermarkEnabled, true, 'rejected patch never mutates');
+      for (const item of created.structuredContent.items) {
+        const read = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: item.sceneId } });
+        assert.equal(read.structuredContent.scene.watermarkEnabled, false);
+      }
+    });
+
+    await t.test('rendering a trusted scene id does not reset the user switch', { skip: !rendererReady ? 'no Chromium executable available' : false }, async () => {
+      const rendered = await client.callTool({ name: 'imstage_render_scene', arguments: { sceneId: trustedWatermarkOffSceneId } });
+      assert.notEqual(rendered.isError, true, JSON.stringify(rendered.structuredContent));
+      decodePng(rendered.content.find((block) => block.type === 'image').data);
+      assert.equal(rendered.structuredContent.sceneId, trustedWatermarkOffSceneId);
+      const read = await client.callTool({ name: 'imstage_get_scene', arguments: { sceneId: trustedWatermarkOffSceneId } });
+      assert.equal(read.structuredContent.scene.watermarkEnabled, false);
+      assert.equal(read.structuredContent.revision, 2);
     });
 
     await t.test('stale expectedRevision returns an actionable revision_conflict and does not mutate', async () => {
@@ -501,6 +629,9 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
     await t.test('widget resource is self-contained and mutation tools have no widget', async () => {
       const legacy = await client.readResource({ uri: LEGACY_WIDGET_RESOURCE_URI });
       assert.equal(legacy.contents[0].uri, LEGACY_WIDGET_RESOURCE_URI);
+      const previous = await client.readResource({ uri: PREVIOUS_WIDGET_RESOURCE_URI });
+      assert.equal(previous.contents[0].uri, PREVIOUS_WIDGET_RESOURCE_URI);
+      assert.equal(previous.contents[0].mimeType, 'text/html;profile=mcp-app');
       const resource = await client.readResource({ uri: WIDGET_RESOURCE_URI });
       assert.equal(resource.contents.length, 1);
       const content = resource.contents[0];

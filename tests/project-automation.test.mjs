@@ -13,7 +13,7 @@
  *   - template values+patch freeze a snapshot at submit time;
  *   - validation failures roll the whole batch back (no real-screenshot /
  *     payment bypass);
- *   - scene watermark override `false` survives default application;
+ *   - trusted user watermark choices survive model edits and default application;
  *   - account scene capacity is enforced;
  *   - scope filtering, revocation and foreign ownership cannot leak data.
  *
@@ -245,7 +245,7 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
       rules: '每段对话 8–12 轮，语气口语化。',
       type: 'training',
       brief: { language: 'zh-CN', cast: [{ name: '小林', role: '客服', avatar: 'data:image/png;base64,AAAA' }] },
-      defaults: { platform: 'whatsapp', watermarkEnabled: true },
+      defaults: { platform: 'whatsapp' },
     };
     const created = toolOk(
       await mcpTool(base, token, 'imstage_create_project', { project: projectInput, idempotencyKey: 'project-key-1' }),
@@ -518,10 +518,10 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     assert.equal(countScenes(app), before);
   });
 
-  await t.test('scene watermark override survives project/scenario defaults', async () => {
+  await t.test('MCP rejects raw scene switches while Web user overrides survive defaults', async () => {
     const edge = toolOk(
       await mcpTool(base, token, 'imstage_create_project', {
-        project: { name: '边界项目', defaults: { platform: 'whatsapp', watermarkEnabled: true } },
+        project: { name: '边界项目', defaults: { platform: 'whatsapp' } },
       }),
       'edge project',
     ).project;
@@ -535,24 +535,31 @@ test('account project automation bridges MCP and HTTP for one owner', async (t) 
     );
     const edgeCases = edgeScenario.casePlan.cases;
 
-    const submitted = toolOk(
-      await mcpTool(base, token, 'imstage_create_batch', {
+    const before = countScenes(app);
+    const offItem = {
+      itemKey: edgeCases[0].itemKey,
+      name: edgeCases[0].name,
+      objective: edgeCases[0].objective,
+      context: edgeCases[0].context,
+      scene: sceneFor(900, { texts: ['用户关闭水印 A', '用户关闭水印 B'], watermarkEnabled: false }),
+    };
+    for (const flag of [true, false]) {
+      const rejected = toolErr(await mcpTool(base, token, 'imstage_create_batch', {
         projectId: edgeProjectId,
         scenarioId: edgeScenario.scenario.scenarioId,
-        items: [
-          {
-            itemKey: edgeCases[0].itemKey,
-            name: edgeCases[0].name,
-            objective: edgeCases[0].objective,
-            context: edgeCases[0].context,
-            scene: sceneFor(900, { texts: ['显式关闭水印 A', '显式关闭水印 B'], watermarkEnabled: false }),
-          },
-        ],
-      }),
-      'watermark off batch',
-    );
-    const offScene = toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId: submitted.items[0].sceneId }), 'get_scene');
-    assert.equal(offScene.scene.watermarkEnabled, false, 'an explicit false survives default application');
+        items: [{ ...offItem, scene: { ...offItem.scene, watermarkEnabled: flag } }],
+      }));
+      assert.equal(rejected.code, 'invalid_request');
+      assert.equal(countScenes(app), before, 'model switches cannot create scenes');
+    }
+    // The authenticated Web user retains the existing ability to choose false.
+    const submitted = await jsonFetch(base, `/api/projects/${edgeProjectId}/content-batches`, {
+      method: 'POST', cookie: alice.cookie,
+      body: { scenarioId: edgeScenario.scenario.scenarioId, items: [offItem] },
+    });
+    assert.equal(submitted.res.status, 200, JSON.stringify(submitted.data));
+    const offScene = toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId: submitted.data.item.items[0].sceneId }), 'get_scene');
+    assert.equal(offScene.scene.watermarkEnabled, false, 'a trusted user override survives default application');
 
     const applied = toolOk(
       await mcpTool(base, token, 'imstage_create_batch', {
@@ -1208,7 +1215,8 @@ test('edited and detached cases use live dialogue hashes and explicit pending ke
   }));
   assert.equal(reused.total, 1, 'historical transcript is distinct from the live edited case');
   const edited = toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId })).scene;
-  const { id: _serverId, ...editedInput } = edited;
+  // Readable user settings are omitted when a snapshot becomes model input.
+  const { id: _serverId, watermarkEnabled: _userWatermark, ...editedInput } = edited;
   const duplicate = toolErr(await mcpTool(base, token, 'imstage_create_batch', {
     projectId: project.id, scenarioId, items: [item('case-003', editedInput)],
   }));
@@ -1287,24 +1295,146 @@ test('evaluation cases require caller labels and cleared drafts become pending a
   assert.equal(resumed.total, 1, 'the cleared case can be submitted again');
 });
 
-test('account MCP discovers and freezes the same optional scenario watermark override as Web', async () => {
-  const { base } = await makeApp();
+test('account MCP protects user watermark choices across scenes, projects, scenarios, templates and batches', async () => {
+  const { app, base } = await makeApp();
   const { cookie } = await register(base);
   const { token } = await createToken(base, cookie);
   const tools = await mcpList(base, token);
-  const create = tools.find(tool => tool.name === 'imstage_create_scenario');
-  assert.equal(create.inputSchema.properties.scenario.properties.watermarkEnabled.type, 'boolean');
-  for (const [projectFlag, scenarioFlag] of [[true, false], [false, true], [false, undefined]]) {
-    const project = toolOk(await mcpTool(base, token, 'imstage_create_project', { project: { name: 'Watermark contract', defaults: { watermarkEnabled: projectFlag } } })).project;
-    const scenario = { name: 'Frozen watermark', caseCount: 1, autoExport: false, ...(scenarioFlag === undefined ? {} : { watermarkEnabled: scenarioFlag }) };
-    const request = { projectId: project.id, scenario, idempotencyKey: `watermark-${project.id}` };
-    const planned = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
-    assert.equal(planned.scenario.frozen.watermarkEnabled, scenarioFlag ?? projectFlag);
-    const replay = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
-    assert.equal(replay.scenario.scenarioId, planned.scenario.scenarioId);
-    const conflict = toolErr(await mcpTool(base, token, 'imstage_create_scenario', { ...request, scenario: { ...scenario, watermarkEnabled: !(scenarioFlag ?? projectFlag) } }));
-    assert.equal(conflict.code, 'idempotency_conflict');
-    const invalid = toolErr(await mcpTool(base, token, 'imstage_create_scenario', { projectId: project.id, scenario: { ...scenario, watermarkEnabled: 'false' } }));
-    assert.match(invalid.code, /invalid/);
+  const createScenario = tools.find(tool => tool.name === 'imstage_create_scenario');
+  assert.equal(createScenario.inputSchema.properties.scenario.properties.watermarkEnabled, undefined);
+  const projectsBefore = toolOk(await mcpTool(base, token, 'imstage_list_projects')).items.length;
+  for (const flag of [true, false]) {
+    const rejected = toolErr(await mcpTool(base, token, 'imstage_create_project', {
+      project: { name: '模型不能选择水印', defaults: { watermarkEnabled: flag } },
+    }));
+    assert.equal(rejected.code, 'invalid_request');
+  }
+  assert.equal(toolOk(await mcpTool(base, token, 'imstage_list_projects')).items.length, projectsBefore);
+  const saved = await jsonFetch(base, '/api/projects', {
+    method: 'POST', cookie, body: { name: '用户关闭水印', defaults: { watermarkEnabled: false, platform: 'whatsapp' } },
+  });
+  assert.equal(saved.res.status, 200, JSON.stringify(saved.data));
+  const projectId = saved.data.item.id;
+  for (const flag of [true, false]) {
+    const rejected = toolErr(await mcpTool(base, token, 'imstage_update_project', {
+      projectId, expectedRevision: 1, project: { defaults: { watermarkEnabled: flag } },
+    }));
+    assert.equal(rejected.code, 'invalid_request');
+    const read = toolOk(await mcpTool(base, token, 'imstage_get_project', { projectId }));
+    assert.equal(read.project.revision, 1);
+    assert.equal(read.project.watermarkEnabled, false);
+  }
+  const editedProject = toolOk(await mcpTool(base, token, 'imstage_update_project', {
+    projectId, expectedRevision: 1, project: { defaults: { platform: 'wechat' } },
+  }));
+  assert.equal(editedProject.project.watermarkEnabled, false, 'a defaults replacement retains the user switch');
+  for (const flag of [true, false]) {
+    const rejected = toolErr(await mcpTool(base, token, 'imstage_create_scenario', {
+      projectId, scenario: { name: '不能覆盖用户开关', caseCount: 1, autoExport: false, watermarkEnabled: flag },
+    }));
+    assert.equal(rejected.code, 'invalid_request');
+  }
+  assert.deepEqual(toolOk(await mcpTool(base, token, 'imstage_list_scenarios', { projectId })).items, []);
+  const request = { projectId, scenario: { name: '继承用户开关', caseCount: 1, autoExport: false }, idempotencyKey: 'user-switch-inheritance' };
+  const planned = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
+  assert.equal(planned.scenario.frozen.watermarkEnabled, false);
+  const replay = toolOk(await mcpTool(base, token, 'imstage_create_scenario', request));
+  assert.equal(replay.scenario.scenarioId, planned.scenario.scenarioId);
+  const conflict = toolErr(await mcpTool(base, token, 'imstage_create_scenario', { ...request, scenario: { ...request.scenario, name: '不同请求' } }));
+  assert.equal(conflict.code, 'idempotency_conflict');
+  // Web scenario overrides remain supported in both directions.
+  for (const flag of [true, false]) {
+    const web = await jsonFetch(base, `/api/projects/${projectId}/scenarios`, {
+      method: 'POST', cookie, body: { scenario: { name: `用户选择 ${flag}`, caseCount: 1, autoExport: false, watermarkEnabled: flag } },
+    });
+    assert.equal(web.res.status, 200, JSON.stringify(web.data));
+    assert.equal(web.data.scenario.frozen.watermarkEnabled, flag);
+  }
+
+  const before = countScenes(app);
+  for (const flag of [true, false]) {
+    const create = toolErr(await mcpTool(base, token, 'imstage_create_scene', { scene: sceneFor(1400, { watermarkEnabled: flag }) }));
+    assert.equal(create.code, 'invalid_request');
+    const inline = toolErr(await mcpTool(base, token, 'imstage_render_scene', { scene: sceneFor(1400, { watermarkEnabled: flag }) }));
+    assert.equal(inline.code, 'invalid_request');
+  }
+  assert.equal(countScenes(app), before);
+  const userScene = { ...sceneFor(1401, { watermarkEnabled: false }), id: crypto.randomUUID() };
+  const stored = await jsonFetch(base, `/api/scenes/${userScene.id}`, { method: 'PUT', cookie, body: { revision: 0, scene: userScene } });
+  assert.equal(stored.res.status, 200, JSON.stringify(stored.data));
+  for (const flag of [true, false]) {
+    const rejected = toolErr(await mcpTool(base, token, 'imstage_update_scene', {
+      sceneId: userScene.id, expectedRevision: 1, patch: { set: { title: 'must not persist', watermarkEnabled: flag } },
+    }));
+    assert.equal(rejected.code, 'invalid_request');
+    const read = toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId: userScene.id }));
+    assert.equal(read.revision, 1);
+    assert.equal(read.scene.watermarkEnabled, false);
+    assert.equal(read.scene.title, userScene.title);
+  }
+  const editedScene = toolOk(await mcpTool(base, token, 'imstage_update_scene', {
+    sceneId: userScene.id, expectedRevision: 1, patch: { set: { title: '继续编辑用户作品', watermark: '允许修改文字' } },
+  }));
+  assert.equal(editedScene.scene.watermarkEnabled, false);
+  assert.equal(editedScene.scene.watermark, '允许修改文字');
+  const rendered = toolOk(await mcpTool(base, token, 'imstage_render_scene', { sceneId: userScene.id }));
+  assert.equal(rendered.sceneId, userScene.id);
+  assert.equal(toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId: userScene.id })).scene.watermarkEnabled, false);
+
+  const templatesBefore = toolOk(await mcpTool(base, token, 'imstage_list_templates')).items.length;
+  for (const flag of [true, false]) {
+    const rejected = toolErr(await mcpTool(base, token, 'imstage_create_template', {
+      template: { name: '不能伪装用户模板', scene: sceneFor(1500, { watermarkEnabled: flag }), variables: [] },
+    }));
+    assert.equal(rejected.code, 'invalid_request');
+  }
+  assert.equal(toolOk(await mcpTool(base, token, 'imstage_list_templates')).items.length, templatesBefore);
+  let falseTemplateId;
+  for (const flag of [false, undefined]) {
+    const rawScene = { ...sceneFor(flag === false ? 1501 : 1502, { watermarkEnabled: flag }), id: crypto.randomUUID() };
+    const web = await jsonFetch(base, '/api/templates', {
+      method: 'POST', cookie, body: { template: { name: '用户模板', scene: rawScene, variables: [] } },
+    });
+    assert.equal(web.res.status, 200, JSON.stringify(web.data));
+    const template = web.data.item;
+    if (flag === false) falseTemplateId = template.id;
+    for (const supplied of [true, false]) {
+      const rejected = toolErr(await mcpTool(base, token, 'imstage_update_template', {
+        templateId: template.id, expectedRevision: 1,
+        template: { name: template.name, scene: sceneFor(1503, { watermarkEnabled: supplied }), variables: [] },
+      }));
+      assert.equal(rejected.code, 'invalid_request');
+      assert.deepEqual(toolOk(await mcpTool(base, token, 'imstage_get_template', { templateId: template.id })).template, template);
+    }
+    const updated = toolOk(await mcpTool(base, token, 'imstage_update_template', {
+      templateId: template.id, expectedRevision: 1,
+      template: { name: template.name, scene: sceneFor(1504, { title: '正文修改', texts: ['保留开关 A', '保留开关 B'] }), variables: [] },
+    }));
+    assert.equal(updated.template.definition.scene.watermarkEnabled, flag);
+    assert.equal(Object.hasOwn(updated.template.definition.scene, 'watermarkEnabled'), flag !== undefined);
+  }
+  const scenesBeforeBatch = countScenes(app);
+  const batchesBefore = toolOk(await mcpTool(base, token, 'imstage_list_batches', { projectId })).items.length;
+  for (const flag of [true, false]) {
+    for (const item of [
+      { itemKey: 'raw-switch', name: '禁止原始开关', scene: sceneFor(1600, { watermarkEnabled: flag }) },
+      { itemKey: 'patch-switch', name: '禁止补丁开关', values: {}, patch: { set: { watermarkEnabled: flag } } },
+    ]) {
+      const rejected = toolErr(await mcpTool(base, token, 'imstage_create_batch', { projectId, templateId: falseTemplateId, items: [item] }));
+      assert.equal(rejected.code, 'invalid_request');
+      assert.equal(countScenes(app), scenesBeforeBatch);
+      assert.equal(toolOk(await mcpTool(base, token, 'imstage_list_batches', { projectId })).items.length, batchesBefore);
+    }
+  }
+  const batch = toolOk(await mcpTool(base, token, 'imstage_create_batch', {
+    projectId, templateId: falseTemplateId,
+    items: [
+      { itemKey: 'trusted-template', name: '用户模板直接复用', values: {} },
+      { itemKey: 'trusted-template-patch', name: '用户模板修改正文', values: {}, patch: { updateMessages: [{ id: 'm1504_0', text: '不同的正文，仍保留用户开关' }], set: { watermark: '文字仍可改' } } },
+    ],
+  }));
+  for (const item of batch.items) {
+    const read = toolOk(await mcpTool(base, token, 'imstage_get_scene', { sceneId: item.sceneId }));
+    assert.equal(read.scene.watermarkEnabled, false);
   }
 });
