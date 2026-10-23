@@ -40,7 +40,7 @@ export function buildRenderWidgetHtml() {
   .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:10px; background:var(--preview-bg); padding:12px; }
   .preview img { display:block; width:auto; height:auto; max-width:100%; max-height:480px; object-fit:contain; }
   .preview[data-fit="width"] { overflow:auto; max-height:min(70vh,640px); justify-content:flex-start; }
-  .preview[data-fit="width"] img { width:auto; max-width:100%; max-height:none; }
+  .preview[data-fit="width"] img { width:100%; max-width:100%; max-height:none; }
   .preview[data-fit="original"] { overflow:auto; max-height:80vh; justify-content:flex-start; }
   .preview[data-fit="original"] img { max-width:none; max-height:none; }
   .toolbar,.view-options,.row,.shortcuts { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
@@ -228,6 +228,7 @@ export function buildRenderWidgetHtml() {
       beginImageRequest(dataUri);
     }
     document.getElementById("edit-form").hidden = !latest.sceneId;
+    document.getElementById("edit-work").hidden = !latest.sceneId;
     document.getElementById("toolbar").hidden = !latest.sceneId && !dataUri;
     if (!dataUri) { setText("save-state", "预览未就绪"); setStatus("未收到有效图片，请重新渲染作品。"); }
   }

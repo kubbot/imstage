@@ -44,6 +44,7 @@ test('MCP Apps bridge actually displays the result, exports PNG and targets the 
   },{html:buildRenderWidgetHtml(),png});
   const frame=page.frameLocator('iframe');await frame.locator('#preview-img').waitFor({state:'visible'});
   assert.equal(await frame.locator('#scene-title').innerText(),'咖啡约定');
+  assert.equal(await frame.locator('#edit-work').isVisible(),true);
   // The PNG download only appears after the current image really loaded.
   await frame.locator('#download').waitFor({state:'visible'});
   assert.match(await frame.locator('#save-state').innerText(),/已载入/);
@@ -54,6 +55,11 @@ test('MCP Apps bridge actually displays the result, exports PNG and targets the 
   const calls=await page.evaluate(()=>window.bridgeCalls);
   const message=calls.find(c=>c.method==='ui/message');assert.match(message.params.content[0].text,/revision 3/);assert.match(message.params.content[0].text,/scn_aaaa/);assert.match(message.params.content[0].text,/最后一句/);
   const download=calls.find(c=>c.method==='ui/download-file');assert.equal(download.params.contents[0].resource.blob,png);
+  await page.evaluate(png=>window.pushResult({structuredContent:{sceneId:null,revision:null,title:'临时预览'},_meta:{preview:{dataUri:'data:image/png;base64,'+png}}}),png);
+  await frame.locator('#scene-title').filter({hasText:'临时预览'}).waitFor();
+  await frame.locator('#download').waitFor({state:'visible'});
+  assert.equal(await frame.locator('#edit-work').isVisible(),false,'an ephemeral preview has no saved work to edit');
+  assert.equal(await frame.locator('#edit-form').isVisible(),false);
   await page.evaluate(()=>window.pushResult({isError:true}));await frame.locator('#preview').waitFor({state:'hidden'});assert.deepEqual(failures,[]);
  }finally{await browser.close()}
 });
@@ -271,7 +277,7 @@ test('MCP Apps hostContext theme drives the widget and unknown themes fall back 
 test('width-fit bounds the reading region for genuinely tall images and stays keyboard-scrollable',async()=>{
  const browser=await chromium.launch({executablePath:resolveChromiumExecutable()||undefined});
  try{
-  const page=await browser.newPage({viewport:{width:420,height:900}});
+  const page=await browser.newPage({viewport:{width:800,height:900}});
   const sharp=(await import('sharp')).default;
   const png=(await sharp({create:{width:390,height:10000,channels:4,background:'#dedbd7'}}).png().toBuffer()).toString('base64');
   await page.setContent(buildRenderWidgetHtml());
@@ -283,6 +289,7 @@ test('width-fit bounds the reading region for genuinely tall images and stays ke
   const region=await page.locator('#preview').boundingBox();
   assert.ok(region.height<=640,'bounded width-fit reading height');
   const image=await page.locator('#preview-img').boundingBox();
+  assert.ok(image.width>600,'width-fit uses the available reading width, even for a narrower source PNG');
   assert.ok(image.height>5000,'the real tall artwork is not squashed');
   const download=await page.locator('#download').boundingBox();
   assert.ok(download.y+download.height<=900,'controls remain in the viewport');
@@ -290,6 +297,7 @@ test('width-fit bounds the reading region for genuinely tall images and stays ke
   assert.equal(await page.locator('#preview').getAttribute('tabindex'),'0');
   await page.locator('#preview').focus();
   await page.keyboard.press('PageDown');
+  await page.waitForFunction(()=>document.getElementById('preview').scrollTop>0,undefined,{timeout:5000});
   assert.ok(await page.locator('#preview').evaluate(e=>e.scrollTop)>0,'keyboard scrolling works');
   // Full-composition and original-size options are preserved.
   await page.getByRole('button',{name:'适合高度',exact:true}).click();
