@@ -1577,7 +1577,7 @@
 .scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'] .scene-header { grid-template-columns:26px 36px minmax(0,1fr) 26px; gap:8px; }
 .scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'][data-device='macos-window'] .scene-header { grid-template-columns:36px minmax(0,1fr) 26px; }
 .scene-view:is([data-platform='x'],[data-platform='threads'])[data-social-chat='true'] .scene-header-title { align-items:flex-start; }
-.scene-view[data-social-chat='true'] { --scene-radius:var(--social-radius); }
+.scene-view[data-social-chat='true'] { --scene-radius:var(--social-radius); background:var(--social-background); }
 .scene-view[data-social-chat='true'] .scene-card span { color:#626870; }
 [data-mode='full'] .scene-view:is([data-platform='x'],[data-platform='jike'],[data-platform='threads'],[data-platform='xiaohongshu']) .scene-messages { flex:1 0 auto; overflow:visible; }
 

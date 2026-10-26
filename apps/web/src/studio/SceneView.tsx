@@ -175,7 +175,7 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
   const watermarkOn = sceneWatermarkEnabled(scene);
   const custom = scene.layout?.kind === 'custom' ? scene.layout : null;
   const social = custom ? undefined : socialChatAdapter(scene.platform);
-  const socialVars: CSSProperties = social ? { '--social-incoming':social.incoming, '--social-outgoing':social.outgoing, '--social-outgoing-text':social.outgoingText, '--social-accent':social.accent, '--social-radius':`${social.radius}px`, '--social-header':social.headerBackground, '--social-border':social.border } as CSSProperties : {};
+  const socialVars: CSSProperties = social ? { '--social-background':social.background, '--social-incoming':social.incoming, '--social-outgoing':social.outgoing, '--social-outgoing-text':social.outgoingText, '--social-accent':social.accent, '--social-radius':`${social.radius}px`, '--social-header':social.headerBackground, '--social-border':social.border } as CSSProperties : {};
   // Bounded declarative tokens only. No CSS text, no arbitrary style keys.
   const customVars = custom ? {
     '--scene-custom-bg': custom.background,

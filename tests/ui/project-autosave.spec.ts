@@ -43,6 +43,10 @@ async function createProject(page: Page, label: string) {
   expect(created.ok()).toBe(true);
   const item = (await created.json()).item as { id: string; name: string; rules: string; platform: string; revision: number };
   await page.reload();
+  // AuthPage redirects an authenticated registration route to the workspace.
+  // Wait for that transition before our hash navigation; otherwise its late
+  // redirect can replace the project URL while the detail page is mounting.
+  await expect(page).toHaveURL(/#\/workspace$/);
   await page.goto(`/?lang=zh#/projects?project=${item.id}`);
   await expect(nameField(page)).toHaveValue(name);
   return { ...session, projectId: item.id, item, name };
