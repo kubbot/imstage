@@ -31,6 +31,15 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Configure Ubuntu package downloads
+        if: runner.os == 'Linux'
+        run: |
+          # Avoid the slow Azure HTTP mirror observed during browser setup.
+          # Keep Ubuntu's signed packages and the full Playwright dependency set.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          printf '%s\n' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' 'Acquire::Retries "2";' | sudo tee /etc/apt/apt.conf.d/99-imstage-network
       - run: npx playwright install --with-deps chromium
         if: runner.os == 'Linux'
       - name: Install screenshot OCR and CJK fonts
