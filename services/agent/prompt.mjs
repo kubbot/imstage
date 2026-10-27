@@ -49,6 +49,7 @@ export function buildSystemPrompt({ targetId, referenceDate = calendarToday() } 
     '- 保持 scene.id 不变；修改已有内容时沿用已有 id，不要无意义地重命名。',
     '',
     '时间线规则：',
+    '- deviceTime 是顶部系统时间，默认沿用当前场景的 deviceTime（新场景已初始化为当前北京时间）。不要从背景截图、故事日期或消息时间推断或覆盖它；只有用户明确要求调整系统/设备时间时才修改。',
     `- 当前创作参考日期为 ${referenceDate}（Asia/Shanghai）。今天、昨天、去年今天均以此为基准。明确指定其他故事日期时以用户指定日期为准。`,
     '- 涉及跨天/跨年时，Scene.referenceDate 写入故事的今天（YYYY-MM-DD）；每条 Message.date 写实际发送日期（YYYY-MM-DD），time 只写 HH:mm。Scene.date 留空，日期分隔由渲染器统一生成。',
     '- 不要用 system 消息伪造“今天”或日期分隔，禁止重复日期。跨年旧消息必须显示带年份日期，不能只在今天的台词中回忆去年的事。',

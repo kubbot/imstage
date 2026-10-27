@@ -341,13 +341,20 @@ const TEMPLATES: Record<TemplateId, Scene> = {
   welcome: templateWelcome(),
 };
 
+/** Capture the creation-time clock in Beijing, independent of the host timezone. */
+export function currentDeviceTime(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(now);
+}
+
 /**
  * Build a brand new scene from a template. Every call returns an independent
  * deep copy so edits never leak into the template or another call.
  */
 export function createScene(template: TemplateId = 'weekend'): Scene {
   const source = TEMPLATES[template] ?? TEMPLATES.weekend;
-  return cloneScene(source);
+  return { ...cloneScene(source), deviceTime: currentDeviceTime() };
 }
 
 /* ------------------------------------------------------------------ */

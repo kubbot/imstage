@@ -1,4 +1,4 @@
-import type { Scene, Platform } from '../studio/model';
+import { currentDeviceTime, type Scene, type Platform } from '../studio/model.ts';
 
 export const MARS_PROMPT_TEXT = '我和 Elon Musk 在明天一起去火星漫游';
 export const avatarSource = {
@@ -10,7 +10,7 @@ export const demoAssets = { avatar: '/assets/elon-x-avatar.jpg', image: '/assets
 
 export function previewScene(platform: Platform = 'wechat'): Scene {
   return {
-    id: 'scene-mars-preview', title: '明天，火星见', platform, deviceTime: '09:41', date: '明天 15:00',
+    id: 'scene-mars-preview', title: '明天，火星见', platform, deviceTime: currentDeviceTime(), date: '明天 15:00',
     selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'elon', name: 'Elon Musk', avatar: demoAssets.avatar }],
     messages: [
       { id: 'm1', participantId: 'me', type: 'text', text: '明天，去火星漫游？', time: '' },
