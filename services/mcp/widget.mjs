@@ -15,7 +15,8 @@ import { WIDGET_MIME_TYPE } from './limits.mjs';
 
 // Resource URIs are host cache keys; keep the old address readable for saved chats.
 export const LEGACY_WIDGET_RESOURCE_URI = 'ui://imstage/render-scene.html';
-export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v2.html';
+export const PREVIOUS_WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v2.html';
+export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v3.html';
 export const WIDGET_TITLE = 'IMStage 渲染预览';
 
 /** CSP for the widget: it connects to and loads from nowhere. */
@@ -29,16 +30,17 @@ export function buildRenderWidgetHtml() {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${WIDGET_TITLE}</title>
 <style>
-  :root { color-scheme: light dark; --ink:var(--color-text-primary,#242323); --muted:var(--color-text-secondary,#73716d); --surface:var(--color-background-primary,#fff); --line:var(--color-border-primary,#e5e3df); }
+  :root { color-scheme: light dark; --ink:var(--color-text-primary,#242323); --muted:var(--color-text-secondary,#73716d); --surface:var(--color-background-primary,#fff); --line:var(--color-border-primary,#e5e3df); --preview-bg:var(--color-background-secondary,#f6f5f2); --chip-bg:var(--color-background-secondary,#f0eeea); }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif; color:var(--ink); background:transparent; }
   .card { max-width:900px; margin:auto; padding:16px; display:grid; gap:14px; }
   h1 { margin:0; font-size:17px; font-weight:600; overflow-wrap:anywhere; }
   .meta,.status,.hint { margin:0; color:var(--muted); font-size:12px; }
   .heading { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
-  .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:10px; background:var(--color-background-secondary,#f6f5f2); padding:12px; }
+  .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:10px; background:var(--preview-bg); padding:12px; }
   .preview img { display:block; width:auto; height:auto; max-width:100%; max-height:480px; object-fit:contain; }
-  .preview[data-fit="width"] img { width:auto; max-width:100%; max-height:none; }
+  .preview[data-fit="width"] { overflow:auto; max-height:min(70vh,640px); justify-content:flex-start; }
+  .preview[data-fit="width"] img { width:100%; max-width:100%; max-height:none; }
   .preview[data-fit="original"] { overflow:auto; max-height:80vh; justify-content:flex-start; }
   .preview[data-fit="original"] img { max-width:none; max-height:none; }
   .toolbar,.view-options,.row,.shortcuts { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
@@ -57,7 +59,7 @@ export function buildRenderWidgetHtml() {
   .more-content .action { display:block; margin-top:12px; }
   .view-options { justify-content:center; }
   .view-options button,.shortcuts button { min-height:32px; border:0; padding:5px 9px; color:var(--muted); background:transparent; font-size:12px; }
-  .view-options button[aria-pressed="true"] { background:var(--color-background-secondary,#f0eeea); color:var(--ink); }
+  .view-options button[aria-pressed="true"] { background:var(--chip-bg); color:var(--ink); }
   form { display:grid; gap:8px; }
   label { font-size:13px; font-weight:500; }
   .row { flex-wrap:nowrap; align-items:stretch; }
@@ -65,14 +67,19 @@ export function buildRenderWidgetHtml() {
   .status { min-height:18px; }
   [hidden] { display:none!important; }
   @media(max-width:420px) { .card{padding:12px;gap:12px}.heading{display:block}.toolbar button,.toolbar summary,.toolbar a.action{min-height:44px}.preview{padding:8px}.preview img{max-height:420px} }
-  @media(prefers-color-scheme:dark) { :root { --ink:var(--color-text-primary,#eee);--muted:var(--color-text-secondary,#aaa);--surface:var(--color-background-primary,#202020);--line:var(--color-border-primary,#414141); }.preview{background:var(--color-background-secondary,#292929)}.view-options button[aria-pressed="true"]{background:var(--color-background-secondary,#333)} }
+  @media(prefers-color-scheme:dark) { :root { --ink:var(--color-text-primary,#eee);--muted:var(--color-text-secondary,#aaa);--surface:var(--color-background-primary,#202020);--line:var(--color-border-primary,#414141);--preview-bg:var(--color-background-secondary,#292929);--chip-bg:var(--color-background-secondary,#333); } }
+  /* An explicit MCP Apps host theme (ui/initialize / host-context-changed, or
+     the legacy window.openai.theme) wins over the media query; unknown values
+     fall back to the system appearance. */
+  :root[data-host-theme=light] { color-scheme:light; --ink:var(--color-text-primary,#242323);--muted:var(--color-text-secondary,#73716d);--surface:var(--color-background-primary,#fff);--line:var(--color-border-primary,#e5e3df);--preview-bg:var(--color-background-secondary,#f6f5f2);--chip-bg:var(--color-background-secondary,#f0eeea); }
+  :root[data-host-theme=dark] { color-scheme:dark; --ink:var(--color-text-primary,#eee);--muted:var(--color-text-secondary,#aaa);--surface:var(--color-background-primary,#202020);--line:var(--color-border-primary,#414141);--preview-bg:var(--color-background-secondary,#292929);--chip-bg:var(--color-background-secondary,#333); }
 </style>
 </head>
 <body>
 <main class="card">
   <header class="heading"><h1 id="scene-title">你的对话作品</h1><p class="meta" id="save-state" role="status">等待作品…</p></header>
-  <div class="preview" id="preview" data-fit="height" hidden><img id="preview-img" alt="完整对话作品预览" /></div>
-  <p id="long-hint" class="hint" hidden>这是一张长图。当前显示完整构图，可选择适合宽度展开阅读。</p>
+  <div class="preview" id="preview" data-fit="height" role="group" aria-label="预览画面" hidden><img id="preview-img" alt="完整对话作品预览" /></div>
+  <p id="long-hint" class="hint" hidden>这是一张长图。当前适合宽度展开阅读，可切换完整构图或原图。</p>
   <div class="view-options" id="view-options" aria-label="预览尺寸" hidden>
     <button type="button" data-fit="height" aria-pressed="true">适合高度</button><button type="button" data-fit="width" aria-pressed="false">适合宽度</button><button type="button" data-fit="original" aria-pressed="false">查看原图 / 放大</button>
   </div>
@@ -96,7 +103,20 @@ export function buildRenderWidgetHtml() {
   var hostCapabilities = {};
   var latest = { sceneId: null, revision: null, renderId: null, downloadUri: null, dataUri: null, title: null, webUrl: null };
   var resultEpoch = 0;
+  // Image load tracking: preview success and the PNG download appear only
+  // after the *current* result's image has really loaded. Every request is
+  // tagged with its result epoch so a late load/error from an older result can
+  // never announce success or replace the current state.
+  var imageRequest = null;
+  var imageSeq = 0;
+  var loadedEpoch = 0;
+  var pendingUpdateNote = false;
   var editing = false;
+  // Edit generation counter: image completion may never overwrite the status
+  // of an edit that started after the image request began.
+  var editSeq = 0;
+  // Once the standard MCP Apps hostContext speaks, legacy themes are stale.
+  var standardThemeSeen = false;
   var editTimer = null;
   var bridgeReady = false;
   var lastResultKey = null;
@@ -155,6 +175,7 @@ export function buildRenderWidgetHtml() {
     resultEpoch += 1;
     var wasEditing = editing;
     editing = false; clearTimeout(editTimer); document.getElementById("edit-submit").disabled = false;
+    clearImageRequest(); loadedEpoch = 0; pendingUpdateNote = false;
     latest = { sceneId:null, revision:null, renderId:null, downloadUri:null, dataUri:null, title:null, webUrl:null };
     document.getElementById("preview").hidden = true;
     document.getElementById("preview-img").removeAttribute("src");
@@ -184,7 +205,7 @@ export function buildRenderWidgetHtml() {
     } catch (_) { /* no account-owned web link */ }
     var link = document.getElementById("web-link");
     if (latest.webUrl) { link.href = latest.webUrl; link.hidden = false; }
-    setText("save-state", latest.sceneId ? "作品已保存" : "预览已生成");
+    setText("save-state", latest.sceneId ? "作品已保存 · 预览载入中…" : "已渲染 · 预览载入中…");
     var metaBits = [];
     if (latest.revision !== null) metaBits.push("revision " + latest.revision);
     if (latest.sceneId) metaBits.push(latest.sceneId);
@@ -196,17 +217,20 @@ export function buildRenderWidgetHtml() {
     var img = document.getElementById("preview-img");
     if (dataUri && previewBox && img) {
       latest.dataUri = dataUri;
-      img.src = dataUri;
       previewBox.hidden = false;
       document.getElementById("view-options").hidden = false;
-      document.getElementById("long-hint").hidden = !(structured.height > structured.width * 3);
-      setStatus(wasEditing ? "作品已更新。" : "");
+      // Long images open width-fit so their text is readable at once; every
+      // image keeps the complete-composition and original-size options.
+      var longImage = Number.isInteger(structured.width) && Number.isInteger(structured.height) && structured.height > structured.width * 3;
+      setFit(longImage ? "width" : "height");
+      document.getElementById("long-hint").hidden = !longImage;
+      pendingUpdateNote = wasEditing;
+      beginImageRequest(dataUri);
     }
     document.getElementById("edit-form").hidden = !latest.sceneId;
+    document.getElementById("edit-work").hidden = !latest.sceneId;
     document.getElementById("toolbar").hidden = !latest.sceneId && !dataUri;
     if (!dataUri) { setText("save-state", "预览未就绪"); setStatus("未收到有效图片，请重新渲染作品。"); }
-    var download = document.getElementById("download");
-    if (download && latest.dataUri) download.hidden = false;
   }
 
   function setStatus(value) {
@@ -214,12 +238,79 @@ export function buildRenderWidgetHtml() {
     if (el) el.textContent = value || "";
   }
 
-  document.getElementById("preview-img").addEventListener("error",function(){
-    latest.dataUri = null; document.getElementById("download").hidden = true;
-    document.getElementById("preview").hidden = true;
-    document.getElementById("view-options").hidden = true;
-    setText("save-state","预览未就绪");setStatus("图片无法显示，请在对话中重新渲染。");
-  });
+  function setFit(fit) {
+    var preview = document.getElementById("preview");
+    if (preview) {
+      preview.dataset.fit = fit;
+      // Scrollable reading regions must be reachable and scrollable by keyboard.
+      var scrollable = fit === "width" || fit === "original";
+      if (scrollable) preview.setAttribute("tabindex", "0");
+      else preview.removeAttribute("tabindex");
+      preview.setAttribute("aria-label", scrollable ? "预览滚动区域，可滚动阅读" : "预览画面");
+    }
+    document.querySelectorAll("button[data-fit]").forEach(function(button){ button.setAttribute("aria-pressed", String(button.dataset.fit === fit)); });
+  }
+
+  function clearImageRequest() {
+    if (!imageRequest) return;
+    var img = document.getElementById("preview-img");
+    if (img) { img.removeEventListener("load", imageRequest.onLoad); img.removeEventListener("error", imageRequest.onError); }
+    imageRequest = null;
+  }
+
+  function beginImageRequest(dataUri) {
+    clearImageRequest();
+    var img = document.getElementById("preview-img");
+    var epoch = resultEpoch, id = ++imageSeq;
+    var editAtStart = editSeq;
+    function settle(ok) {
+      // A request settles at most once, only for its own result epoch.
+      if (!imageRequest || imageRequest.id !== id || epoch !== resultEpoch) return;
+      if (ok && !(img.complete && img.naturalWidth > 0)) return;
+      clearImageRequest();
+      // The status line belongs to the newest interaction: an edit that began
+      // after this request keeps its own waiting/error state.
+      var mine = editSeq === editAtStart && !editing;
+      if (ok) {
+        loadedEpoch = resultEpoch;
+        document.getElementById("download").hidden = false;
+        setText("save-state", latest.sceneId ? "作品已保存 · 预览已载入" : "预览已生成 · 已载入");
+        if (mine) setStatus(pendingUpdateNote ? "作品已更新。" : "");
+      } else {
+        loadedEpoch = 0;
+        latest.dataUri = null;
+        document.getElementById("download").hidden = true;
+        document.getElementById("preview").hidden = true;
+        document.getElementById("view-options").hidden = true;
+        document.getElementById("long-hint").hidden = true;
+        setText("save-state", "预览未就绪");
+        if (mine) setStatus("图片无法显示，请在对话中重新渲染。");
+      }
+      pendingUpdateNote = false;
+    }
+    var request = { id: id, onLoad: function(){ settle(true); }, onError: function(){ settle(false); } };
+    imageRequest = request;
+    img.addEventListener("load", request.onLoad);
+    img.addEventListener("error", request.onError);
+    img.src = dataUri;
+  }
+
+  // Host theme: the standard MCP Apps hostContext (ui/initialize and
+  // host-context-changed) is authoritative; legacy window.openai.theme /
+  // set_globals only fills in until the standard source has spoken.
+  function applyHostTheme(source, standard) {
+    if (!source || typeof source !== "object") return;
+    if (!standard && standardThemeSeen) return;
+    var raw = Object.prototype.hasOwnProperty.call(source, "theme") ? source.theme
+      : Object.prototype.hasOwnProperty.call(source, "colorScheme") ? source.colorScheme
+      : undefined;
+    if (raw === undefined) return;
+    if (standard) standardThemeSeen = true;
+    var root = document.documentElement;
+    if (raw === "dark" || raw === "light") root.setAttribute("data-host-theme", raw);
+    else root.removeAttribute("data-host-theme");
+  }
+
   var exportedFiles = Object.create(null);
   async function downloadWithOpenAi(name, snapshot, epoch) {
     var api = window.openai;
@@ -252,6 +343,7 @@ export function buildRenderWidgetHtml() {
 
   async function downloadPng() {
     if(!latest.dataUri) return;
+    if(loadedEpoch !== resultEpoch){ setStatus("图片尚未载入，暂不能导出 PNG。"); return; }
     var snapshot = Object.assign({}, latest), epoch = resultEpoch;
     var name = "imstage-" + (snapshot.revision || "preview") + ".png";
     if(!hostCapabilities.downloadFile){await downloadWithOpenAi(name,snapshot,epoch);return;}
@@ -286,7 +378,7 @@ export function buildRenderWidgetHtml() {
     var scenePart = "场景 " + latest.sceneId;
     var revisionPart = latest.revision !== null ? "（revision " + latest.revision + "）" : "";
     var message = "请修改 IMStage " + scenePart + revisionPart + "：" + text + "。保留未明确要求修改的头像和虚构标记设置。请调用 imstage_update_scene 后重新调用 imstage_render_scene。";
-    editing = true; document.getElementById("edit-submit").disabled = true; setStatus("正在发送修改…");
+    editing = true; editSeq += 1; document.getElementById("edit-submit").disabled = true; setStatus("正在发送修改…");
     try {
       var api = window.openai;
       if (!bridgeReady && api && typeof api.sendFollowUpMessage === "function") await api.sendFollowUpMessage({prompt:message});
@@ -321,14 +413,12 @@ export function buildRenderWidgetHtml() {
       return;
     }
     if (message.method === "ui/notifications/tool-result") renderFromResult(message.params);
+    else if (message.method === "ui/notifications/host-context-changed") applyHostTheme(message.params && (message.params.hostContext || message.params), true);
   }, { passive: true });
 
   document.getElementById("download").addEventListener("click", downloadPng);
   document.getElementById("edit-work").addEventListener("click", openEditor);
-  document.querySelectorAll("button[data-fit]").forEach(function(button){ button.addEventListener("click",function(){
-    document.getElementById("preview").dataset.fit = button.dataset.fit;
-    document.querySelectorAll("button[data-fit]").forEach(function(other){other.setAttribute("aria-pressed",String(other === button));});
-  }); });
+  document.querySelectorAll("button[data-fit]").forEach(function(button){ button.addEventListener("click",function(){ setFit(button.dataset.fit); }); });
   document.querySelectorAll("button[data-prompt]").forEach(function(button){button.addEventListener("click",function(){
     var input = document.getElementById("edit-input"); input.value = button.dataset.prompt; input.focus();
   });});
@@ -345,6 +435,7 @@ export function buildRenderWidgetHtml() {
   function renderOpenAiGlobals(globals) {
     var current = typeof window.openai !== "undefined" ? window.openai : {};
     var g = globals || {};
+    applyHostTheme(Object.prototype.hasOwnProperty.call(g, "theme") || Object.prototype.hasOwnProperty.call(g, "colorScheme") ? g : current, false);
     var meta = g.toolResponseMetadata || current.toolResponseMetadata || {};
     var nested = meta.call_tool_result;
     if (nested && typeof nested === "object") {
@@ -358,7 +449,10 @@ export function buildRenderWidgetHtml() {
   renderOpenAiGlobals();
   window.addEventListener("openai:set_globals", function(event) {
     var globals = event.detail && event.detail.globals;
-    if (!globals || (!Object.prototype.hasOwnProperty.call(globals,"toolOutput") && !Object.prototype.hasOwnProperty.call(globals,"toolResponseMetadata"))) return;
+    if (!globals || typeof globals !== "object") return;
+    // Theme-only updates are real updates even without tool results.
+    applyHostTheme(globals, false);
+    if (!Object.prototype.hasOwnProperty.call(globals,"toolOutput") && !Object.prototype.hasOwnProperty.call(globals,"toolResponseMetadata")) return;
     renderOpenAiGlobals(globals);
   });
 
@@ -369,6 +463,7 @@ export function buildRenderWidgetHtml() {
   }).then(function (result) {
     bridgeReady = true;
     hostCapabilities = result && result.hostCapabilities || {};
+    applyHostTheme(result && (result.hostContext || result), true);
     notify("ui/notifications/initialized", {});
 
   }).catch(function () { /* legacy host without the MCP Apps bridge */ });

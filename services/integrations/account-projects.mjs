@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { fail } from '../mcp/errors.mjs';
 import { integerField, objectField, optionalIdempotencyKey, rejectUnknownKeys, stringField } from '../mcp/args.mjs';
 import { SCENE_LIMITS } from '../mcp/limits.mjs';
+import { assertModelWatermarkOmitted, assertModelBatchWatermarkOmitted, preserveStoredWatermark } from '../mcp/model-input.mjs';
 import { PROJECT_SCOPE, SCENE_SCOPE } from './scopes.mjs';
 
 export const PROJECT_TOOL_SCOPES = Object.freeze([SCENE_SCOPE, PROJECT_SCOPE]);
@@ -97,7 +98,6 @@ const ACCOUNT_PROJECT_INPUT_SCHEMA = {
       type: 'object',
       properties: {
         platform: { type: 'string' },
-        watermarkEnabled: { type: 'boolean' },
       },
       additionalProperties: false,
     },
@@ -108,7 +108,7 @@ const ACCOUNT_PROJECT_INPUT_SCHEMA = {
 
 const SCENARIO_INPUT_SCHEMA = {
   type: 'object',
-  description: '账号场景计划：名称、简述、预设、案例数（1-100，默认 50）、平台、语言、水印与 autoExport。',
+  description: '账号场景计划：名称、简述、预设、案例数（1-100，默认 50）、平台、语言与 autoExport。水印开关继承已存项目用户设置，模型不能覆盖。',
   properties: {
     name: { type: 'string', maxLength: 80 },
     brief: { type: 'string', maxLength: 4000 },
@@ -117,7 +117,6 @@ const SCENARIO_INPUT_SCHEMA = {
     platform: { type: 'string' },
     locale: { type: 'string', enum: ['zh-CN', 'en'] },
     autoExport: { type: 'boolean' },
-    watermarkEnabled: { type: 'boolean', description: '省略时继承项目；显式 true/false 冻结为本场景的水印设置。' },
   },
   required: ['name'],
   additionalProperties: false,
@@ -140,8 +139,8 @@ const BATCH_ITEM_SCHEMA = {
     },
     prompt: { type: 'string', maxLength: 4000, description: '本条差异说明；确定性保存不调用模型。' },
     values: { type: 'object', description: '模板变量取值；与 scene 互斥。' },
-    patch: { type: 'object', description: '对实例化场景的定向 patch；与 scene 互斥。' },
-    scene: { type: 'object', description: '完整 Scene JSON（scene.id 由服务端生成，禁止传入）；与 values/patch 互斥。' },
+    patch: { type: 'object', properties: { set: { type: 'object', not: { required: ['watermarkEnabled'] } } }, description: '对实例化场景的定向 patch；与 scene 互斥。模型不能设置 watermarkEnabled。' },
+    scene: { type: 'object', not: { required: ['watermarkEnabled'] }, description: '完整 Scene JSON（scene.id 由服务端生成，禁止传入）；与 values/patch 互斥。省略 watermarkEnabled，由服务器继承已存用户设置。' },
   },
   required: ['itemKey'],
   additionalProperties: false,
@@ -190,7 +189,7 @@ export const ACCOUNT_PROJECT_TOOLS = Object.freeze(
       name: 'imstage_create_project',
       title: '创建 IMStage 账号项目',
       description:
-        '在当前账号创建项目（名称、rules、type 配方、brief、默认平台/水印），返回项目 id 与 revision。idempotencyKey 可安全重试。',
+        '在当前账号创建项目（名称、rules、type 配方、brief、默认平台），默认开启水印且模型不能修改开关。返回项目 id 与 revision。idempotencyKey 可安全重试。',
       inputSchema: {
         type: 'object',
         properties: { project: ACCOUNT_PROJECT_INPUT_SCHEMA, idempotencyKey: { type: 'string', maxLength: SCENE_LIMITS.idempotencyKeyMax } },
@@ -274,7 +273,7 @@ export const ACCOUNT_PROJECT_TOOLS = Object.freeze(
       description: '用共享纯模板契约在账号下创建可复用模板（完整场景快照 + 命名类型化变量），供内容批次 values/patch 使用。',
       inputSchema: {
         type: 'object',
-        properties: { template: { type: 'object', description: '共享模板定义（schemaVersion/name/description/scene/variables）。' } },
+        properties: { template: { type: 'object', properties: { scene: { type: 'object', not: { required: ['watermarkEnabled'] } } }, description: '共享模板定义（schemaVersion/name/description/scene/variables）；模型省略 watermarkEnabled，新模板默认开启。' } },
         required: ['template'],
         additionalProperties: false,
       },
@@ -303,7 +302,7 @@ export const ACCOUNT_PROJECT_TOOLS = Object.freeze(
         properties: {
           templateId: { type: 'string' },
           expectedRevision: { type: 'integer', minimum: 1 },
-          template: { type: 'object', description: '共享模板定义。' },
+          template: { type: 'object', properties: { scene: { type: 'object', not: { required: ['watermarkEnabled'] } } }, description: '共享模板定义；模型省略 watermarkEnabled，服务器保留原模板的用户开关。' },
         },
         required: ['templateId', 'expectedRevision', 'template'],
         additionalProperties: false,
@@ -494,6 +493,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       rejectUnknownKeys(args, new Set(['project', 'idempotencyKey']), 'arguments');
       const raw = objectField(args, 'project', { required: true });
       rejectUnknownKeys(raw, new Set(['name', 'rules', 'type', 'brief', 'defaults']), 'project');
+      assertModelWatermarkOmitted(raw.defaults, 'project.defaults');
       const idempotencyKey = optionalIdempotencyKey(args);
       const { item, deduplicated } = serviceCall(() => service.createProject({ userId, input: raw, idempotencyKey }));
       return textOk(
@@ -533,6 +533,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
       const raw = objectField(args, 'project', { required: true });
       rejectUnknownKeys(raw, new Set(['name', 'rules', 'type', 'brief', 'defaults']), 'project');
+      assertModelWatermarkOmitted(raw.defaults, 'project.defaults');
       const idempotencyKey = optionalIdempotencyKey(args);
       const { item, deduplicated } = serviceCall(() =>
         service.updateProject({ userId, projectId, expectedRevision, input: raw, idempotencyKey }),
@@ -549,7 +550,8 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       rejectUnknownKeys(args, new Set(['projectId', 'scenario', 'idempotencyKey']), 'arguments');
       const projectId = stringField(args, 'projectId', { required: true });
       const raw = objectField(args, 'scenario', { required: true });
-      rejectUnknownKeys(raw, new Set(['name', 'brief', 'preset', 'caseCount', 'platform', 'locale', 'autoExport', 'watermarkEnabled']), 'scenario');
+      assertModelWatermarkOmitted(raw, 'scenario');
+      rejectUnknownKeys(raw, new Set(['name', 'brief', 'preset', 'caseCount', 'platform', 'locale', 'autoExport']), 'scenario');
       const idempotencyKey = optionalIdempotencyKey(args);
       const result = serviceCall(() => service.createScenario({ userId, projectId, input: raw, idempotencyKey }));
       return textOk(
@@ -588,6 +590,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       rejectUnknownKeys(args, new Set(['template']), 'arguments');
       const raw = objectField(args, 'template', { required: true });
       rejectUnknownKeys(raw, new Set(['name', 'description', 'scene', 'variables']), 'template');
+      assertModelWatermarkOmitted(raw.scene, 'template.scene');
       // Scene ids are server-owned in every tool; the shared template contract
       // validates the snapshot itself.
       const normalized = raw.scene === undefined ? raw : { ...raw, scene: { ...raw.scene, id: crypto.randomUUID() } };
@@ -617,7 +620,9 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
       const expectedRevision = integerField(args, 'expectedRevision', { required: true, min: 1 });
       const raw = objectField(args, 'template', { required: true });
       rejectUnknownKeys(raw, new Set(['name', 'description', 'scene', 'variables']), 'template');
-      const normalized = raw.scene === undefined ? raw : { ...raw, scene: { ...raw.scene, id: crypto.randomUUID() } };
+      assertModelWatermarkOmitted(raw.scene, 'template.scene');
+      const current = serviceCall(() => getTemplate(db, userId, templateId));
+      const normalized = raw.scene === undefined ? raw : { ...raw, scene: preserveStoredWatermark({ ...raw.scene, id: crypto.randomUUID() }, current.definition.scene) };
       const item = serviceCall(() => updateTemplate(db, userId, templateId, expectedRevision, normalized, Date.now()));
       return textOk(`模板 ${item.id} 已更新到 revision ${item.revision}。`, { template: item });
     },
@@ -639,6 +644,7 @@ export function createAccountProjectHandlers({ db, userId, appOrigin, grantedSco
         'arguments',
       );
       const projectId = stringField(args, 'projectId', { required: true });
+      assertModelBatchWatermarkOmitted(args.items);
       const input = {
         scenarioId: stringField(args, 'scenarioId', { min: 1 }),
         templateId: stringField(args, 'templateId', { min: 1 }),

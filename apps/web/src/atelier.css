@@ -103,14 +103,44 @@ body .doc-callout { border-radius: 0 10px 10px 0; font-size: 14px; }
 
 /* The studio is a working surface: clear fixed controls, calm canvas, strong
    selected state. Keep existing height/resize/crop contracts intact. */
-body .agent-workspace .agent-heading { background: var(--surface); }
+/* Studio chrome uses neutral dark materials in every site theme. SceneView
+   owns its own colours and typography; these tokens never enter its renderer. */
+body .agent-workspace {
+  color-scheme: dark;
+  --bg: #191a1d;
+  --surface: #202125;
+  --surface-2: #292b30;
+  --text: #eeeff1;
+  --muted: #b0b3bc;
+  --line: #393c44;
+  --accent: #e2b5a1;
+  --accent-ink: #241c19;
+  --soft: #322b29;
+  --canvas: #151619;
+  --success: #a9cfb4;
+  --danger: #ffb2a3;
+  --shadow: 0 12px 36px #0005;
+}
+body .agent-workspace .agent-heading {
+  background: var(--surface);
+  min-height: 52px;
+  padding: 7px 18px;
+}
+body .agent-workspace .agent-heading > div { min-width: 0; }
+body .agent-workspace .agent-heading h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body .agent-workspace .agent-heading > div > svg { color: var(--muted); }
+
 body .agent-workspace .agent-heading h1 { font-size: 16px; }
 body .agent-workspace .agent-chat { background: var(--surface); }
-body .agent-workspace .session-current { background: var(--bg); border-radius: 12px; }
+body .agent-workspace .session-current { background: transparent; border-radius: 8px; }
 body .agent-workspace .session-toggle strong { font-size: 13px; }
 body .agent-workspace .session-toggle small { font-size: 11px; }
 body .agent-workspace .agent-chat > .editor-tabs { gap: 8px; }
-body .agent-workspace .editor-tabs button[aria-pressed=true] { background: var(--soft); color: var(--accent); box-shadow: none; }
+body .agent-workspace .editor-tabs button[aria-pressed=true] { background: var(--surface-2); color: var(--text); box-shadow: none; }
 body .agent-workspace .creation-context summary { font-size: 13px; }
 body .agent-workspace .agent-drop-entry { border-radius: 12px; background: var(--bg); border-color: var(--line); }
 body .agent-workspace .agent-ideas { gap: 8px; }
@@ -123,11 +153,25 @@ body .agent-workspace .agent-chat .agent-composer:focus-within { border-color: v
 body .agent-workspace .agent-chat .agent-composer textarea { font-size: 15px; }
 body .agent-workspace .agent-capability { font-size: 12px; }
 body .agent-workspace .agent-input-dock > small { font-size: 11px; }
-body .agent-workspace .agent-render-toolbar { background: var(--surface); gap: 8px; }
+body .agent-workspace .agent-render-toolbar {
+  background: var(--surface);
+  gap: 6px;
+  padding: 7px 12px;
+  flex-shrink: 0;
+}
+body .agent-workspace .agent-render-toolbar > div { flex-wrap: wrap; gap: 6px; }
+body .agent-workspace .agent-render-toolbar .agent-button { padding-inline: 9px; }
+body .agent-workspace .agent-render-toolbar select { min-width: 0; }
+body .agent-workspace .agent-render-footer { flex-wrap: wrap; padding: 8px 12px; }
+body .agent-workspace .agent-render-footer > [role=status] { flex: 1 1 120px; }
+body .agent-workspace .creation-divider { width: 5px; flex-basis: 5px; background: var(--surface); border-inline: 0; }
+body .agent-workspace .agent-canvas { padding: 20px 16px 12px; }
+body .agent-workspace .agent-phone { box-shadow: 0 14px 36px #0004; }
+
 body .agent-workspace .agent-render-toolbar .canvas-platform { border-color: var(--line); background: var(--bg); min-height: 38px; }
 body .agent-workspace .agent-render-toolbar .canvas-platform:focus-within { border-color: var(--accent); }
 body .agent-workspace .agent-canvas { background-color: var(--canvas); background-image: none; }
-body .agent-workspace .agent-canvas-caption { font-size: 11px; }
+body .agent-workspace .agent-canvas-caption { font-size: 11px; margin: 10px 0 4px; text-align: center; flex-shrink: 0; }
 body .agent-workspace .agent-render-footer { background: var(--surface); }
 body .agent-workspace .agent-vibe { background: var(--surface); }
 body .agent-workspace .editor-selection { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }

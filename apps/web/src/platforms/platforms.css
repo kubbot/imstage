@@ -1,0 +1,157 @@
+/* Platform explorer (public Templates page).
+   Warm-neutral / warm-red tokens from styles.css only; no new palette. */
+
+.platform-explorer {
+  padding: 10px 0 72px;
+  border-bottom: 1px solid var(--line);
+}
+
+.platform-explorer-copy h2 {
+  font-size: clamp(28px, 3.4vw, 42px);
+  margin: 16px 0 14px;
+}
+
+.platform-explorer-copy > p {
+  font-size: 14px;
+  max-width: 640px;
+}
+
+.platform-explorer-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+  margin-top: 36px;
+}
+
+.platform-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+
+.platform-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.platform-option[aria-checked='true'] {
+  background: var(--soft);
+  border-color: var(--accent);
+}
+
+.platform-option-name {
+  font-weight: 600;
+}
+
+.platform-option-tag {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.platform-preview {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+  min-width: 0;
+}
+
+.platform-explorer-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+  max-width: 460px;
+}
+
+.platform-explorer-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.platform-explorer-status {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  min-height: 18px;
+  max-width: 460px;
+  text-align: center;
+}
+
+.platform-explorer-status[role='alert'] {
+  color: var(--accent);
+}
+
+@media (max-width: 860px) {
+  .platform-explorer-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 28px;
+  }
+
+  .platform-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .templates-page > .page-intro {
+    padding: 24px 0 18px;
+  }
+
+  .templates-page > .page-intro h1 {
+    font-size: 32px;
+    margin: 12px 0 14px;
+  }
+
+  .platform-explorer-copy h2 {
+    margin: 12px 0 10px;
+  }
+
+  .platform-explorer-grid {
+    gap: 16px;
+  }
+
+  /* One compact scrolling radio strip keeps every option a tap away while the
+     preview stays adjacent and visible; the page itself never scrolls sideways. */
+  .platform-picker {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    gap: 8px;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .platform-option {
+    flex: 0 0 auto;
+  }
+
+  .platform-option-name,
+  .platform-option-tag {
+    white-space: nowrap;
+  }
+}

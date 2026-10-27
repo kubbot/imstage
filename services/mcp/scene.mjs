@@ -557,7 +557,7 @@ export function buildCapabilities() {
       persistedNotRendered: [],
       layout: '可选 Scene.layout（kind=custom）使用有界声明式 token 渲染中性页头/输入栏；未设置时使用 scene.platform 选择的聊天模板皮肤（imstage 为通用 IMStage 皮肤，另有 wechat/whatsapp/imessage/instagram/xiaohongshu/slack/x/jike/threads 近似风格模板，均为合成内容风格预览，不复刻任何真实平台界面）。',
       unsupported: ['reference screenshot overlays (real-screenshot editing is disabled on all public surfaces)', 'payment / transfer / red-packet / balance message types'],
-      disclosure: '预览与导出默认带有 AI生成 / 虚构 水印（含自定义 watermark 文字）。scene.watermarkEnabled=false 时关闭两者；缺省为开启，模型工具不能修改该用户设置。',
+      disclosure: '预览与导出默认带有 AI生成 / 虚构 水印（含自定义 watermark 文字）。已存用户设置 scene.watermarkEnabled=false 时关闭两者；缺省为开启。所有模型输入均须省略 watermarkEnabled（含项目默认值、场景计划、模板和批次）；通过 sceneId/templateId 复用的已存开关保持不变，模板更新保留原开关。用户可在网页中调整；自定义 watermark 文字仍可编辑。',
       assets: '仅接受内嵌 data:image/(png|jpeg|webp);base64，不接受远程 URL；图片会作为 renderer assets 注入。',
       voiceTranscript: 'Message.voiceTranscript 是可选、显式创作的语音合成文字稿（仅 type=voice，≤2000 字），渲染在语音气泡下方；它不是任何真实音频的转录，缺失时渲染器保留诚实占位，不会自动补写。text/subtitle 仍是气泡标签/时长。',
     },
@@ -600,7 +600,7 @@ export function buildCapabilities() {
       instanceScope: '项目/模板/批次都属于当前 MCP bearer 实例的隔离数据库，与网页账号作品互相隔离。',
     },
     patchOperations: {
-      set: [...SET_KEYS],
+      set: [...SET_KEYS].filter((key) => key !== 'watermarkEnabled'),
       addParticipants: ['id', 'name', 'avatar?', 'subtitle?'],
       updateParticipants: ['id + 任意 PARTICIPANT 字段'],
       removeParticipants: ['id'],

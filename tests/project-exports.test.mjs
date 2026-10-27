@@ -372,7 +372,7 @@ function zipBytesFor(exportDir, userId, exportRow) {
 async function seedFiftyCaseProject(base, token, { autoExport = false, type = 'training', caseCount = 50, name = '五十案例交付' } = {}) {
   const project = toolOk(
     await mcpTool(base, token, 'imstage_create_project', {
-      project: { name, type, defaults: { platform: 'whatsapp', watermarkEnabled: true } },
+      project: { name, type, defaults: { platform: 'whatsapp' } },
     }),
     'create project',
   ).project;
@@ -401,7 +401,6 @@ async function seedFiftyCaseProject(base, token, { autoExport = false, type = 't
           ...(type === 'evaluation_dataset' ? { annotations: { labels: { outcome: `ok-${entry.itemKey}` } } } : {}),
           scene: sceneFor(index * 20 + position, {
             texts: [`第一句 ${entry.itemKey}`, `第二句 ${entry.itemKey}`],
-            watermarkEnabled: true,
           }),
         })),
       }),

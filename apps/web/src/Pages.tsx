@@ -7,6 +7,7 @@ import type { Locale } from './marketing/locale';
 import { createScenario } from './marketing/scenes';
 import { ScaledSceneFrame, DEMO_DEVICE } from './marketing/DeviceFrame';
 import { SceneView } from './studio/SceneView';
+import { PlatformExplorer } from './platforms/PlatformExplorer';
 
 export function Templates() {
   const { locale } = useLocale();
@@ -28,6 +29,7 @@ export function Templates() {
         <h1>{copy.title}</h1>
         <p>{copy.lede}</p>
       </div>
+      <PlatformExplorer />
       <div className="gallery-controls">
         <div className="filter-tabs" role="group" aria-label={copy.label}>
           {filterOrder.map((id) => (
