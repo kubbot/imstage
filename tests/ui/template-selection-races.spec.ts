@@ -1,5 +1,6 @@
 import {test, expect, type Page} from '@playwright/test';
 import {createScene} from '../../apps/web/src/studio/model';
+import {markOnboarded} from './prefs';
 test.use({locale:'en-US'});
 
 async function setup(page:Page){
@@ -8,9 +9,13 @@ async function setup(page:Page){
   const headers={Origin:origin,'X-IMStage-Request':'1'};
   const response=await page.request.post('/api/auth/register',{headers,data:{name:'Template selection',email:`selection-${crypto.randomUUID()}@example.test`,password:'synthetic-selection-password-2026'}});
   expect(response.ok()).toBe(true);
+  // This API-seeded fixture tests templates, not the registration walkthrough.
+  await markOnboarded(page);
   const scenes=[{...createScene(),id:crypto.randomUUID(),title:'Source A'},{...createScene(),id:crypto.randomUUID(),title:'Source B'}];
   for(const scene of scenes)expect((await page.request.put('/api/scenes/'+scene.id,{headers,data:{scene,revision:0}})).ok()).toBe(true);
   await page.reload();
+  // Let AuthPage finish its authenticated redirect before hash-only navigation.
+  await expect(page).toHaveURL(/#\/workspace$/);
   return {headers,scenes};
 }
 
