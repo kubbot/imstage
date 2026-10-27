@@ -1,0 +1,70 @@
+{
+  "wechat-basic": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 37592
+  },
+  "wechat-rich": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 38874
+  },
+  "wechat-quote": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 25227
+  },
+  "wechat-long": {
+    "ok": false,
+    "code": "output_too_tall",
+    "message": "内容高度 2513px 超过视口 844px，请改选长截图 (long-screenshot)"
+  },
+  "whatsapp-basic": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 41186
+  },
+  "whatsapp-rich": {
+    "ok": false,
+    "code": "output_too_tall",
+    "message": "内容高度 876px 超过视口 844px，请改选长截图 (long-screenshot)"
+  },
+  "whatsapp-quote": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 27570
+  },
+  "whatsapp-long": {
+    "ok": false,
+    "code": "output_too_tall",
+    "message": "内容高度 2675px 超过视口 844px，请改选长截图 (long-screenshot)"
+  },
+  "instagram-basic": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 40093
+  },
+  "instagram-rich": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 41869
+  },
+  "instagram-quote": {
+    "ok": true,
+    "width": 390,
+    "height": 844,
+    "bytes": 26786
+  },
+  "instagram-long": {
+    "ok": false,
+    "code": "output_too_tall",
+    "message": "内容高度 2521px 超过视口 844px，请改选长截图 (long-screenshot)"
+  }
+}
