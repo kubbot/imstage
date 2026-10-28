@@ -55,6 +55,33 @@ test('real registration, autosave, reopen, logout and password login', async ({ 
   await expect(page.locator('.agent-phone .scene-view')).toContainText('今天的日落很好看。');
 });
 
+for (const [locale, status, message] of [
+  ['zh', 403, '账号服务暂时不可用，请稍后重试。'],
+  ['en', 421, 'The account service is temporarily unavailable. Try again shortly.'],
+] as const) {
+  test(`login reports an upstream HTML ${status} in ${locale} and can retry successfully`, async ({ page }) => {
+    const email = await register(page);
+    await page.goto('/#/account');
+    await page.getByRole('button', { name: '退出登录', exact: true }).click();
+    await expect(page).toHaveURL(/#\/login/);
+    await page.evaluate(value => localStorage.setItem('imstage-locale', value), locale);
+    await page.reload();
+    await page.route('**/api/auth/login', route => route.fulfill({ status, contentType: 'text/html', body: '<html><title>Gateway unavailable</title></html>' }));
+    await page.locator('input[name="email"]').fill(email);
+    await page.locator('input[name="password"]').fill(password);
+    await page.locator('.auth-submit').click();
+    await expect(page.getByRole('alert')).toHaveText(message);
+    await expect(page).toHaveURL(/#\/login/);
+    await expect(page.locator('input[name="email"]')).toHaveValue(email);
+    await expect(page.locator('.auth-submit')).toBeEnabled();
+    await page.unroute('**/api/auth/login');
+    await page.locator('.auth-submit').click();
+    await expect(page).toHaveURL(/#\/workspace$/);
+    const session = await (await page.request.get('/api/auth/session')).json();
+    expect(session.user.email).toBe(email);
+  });
+}
+
 test('autosave imports the signed-in studio scene and never writes the guest draft', async ({ page }) => {
   await page.goto('/#/studio');
   await page.getByRole('textbox', { name: '文本内容', exact: true }).fill('原来的本机草稿');

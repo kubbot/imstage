@@ -187,12 +187,14 @@ export async function api<T>(path: string, options: { method?: string; body?: un
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const data = await response.json().catch(() => null);
+    // Gateways can return HTML (including 401/403) before the account API runs.
+    // Treat that as a service failure, without expiring the application session.
+    if (!data || typeof data !== 'object') throw new ApiError(UNAVAILABLE[apiLocale()], response.ok ? 0 : response.status);
     if (!response.ok) {
       const code = data?.error?.code;
       if (startedIdentityVersion === identityVersion && response.status === 401 && !options.optional && code !== 'invalid_credentials' && !['/auth/login', '/auth/register'].includes(path)) window.dispatchEvent(new Event('imstage-session-expired'));
       throw new ApiError(apiErrorMessage(code, data?.error?.message, apiLocale()), response.status, code);
     }
-    if (!data || typeof data !== 'object') throw new ApiError(UNAVAILABLE[apiLocale()]);
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
