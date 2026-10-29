@@ -7,18 +7,24 @@
   "rewrites": [
     {
       "source": "/.well-known/oauth-protected-resource/api/mcp",
-      "destination": "https://103.195.188.236/api/.well-known/oauth-protected-resource"
+      "destination": "https://imstage-api.cubxxw.com/api/.well-known/oauth-protected-resource"
     },
     {
       "source": "/.well-known/oauth-authorization-server/api/oauth",
-      "destination": "https://103.195.188.236/api/.well-known/oauth-authorization-server"
+      "destination": "https://imstage-api.cubxxw.com/api/.well-known/oauth-authorization-server"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://103.195.188.236/api/:path*"
+      "destination": "https://imstage-api.cubxxw.com/api/:path*"
     }
   ],
   "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+      ]
+    },
     {
       "source": "/api/:path*",
       "headers": [

@@ -43,7 +43,7 @@ export type PreferencesCopy = {
 
 const ZH: PreferencesCopy = {
   title: '让对话更像你的作品',
-  lede: '设置账号默认头像与虚构标记。不填写任何内容也能直接开始创作。',
+  lede: '为新作品设置默认头像，右侧即时预览。也可以先用默认设置开始，稍后再改。',
   myAvatar: { title: '我的头像', help: '上传后按比例裁成 256×256，仅用于你的作品，不会进入公开素材库。' },
   otherAvatar: { title: '对方默认头像', help: '系统为你准备的虚构头像，可以换一个或上传一张图片。', generate: '换一个', generating: '生成中…', generated: '已生成' },
   mark: { title: '虚构标识（默认开启）', label: '新场景默认显示「AI生成 / 虚构」水印', help: '新建作品的预览与导出默认带有「AI生成 / 虚构」水印。项目与画面提供水印开关（默认开启）；关闭只影响所选项目/画面，不会改写已保存的作品，AI 也不能修改你的选择。' },
@@ -84,7 +84,7 @@ const ZH: PreferencesCopy = {
 
 const EN: PreferencesCopy = {
   title: 'Make conversations look like your work',
-  lede: 'Set account default avatars and the fictional mark. You can start creating without filling anything in.',
+  lede: 'Choose default avatars for new artwork and preview them here. Start with the defaults if you prefer; you can change them later.',
   myAvatar: { title: 'My avatar', help: 'Cropped proportionally to 256×256 and used only in your own works. It is never added to a public asset library.' },
   otherAvatar: { title: 'Default other avatar', help: 'A fictional avatar prepared for you. Swap it or upload your own image.', generate: 'Another', generating: 'Generating…', generated: 'Generated' },
   mark: { title: 'Fictional label (on by default)', label: 'New scenes show the “AI-generated / fictional” watermark by default', help: 'Previews and exports of new works carry the AI生成 / 虚构 watermark by default. Projects and scenes have a watermark switch (default on); turning it off affects only that project/scene, never rewrites saved works, and the AI can never change your choice.' },

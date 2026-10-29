@@ -5,17 +5,30 @@ import { completeOnboarding } from './prefs';
 test.use({ locale: 'zh-CN' });
 const password = 'a-long-synthetic-password-2026';
 const uniqueEmail = () => `ui-${crypto.randomUUID()}@example.test`;
-async function register(page: Page) {
+async function register(page: Page, initialPassword = password) {
   await page.goto('/#/register');
   await page.getByLabel('怎么称呼你').fill('灵感创作者');
   const email = uniqueEmail();
   await page.getByLabel('邮箱', { exact: true }).fill(email);
-  await page.getByLabel('密码', { exact: true }).fill(password);
+  await page.getByLabel('密码', { exact: true }).fill(initialPassword);
   await page.getByTestId('terms-consent').check();await page.getByRole('button', { name: '创建账号', exact: true }).click();
   await completeOnboarding(page);
   await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
   return email;
 }
+
+test('six-character passwords work through registration, change and re-login', async ({ page }) => {
+  const email = await register(page, 'six123');
+  await page.goto('/#/account');
+  await page.getByLabel('当前密码', { exact: true }).fill('six123');
+  await page.getByLabel('新密码', { exact: true }).fill('new123');
+  await page.getByRole('button', { name: '更新密码', exact: true }).click();
+  await expect(page).toHaveURL(/#\/login/);
+  await page.getByLabel('邮箱', { exact: true }).fill(email);
+  await page.getByLabel('密码', { exact: true }).fill('new123');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '灵感创作者的创作空间' })).toBeVisible();
+});
 async function createWork(page: Page) {
   await page.route('**/api/agent/run', async route => {
     const input = route.request().postDataJSON();

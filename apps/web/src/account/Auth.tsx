@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, bindIdentity, clearAccountDrafts, type User } from './api';
+import { api, bindIdentity, clearAccountDrafts, invalidateAuthOperations, type User } from './api';
 import { clearPreferencesCache, ensurePreferences } from '../preferences/api';
 type AuthState = { user: User | null; loading: boolean; unavailable: boolean; refresh: () => Promise<void>; accept: (user: User) => void; logout: () => Promise<void> };
 const Context = createContext<AuthState | null>(null);
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const focus = () => { void refresh(); };
     window.addEventListener('imstage-session-expired', expired);
     window.addEventListener('focus', focus);
-    if ('BroadcastChannel' in window) { channel.current = new BroadcastChannel('imstage-auth'); channel.current.onmessage = focus; }
+    if ('BroadcastChannel' in window) { channel.current = new BroadcastChannel('imstage-auth'); channel.current.onmessage = () => { invalidateAuthOperations(); void refresh(); }; }
     return () => { generation.current++; window.removeEventListener('imstage-session-expired', expired); window.removeEventListener('focus', focus); channel.current?.close(); };
   }, [refresh]);
   const accept = (value: User) => { generation.current++; bindIdentity(value); void ensurePreferences(value.id); setUser(value); setLoading(false); setUnavailable(false); channel.current?.postMessage('changed'); };

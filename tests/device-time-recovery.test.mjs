@@ -5,6 +5,7 @@ import * as model from '../apps/web/src/studio/model.ts';
 import {previewScene} from '../apps/web/src/create/assets.ts';
 import {streamDemo} from '../apps/web/src/create/stream.ts';
 import {buildSystemPrompt} from '../services/agent/prompt.mjs';
+import {executeTool} from '../services/agent/tools.mjs';
 
 const instants=[
   ['2026-10-25T15:59:00.000Z','23:59'],
@@ -67,6 +68,25 @@ test('existing user device time survives imports, drafts, ordinary edits and und
   assert.equal(history.present.deviceTime,'04:22');
   history=model.undo(history);assert.equal(history.present.deviceTime,'04:22');
   history=model.redo(history);assert.equal(history.present.deviceTime,'04:22');
+});
+
+test('Agent rebuilding an ordinary story preserves the user device time',async()=>{
+  const current={...model.createScene(),deviceTime:'04:22'};
+  const result=await executeTool('create_scene',{scene:{...current,title:'New fictional story',deviceTime:'09:41'}},{scene:current});
+  assert.equal(result.ok,true);
+  assert.equal(result.scene.deviceTime,'04:22');
+  assert.equal(result.scene.title,'New fictional story');
+  assert.equal(current.deviceTime,'04:22');
+});
+
+test('an explicit device-time edit remains available and survives the next Agent rebuild',async()=>{
+  const current={...model.createScene(),deviceTime:'04:22'};
+  const edited=await executeTool('update_element',{targetId:'@scene',patch:{deviceTime:'18:05'}},{scene:current});
+  assert.equal(edited.ok,true);
+  assert.equal(edited.scene.deviceTime,'18:05');
+  const rebuilt=await executeTool('create_scene',{scene:{...edited.scene,title:'Continue the story',deviceTime:'09:41'}},{scene:edited.scene});
+  assert.equal(rebuilt.ok,true);
+  assert.equal(rebuilt.scene.deviceTime,'18:05');
 });
 
 test('agent device time guidance preserves explicit user control and current safety rules',()=>{

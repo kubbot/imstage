@@ -152,6 +152,7 @@ export interface AgentCopy {
   copyDownload: string;
   copyAlt: string;
   canvasEmptyTitle: string;
+  canvasStart: string;
   canvasEmptyBody: string;
   canvasCaption: (label: string, width: number, height: number, full: boolean) => string;
   canvasCaptionFullHeight: string;
@@ -824,7 +825,7 @@ const zh: AppCopy = {
     exportRange: '导出图片范围', longShot: '长截图', standardShot: '普通截图',
     copyPng: '复制图片', copying: '复制中', exportPng: '导出 PNG', exporting: '导出中',
     copyReady: '图片已准备好', copyInstruction: '长按或右键图片，选择复制图片。', copyDownload: '下载 PNG', copyAlt: '可长按复制的聊天图片',
-    canvasEmptyTitle: '实时渲染', canvasEmptyBody: '你的第一句话，从这里开始。',
+    canvasEmptyTitle: '你的对话画面', canvasEmptyBody: '描述一个场景，生成后点选画面编辑，再下载图片。', canvasStart: '写下第一个场景',
     canvasCaption: (label, width, height, full) => `${label} · ${width} × ${full ? '自动高度' : height} px · ${full ? '点选消息或头像编辑' : '上下拖动调整截取位置 · 复制当前可见画面'}`,
     canvasCaptionFullHeight: '自动高度', canvasPointHint: '点选消息或头像编辑', pointHint: '点选画面中的元素，即可编辑',
     zoomOut: '缩小画布', zoomFit: '适应画布', zoomIn: '放大画布', elements: '元素编辑',
@@ -918,7 +919,7 @@ const zh: AppCopy = {
     loginKicker: 'WELCOME BACK', registerKicker: 'CREATE YOUR ACCOUNT', loginTitle: '欢迎回来', registerTitle: '开始你的创作空间',
     loginLede: '登录 IMStage，继续上一次的灵感。', registerLede: '创建账号，保存和管理你的对话作品。',
     nameLabel: '怎么称呼你', namePlaceholder: '你的名字', emailLabel: '邮箱', passwordLabel: '密码',
-    passwordHint: '至少 12 个字符，可以使用便于记忆的长密码。', loginBusy: '正在登录…', registerBusy: '正在创建账号…',
+    passwordHint: '至少 6 个字符，可以使用便于记忆的长密码。', loginBusy: '正在登录…', registerBusy: '正在创建账号…',
     createAccount: '创建账号', login: '登录', haveAccount: '已经有账号？', firstTime: '第一次来？', goLogin: '去登录', goRegister: '创建账号',
     cannotLogin: '无法登录？', tryEditor: '先试用编辑器',
     registrationUncertain: '暂未确认账号是否创建成功。请先切换到登录，使用刚才的邮箱和密码尝试。',
@@ -933,7 +934,7 @@ const zh: AppCopy = {
     draftRecoverable: '未保存的内容可在此标签页恢复', draftStorageFailed: '无法保存恢复副本，请先保存作品或导出 JSON',
     workDirty: '有未保存的修改', workSaved: '已保存到账号', beforeUnload: '当前修改尚未保存，浏览器也无法保存恢复副本。离开会丢失这些修改，确定离开？',
     accountKicker: 'ACCOUNT',
-    accountLede: '管理你的账号与登录凭据。', backWorksLong: '← 返回我的作品', changePassword: '修改密码', changePasswordBody: '修改后所有设备的登录都会失效，需要使用新密码重新登录。', passwordMinHint: '至少 12 个字符。', updating: '正在更新…', signOutBody: '当前作品保存在此 IMStage 实例。',
+    accountLede: '管理你的账号与登录凭据。', backWorksLong: '← 返回我的作品', changePassword: '修改密码', changePasswordBody: '修改后所有设备的登录都会失效，需要使用新密码重新登录。', passwordMinHint: '至少 6 个字符。', updating: '正在更新…', signOutBody: '当前作品保存在此 IMStage 实例。',
  accountTitle: '账号设置', accountBody: '管理登录方式与当前实例中的作品。',
     currentPassword: '当前密码', newPassword: '新密码', updatePassword: '更新密码', logout: '退出登录', updated: '已更新',
     sessionExpired: '登录状态已过期，请重新登录。', backWorks: '我的作品', workTitleLabel: '会话标题', saveWorks: '保存作品',
@@ -1114,7 +1115,7 @@ const en: AppCopy = {
     exportRange: 'Export range', longShot: 'Long capture', standardShot: 'Short capture',
     copyPng: 'Copy image', copying: 'Copying', exportPng: 'Export PNG', exporting: 'Exporting',
     copyReady: 'Image is ready', copyInstruction: 'Long-press or right-click the image and copy it.', copyDownload: 'Download PNG', copyAlt: 'Chat image ready to copy',
-    canvasEmptyTitle: 'Live render', canvasEmptyBody: 'Your first line starts here.',
+    canvasEmptyTitle: 'Your conversation artwork', canvasEmptyBody: 'Describe a scene, click the result to edit, then download your image.', canvasStart: 'Describe your first scene',
     canvasCaption: (label, width, height, full) => `${label} · ${width} × ${full ? 'auto height' : height} px · ${full ? 'click a message or avatar to edit' : 'drag to set the crop · copies the visible frame'}`,
     canvasCaptionFullHeight: 'auto height', canvasPointHint: 'click a message or avatar to edit', pointHint: 'Click an element in the frame to edit it',
     zoomOut: 'Zoom out', zoomFit: 'Fit canvas', zoomIn: 'Zoom in', elements: 'Edit elements',
@@ -1208,7 +1209,7 @@ const en: AppCopy = {
     loginKicker: 'WELCOME BACK', registerKicker: 'CREATE YOUR ACCOUNT', loginTitle: 'Welcome back', registerTitle: 'Create your workspace',
     loginLede: 'Sign in to IMStage and continue where you left off.', registerLede: 'Create an account to save and manage your conversation scenes.',
     nameLabel: 'What should we call you', namePlaceholder: 'Your name', emailLabel: 'Email', passwordLabel: 'Password',
-    passwordHint: 'At least 12 characters. A long passphrase is fine.', loginBusy: 'Signing in…', registerBusy: 'Creating account…',
+    passwordHint: 'At least 6 characters. A long passphrase is fine.', loginBusy: 'Signing in…', registerBusy: 'Creating account…',
     createAccount: 'Create account', login: 'Sign in', haveAccount: 'Already have an account?', firstTime: 'First time here?', goLogin: 'Sign in', goRegister: 'Create account',
     cannotLogin: 'Cannot sign in?', tryEditor: 'Try the editor first',
     registrationUncertain: 'We could not confirm whether the account was created. Switch to sign-in and try the email and password you just used.',
@@ -1223,7 +1224,7 @@ const en: AppCopy = {
     draftRecoverable: 'Unsaved changes recover in this tab', draftStorageFailed: 'Cannot store the recovery copy. Save the scene or export JSON first',
     workDirty: 'Unsaved changes', workSaved: 'Saved to account', beforeUnload: 'Changes are unsaved and the browser cannot keep a recovery copy. Leaving will lose them. Leave anyway?',
     accountKicker: 'ACCOUNT', accountTitle: 'Account settings', accountBody: 'Manage your sign-in and the scenes on this instance.',
-    accountLede: 'Manage your account and sign-in credentials.', backWorksLong: '← Back to My scenes', changePassword: 'Change password', changePasswordBody: 'All devices will be signed out and must sign in again with the new password.', passwordMinHint: 'At least 12 characters.', updating: 'Updating…', signOutBody: 'Your scenes live on this IMStage instance.',
+    accountLede: 'Manage your account and sign-in credentials.', backWorksLong: '← Back to My scenes', changePassword: 'Change password', changePasswordBody: 'All devices will be signed out and must sign in again with the new password.', passwordMinHint: 'At least 6 characters.', updating: 'Updating…', signOutBody: 'Your scenes live on this IMStage instance.',
 
     currentPassword: 'Current password', newPassword: 'New password', updatePassword: 'Update password', logout: 'Sign out', updated: 'Updated',
     sessionExpired: 'Your session expired. Please sign in again.', backWorks: 'My scenes', workTitleLabel: 'Session title', saveWorks: 'Save scene',

@@ -59,7 +59,7 @@ export const AGENT_TOOL_SCHEMAS = Object.freeze([
     function: {
       name: 'create_scene',
       description:
-        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；watermarkEnabled/watermark 属于用户偏好，服务端会保留当前值，你不接受也不能修改这两个字段；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
+        '用一段完整的 Scene JSON 重建整个场景。适合从零创建场景或大范围重写。必须保留当前场景的 id；deviceTime 由服务端保留，用户明确调整系统时间时先用 update_element 修改；watermarkEnabled/watermark 属于用户偏好，服务端会保留当前值，你不接受也不能修改这两个字段；不要提供图片 base64，已有图片由服务端按消息/参与者 id 自动保留。',
       parameters: {
         type: 'object',
         properties: {
@@ -199,6 +199,7 @@ function applyCreateScene(args, context) {
   // The chosen chat-platform skin is a user selection: a full rebuild keeps the
   // current context platform (an explicit switch goes through update_element).
   stripped.platform = context.scene.platform;
+  stripped.deviceTime = context.scene.deviceTime;
   // The image label / watermark belongs to the user: a rebuilt scene must not
   // silently change it, and no tool lets the model edit it. Both the watermark
   // text and the user's on/off switch are preserved from the starting scene.

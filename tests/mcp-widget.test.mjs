@@ -101,7 +101,7 @@ test('ChatGPT Work metadata-only results load initially and on partial globals u
  } finally { await browser.close(); }
 });
 
-test('long images open width-fit for readability and keep the complete-composition option',async()=>{
+test('long images open as a complete composition with opt-in reading',async()=>{
  const browser=await chromium.launch({executablePath:resolveChromiumExecutable()||undefined});
  try{
   const page=await browser.newPage({viewport:{width:420,height:900}});
@@ -113,16 +113,20 @@ test('long images open width-fit for readability and keep the complete-compositi
   await page.locator('#preview-img').waitFor({state:'visible'});
   await page.waitForFunction(()=>document.querySelector('#preview-img').naturalHeight===1200);
   await page.locator('#download').waitFor({state:'visible'});
-  // A long image starts width-fit so its text is readable at once.
-  assert.equal(await page.locator('#preview').getAttribute('data-fit'),'width');
-  assert.equal(await page.getByRole('button',{name:'适合宽度',exact:true}).getAttribute('aria-pressed'),'true');
+  // The whole long artwork is visible before the user opts into reading.
+  assert.equal(await page.locator('#preview').getAttribute('data-fit'),'height');
+  assert.equal(await page.locator('#preview').evaluate(e=>e.scrollHeight>e.clientHeight),false);
+  assert.equal(await page.locator('#long-hint').isVisible(),false);
+  await page.getByText('查看尺寸',{exact:true}).click();
+  await page.getByRole('button',{name:'展开阅读',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'展开阅读',exact:true}).getAttribute('aria-pressed'),'true');
   const wide=await page.locator('#preview-img').evaluate(e=>({width:e.clientWidth,height:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight}));
   assert.ok(wide.height>480,'width-fit uses the column for reading');assert.ok(wide.width<=390);
   assert.ok(Math.abs(wide.width/wide.height-390/1200)<0.01);
   assert.equal(await page.locator('#scene-meta').isVisible(),false);
   assert.equal(await page.locator('#long-hint').isVisible(),true);
   // The complete-composition option is preserved.
-  await page.getByRole('button',{name:'适合高度',exact:true}).click();
+  await page.getByRole('button',{name:'完整画面',exact:true}).click();
   assert.equal(await page.locator('#preview').getAttribute('data-fit'),'height');
   const fit=await page.locator('#preview-img').evaluate(e=>({width:e.clientWidth,height:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight}));
   assert.ok(fit.height<=480);assert.ok(fit.width<=390);assert.ok(Math.abs(fit.width/fit.height-390/1200)<0.01);
@@ -283,7 +287,10 @@ test('width-fit bounds the reading region for genuinely tall images and stays ke
   await page.setContent(buildRenderWidgetHtml());
   await page.evaluate(r=>window.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:r},'*'),{structuredContent:{sceneId:'tall-scene',revision:1,title:'超长图',width:390,height:10000},_meta:{preview:{dataUri:'data:image/png;base64,'+png}}});
   await page.locator('#download').waitFor({state:'visible'});
-  assert.equal(await page.locator('#preview').getAttribute('data-fit'),'width');
+  assert.equal(await page.locator('#preview').getAttribute('data-fit'),'height');
+  assert.equal(await page.locator('#preview').evaluate(e=>e.scrollHeight>e.clientHeight),false);
+  await page.getByText('查看尺寸',{exact:true}).click();
+  await page.getByRole('button',{name:'展开阅读',exact:true}).click();
   // The reading region is bounded; the controls stay close instead of being
   // pushed thousands of pixels down by the artwork.
   const region=await page.locator('#preview').boundingBox();
@@ -300,9 +307,9 @@ test('width-fit bounds the reading region for genuinely tall images and stays ke
   await page.waitForFunction(()=>document.getElementById('preview').scrollTop>0,undefined,{timeout:5000});
   assert.ok(await page.locator('#preview').evaluate(e=>e.scrollTop)>0,'keyboard scrolling works');
   // Full-composition and original-size options are preserved.
-  await page.getByRole('button',{name:'适合高度',exact:true}).click();
+  await page.getByRole('button',{name:'完整画面',exact:true}).click();
   assert.ok((await page.locator('#preview-img').boundingBox()).height<=480);
-  await page.getByRole('button',{name:'查看原图 / 放大',exact:true}).click();
+  await page.getByRole('button',{name:'原图大小',exact:true}).click();
   assert.ok((await page.locator('#preview-img').boundingBox()).height>5000);
   assert.equal(await page.locator('#preview').getAttribute('tabindex'),'0','the original-size region scrolls by keyboard too');
  }finally{await browser.close();}

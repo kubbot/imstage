@@ -1,4 +1,5 @@
 import type { Platform, Scene } from '../studio/model';
+import { browserAuthContext } from './authContext.ts';
 export type User = { id: string; email: string; name: string };
 export type SceneSummary = { id: string; title: string; platform: Scene['platform']; messageCount: number; updatedAt: string; revision: number };
 export type SavedScene = { projectIds?:string[]; id: string; scene: Scene; updatedAt: string; revision: number };
@@ -118,6 +119,17 @@ const REJECTED_EN = 'The request was rejected. Check the highlighted fields.';
 
 /** Stable English text for server codes whose messages are Chinese-only. */
 const CODE_EN: Record<string, string> = {
+  google_not_configured: 'Google sign-in is not configured.',
+  google_storage_unavailable: 'Secure browser storage is unavailable. Use your email and password.',
+  google_flow_expired: 'Google sign-in expired. Please retry.',
+  google_invalid_identity: 'Google identity could not be verified. Please retry.',
+  google_unavailable: 'Google verification is temporarily unavailable. Please retry later.',
+  google_already_linked: 'This Google account is already linked. Existing sign-in methods cannot be overwritten.',
+  google_last_signin_method: 'Keep at least one sign-in method.',
+  google_busy: 'Google sign-in is busy. Please retry later.',
+  google_account_link_required: 'This email already has an account. Sign in with your password, then link Google in account settings.',
+  auth_operation_superseded: 'Another sign-in operation changed this session. Please retry.',
+  terms_required: 'Please accept the terms and privacy notice first.',
   unauthorized: 'Please sign in again.',
   account_changed: 'The signed-in account changed. Reopen the scene.',
   invalid_credentials: 'The email or password is incorrect.',
@@ -172,8 +184,13 @@ export function apiErrorMessage(code: string | undefined, serverMessage: string 
 }
 let requestIdentity: string | null = null;
 let identityVersion = 0;
+let authRevision = 0;
+export const authOperationVersion = () => authRevision;
+export function invalidateAuthOperations() { authRevision++; }
 export function bindIdentity(user: User | null) { requestIdentity = user?.id || null; identityVersion++; }
 export async function api<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal; optional?: boolean } = {}): Promise<T> {
+  const authMutation = path.startsWith('/auth/') && options.method === 'POST';
+  const authStarted = authMutation ? ++authRevision : authRevision;
   const startedIdentityVersion = identityVersion;
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -181,9 +198,11 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (options.signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 15000);
   try {
+    const context = path.startsWith('/auth/') ? await browserAuthContext() : null;
+    if (authMutation && authStarted !== authRevision) throw new ApiError(apiErrorMessage('auth_operation_superseded', '', apiLocale()), 409, 'auth_operation_superseded');
     const response = await fetch(`/api${path}`, {
       method: options.method || 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'X-IMStage-Request': '1', ...(requestIdentity ? { 'X-IMStage-User': requestIdentity } : {}) },
+      headers: { 'Content-Type': 'application/json', 'X-IMStage-Request': '1', ...(context ? { 'X-IMStage-Auth-Context': context } : {}), ...(requestIdentity ? { 'X-IMStage-User': requestIdentity } : {}) },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const data = await response.json().catch(() => null);
@@ -193,6 +212,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
       throw new ApiError(apiErrorMessage(code, data?.error?.message, apiLocale()), response.status, code);
     }
     if (!data || typeof data !== 'object') throw new ApiError(UNAVAILABLE[apiLocale()]);
+    if (authMutation && authStarted !== authRevision) throw new ApiError(apiErrorMessage('auth_operation_superseded', '', apiLocale()), 409, 'auth_operation_superseded');
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;

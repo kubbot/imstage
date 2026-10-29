@@ -32,6 +32,7 @@
     "@modelcontextprotocol/sdk": "1.30.0",
     "@tabler/icons-react": "3.47.0",
     "express": "5.2.1",
+    "google-auth-library": "11.3.2",
     "html-to-image": "1.11.13",
     "react": "19.3.0",
     "react-dom": "19.3.0",

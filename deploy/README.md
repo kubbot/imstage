@@ -44,6 +44,59 @@ Do not enable `IMSTAGE_MCP_PRIVATE_TUNNEL` on a public endpoint.
 
 ## Release and HTTPS
 
+### macOS host and Cloudflare Tunnel
+
+The 2026-10-29 deployment scope uses an existing Mac account database and the
+per-user `com.imstage.web` LaunchAgent. A dedicated named Cloudflare Tunnel
+publishes only the API path to the loopback web port. The frontend remains on
+Vercel; its HTTPS rewrite keeps login cookies on the canonical frontend origin.
+Keep the separate MCP database/service and other tunnels independent.
+
+`deploy/macos.py --config /PRIVATE/config.json --install-timer` builds and
+verifies the first release, then installs `com.imstage.auto-deploy`. Every 120
+seconds it fetches `main` and checks the latest `Frontend` push run for that exact
+SHA. Pending, failed, fork and PR runs cannot release. A file lock serializes
+updates; the pause marker and a 30 GiB disk floor defer heavy work.
+
+The private configuration records `sourceRoot`, `releaseRoot`, `stateDir`,
+`dataDir`, `servicePlist`, `label` (`com.imstage.web`), absolute `node`, `npm` and
+`gh` executables, `appOrigin`, `webPort`, `environmentFiles`, `smokeFile`, and
+optionally `chromiumExecutable`, `npmCache`, `pauseFile`. Keep configuration,
+provider env files and smoke credentials outside Git with private permissions.
+`smokeFile` contains the dedicated test account's `email` and `password`.
+For an explicitly authorized first setup only, `--bootstrap-test-account` creates
+that account through the new local API if its email is absent. It never resets
+an existing account, and this flag is never added to the automatic timer.
+
+Releases contain a Git archive and built output, never local setup or databases.
+The first install and lockfile changes use `npm ci` with the existing npm cache.
+Unchanged lockfiles reuse an independent snapshot of the previous verified
+release's dependencies (APFS clone on macOS). A production release never links
+its dependencies to a mutable development checkout.
+
+Before switching the service, the updater makes a consistent SQLite backup and
+saves the exact old LaunchAgent. It preserves the configured account data
+directory. The new API reports `X-IMStage-Revision`; local readiness and public
+`deploy/smoke.mjs` must match the reviewed SHA. The smoke checks JSON health,
+real login, protected cookie, repeated session reads, scene-list access, logout
+and revocation, without creating scenes or calling AI providers. Credentials
+travel on stdin and are never printed.
+
+Only a passing public smoke commits `active.json`. Failures restore the previous
+LaunchAgent and retain backups; failed revisions retry with exponential backoff
+from five minutes to six hours. After fixing the cause, `--retry-failed` requests
+an immediate retry. An interrupted updater copy is repaired on the next unchanged
+poll. Service and timer reloads retry launchd's transient bootstrap error 5 for
+at most 20 attempts, including rollback; other errors fail immediately.
+Unchanged and non-actionable polls stay quiet.
+
+Rollback restores code and launch settings, not database contents. Incompatible
+schema changes require a separate recovery plan. SIGKILL, power loss or failed
+rollback require inspecting the retained backups and service state. The Mac and
+Tunnel must remain online; a prepared configuration is not a verified release.
+
+### Conventional Linux server release
+
 1. Export a reviewed Git commit into `/opt/imstage/releases/COMMIT` and build
    `docker build -f deploy/Dockerfile -t imstage:COMMIT .` from that directory.
    Docker installs Chromium and CJK fonts for deterministic server-side PNGs.
@@ -105,3 +158,19 @@ is configured). Issue its certificate, add the host to MCP allowed hosts, update
 Nginx and the rewrite, then change the API's exact frontend origin. Verify TLS,
 login/save and redirects before retiring old URLs. DNS changes require the actual
 domain and DNS provider; neither is guessed here.
+
+### Optional Google login on the Mac backend
+
+Add a private mode-600 environment file containing `IMSTAGE_GOOGLE_CLIENT_ID`
+to `environmentFiles`; preserve every existing provider file. Use a dedicated
+Google Web client whose authorized JavaScript origin matches `appOrigin` exactly.
+No secret or redirect URI is needed for the GIS popup. Rebuild/deploy the reviewed
+revision; confirm `/api/auth/google/config` from the frontend origin, then test
+real Google login, consent, refresh/restart persistence and logout. Password smoke
+alone is not Google acceptance. Schema changes are additive and old accounts and
+works remain in the same SQLite database.
+
+On shared Macs, preserve the existing effective auto-deploy LaunchAgent host
+policy. Replacing updater code does not require reinstalling the timer. In
+particular, an operator-tuned Standard process policy should not be overwritten
+by the installer's Background default during a provider-only configuration change.

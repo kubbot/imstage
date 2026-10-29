@@ -172,19 +172,28 @@ test('signed-in manual Studio scenes inherit account defaults', async ({ page })
 
 test('an authored handoff scene keeps its explicit empty mark and missing avatars', async ({ page }) => {
   await page.goto('/#/workspace');
+  await expect(page).toHaveURL(/#\/login/);
+  await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible();
   const origin = new URL(page.url()).origin;
   const registered = await page.request.post('/api/auth/register', {
     headers: { Origin: origin, 'X-IMStage-Request': '1' },
     data: { email: `handoff-${crypto.randomUUID()}@example.test`, name: '交接用户', password: 'synthetic-handoff-password-2026' },
   });
   expect(registered.ok()).toBeTruthy();
-  await page.request.put('/api/preferences', { headers: { Origin: origin, 'X-IMStage-Request': '1' }, data: { revision: 1, onboardingStatus: 'completed', showFictionalMark: true } });
+  const preferences = await page.request.put('/api/preferences', { headers: { Origin: origin, 'X-IMStage-Request': '1' }, data: { revision: 1, onboardingStatus: 'completed', showFictionalMark: true } });
+  expect(preferences.ok()).toBeTruthy();
+  expect((await preferences.json()).item.onboardingStatus).toBe('completed');
   await page.reload();
+  // API registration updates cookies, not the mounted AuthProvider. Finish
+  // session recovery and its login redirect before the handoff hash navigation.
+  await expect(page.getByRole('heading', { name: '交接用户的创作空间', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/#\/workspace$/);
   const token = crypto.randomUUID();
   const scene = { id: 'scene-handoff', title: '交接场景', platform: 'wechat', deviceTime: '09:41', date: '今天', selfId: 'me', participants: [{ id: 'me', name: '我' }, { id: 'other', name: '对方' }], messages: [{ id: 'm-1', participantId: 'me', type: 'text', text: '交接内容', time: '09:41' }], watermark: '' };
   await page.evaluate(({ key, payload }) => sessionStorage.setItem(key, JSON.stringify(payload)), { key: `imstage.marketing.handoff.${token}`, payload: { scene } });
   await page.goto(`/#/create?new=1&handoff=${token}`);
   await expect(page.locator('.agent-phone .scene-view')).toContainText('交接内容');
+  await expect(page).toHaveURL(/#\/create(?:\?|$)/);
   await expect(page.locator('.agent-phone .scene-watermark')).toHaveCount(0);
   // The mandatory disclosure is always rendered, even for migrated scenes.
   await expect(page.locator('.agent-phone .imstage-disclosure')).toContainText('AI生成 / 虚构');
