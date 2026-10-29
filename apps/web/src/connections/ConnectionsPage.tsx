@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
-import { IconArrowUpRight, IconBrandOpenai, IconCheck, IconCopy, IconKey, IconLink } from '@tabler/icons-react';
+import { IconArrowUpRight, IconCheck, IconCopy, IconKey, IconLink } from '@tabler/icons-react';
 import { useAuth } from '../account/Auth';
 import { api, errorText, loginLink } from '../account/api';
 import { useLocale } from '../marketing/LocaleContext';
@@ -305,7 +305,7 @@ export default function ConnectionsPage({ requestId, consent = false }: { reques
   }
   const supported = loopbackSupported(config);
   return <div className="connections-page"><a className="text-link" href={user ? '#/account' : '#/'}>{zh ? '返回' : 'Back'}</a>
-    <header className="connection-intro"><IconBrandOpenai size={38} aria-hidden="true" /><h1>{zh ? '把 IMStage 带进你的 AI 客户端。' : 'Bring IMStage into your AI client.'}</h1><p>{zh ? '先选择客户端，按对应步骤连接一次；之后用一句话开始创作。' : 'Choose your client, connect once with the matching steps, then start creating with a sentence.'}</p></header>
+    <header className="connection-intro"><h1>{zh ? '把 IMStage 带进你的 AI 客户端。' : 'Bring IMStage into your AI client.'}</h1><p>{zh ? '选择客户端，连接后就能在对话中创作、修改和下载作品。' : 'Choose a client to create, edit and download artwork in your conversation.'}</p><a className="text-link connection-try" href="#/create">{zh ? '先在网页试做' : 'Try the web studio first'}<IconArrowUpRight size={16} aria-hidden="true" /></a></header>
     {consent ? (loading ? <p role="status">{zh ? '正在读取账号…' : 'Loading your account…'}</p> : (!user || unavailable) && signIn('consent')) : <>
       {error && <div className="connection-error" role="alert"><p>{error}</p><button className="btn btn-secondary" onClick={() => setAttempt(n => n + 1)}>{zh ? '重试' : 'Retry'}</button></div>}
       {!config && !error && <p role="status">{zh ? '正在读取接入方式…' : 'Loading connection details…'}</p>}

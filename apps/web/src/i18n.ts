@@ -152,6 +152,7 @@ export interface AgentCopy {
   copyDownload: string;
   copyAlt: string;
   canvasEmptyTitle: string;
+  canvasStart: string;
   canvasEmptyBody: string;
   canvasCaption: (label: string, width: number, height: number, full: boolean) => string;
   canvasCaptionFullHeight: string;
@@ -824,7 +825,7 @@ const zh: AppCopy = {
     exportRange: '导出图片范围', longShot: '长截图', standardShot: '普通截图',
     copyPng: '复制图片', copying: '复制中', exportPng: '导出 PNG', exporting: '导出中',
     copyReady: '图片已准备好', copyInstruction: '长按或右键图片，选择复制图片。', copyDownload: '下载 PNG', copyAlt: '可长按复制的聊天图片',
-    canvasEmptyTitle: '实时渲染', canvasEmptyBody: '你的第一句话，从这里开始。',
+    canvasEmptyTitle: '你的对话画面', canvasEmptyBody: '描述一个场景，生成后点选画面编辑，再下载图片。', canvasStart: '写下第一个场景',
     canvasCaption: (label, width, height, full) => `${label} · ${width} × ${full ? '自动高度' : height} px · ${full ? '点选消息或头像编辑' : '上下拖动调整截取位置 · 复制当前可见画面'}`,
     canvasCaptionFullHeight: '自动高度', canvasPointHint: '点选消息或头像编辑', pointHint: '点选画面中的元素，即可编辑',
     zoomOut: '缩小画布', zoomFit: '适应画布', zoomIn: '放大画布', elements: '元素编辑',
@@ -1114,7 +1115,7 @@ const en: AppCopy = {
     exportRange: 'Export range', longShot: 'Long capture', standardShot: 'Short capture',
     copyPng: 'Copy image', copying: 'Copying', exportPng: 'Export PNG', exporting: 'Exporting',
     copyReady: 'Image is ready', copyInstruction: 'Long-press or right-click the image and copy it.', copyDownload: 'Download PNG', copyAlt: 'Chat image ready to copy',
-    canvasEmptyTitle: 'Live render', canvasEmptyBody: 'Your first line starts here.',
+    canvasEmptyTitle: 'Your conversation artwork', canvasEmptyBody: 'Describe a scene, click the result to edit, then download your image.', canvasStart: 'Describe your first scene',
     canvasCaption: (label, width, height, full) => `${label} · ${width} × ${full ? 'auto height' : height} px · ${full ? 'click a message or avatar to edit' : 'drag to set the crop · copies the visible frame'}`,
     canvasCaptionFullHeight: 'auto height', canvasPointHint: 'click a message or avatar to edit', pointHint: 'Click an element in the frame to edit it',
     zoomOut: 'Zoom out', zoomFit: 'Fit canvas', zoomIn: 'Zoom in', elements: 'Edit elements',

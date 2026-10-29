@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: shared Web render is the platform-template UI with the default watermark on every platform
+ok 1 - shared Web render is the platform-template UI with the default watermark on every platform
+  ---
+  duration_ms: 20.267791
+  type: 'test'
+  ...
+# Subtest: MCP Apps bridge actually displays the result, exports PNG and targets the same scene on follow-up
+ok 2 - MCP Apps bridge actually displays the result, exports PNG and targets the same scene on follow-up
+  ---
+  duration_ms: 1227.260584
+  type: 'test'
+  ...
+# Subtest: ChatGPT Work metadata-only results load initially and on partial globals updates
+ok 3 - ChatGPT Work metadata-only results load initially and on partial globals updates
+  ---
+  duration_ms: 1089.080125
+  type: 'test'
+  ...
+# Subtest: long images open as a complete composition with opt-in reading
+ok 4 - long images open as a complete composition with opt-in reading
+  ---
+  duration_ms: 881.500708
+  type: 'test'
+  ...
+# Subtest: rejected follow-up retains the draft, re-enables retry and never silently sends twice
+ok 5 - rejected follow-up retains the draft, re-enables retry and never silently sends twice
+  ---
+  duration_ms: 1195.807458
+  type: 'test'
+  ...
+# Subtest: host theme updates and repeated results cannot complete an edit; stale download errors cannot replace current state
+ok 6 - host theme updates and repeated results cannot complete an edit; stale download errors cannot replace current state
+  ---
+  duration_ms: 975.981042
+  type: 'test'
+  ...
+# Subtest: preview success and PNG download wait for the real image load; late events from older result epochs are rejected
+ok 7 - preview success and PNG download wait for the real image load; late events from older result epochs are rejected
+  ---
+  duration_ms: 7200.948458
+  type: 'test'
+  ...
+# Subtest: an image that fails to load never announces preview success or offers PNG
+ok 8 - an image that fails to load never announces preview success or offers PNG
+  ---
+  duration_ms: 1777.284958
+  type: 'test'
+  ...
+# Subtest: MCP Apps hostContext theme drives the widget and unknown themes fall back to the system
+ok 9 - MCP Apps hostContext theme drives the widget and unknown themes fall back to the system
+  ---
+  duration_ms: 1129.938083
+  type: 'test'
+  ...
+# Subtest: width-fit bounds the reading region for genuinely tall images and stays keyboard-scrollable
+ok 10 - width-fit bounds the reading region for genuinely tall images and stays keyboard-scrollable
+  ---
+  duration_ms: 1617.348208
+  type: 'test'
+  ...
+# Subtest: a delayed image cannot overwrite a later edit waiting state, on success or error
+ok 11 - a delayed image cannot overwrite a later edit waiting state, on success or error
+  ---
+  duration_ms: 1510.065667
+  type: 'test'
+  ...
+# Subtest: standard hostContext theme outranks stale legacy window.openai.theme across metadata-only updates
+ok 12 - standard hostContext theme outranks stale legacy window.openai.theme across metadata-only updates
+  ---
+  duration_ms: 1101.69525
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20071.461

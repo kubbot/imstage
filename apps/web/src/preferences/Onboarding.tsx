@@ -308,6 +308,15 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
 
       <div className="prefs-layout">
         <form className="prefs-groups" onSubmit={(event) => { event.preventDefault(); void finish('save'); }}>
+          <div className="prefs-actions">
+            <button type="submit" className="btn btn-primary" data-testid="prefs-save" disabled={busy}>
+              <IconCheck size={17} /> {busy ? c.saving : c.save}
+            </button>
+            <button type="button" className="btn btn-secondary" data-testid="prefs-skip" disabled={busy} onClick={() => void finish('skip')}>
+              <IconWand size={16} /> {c.useDefaults}
+            </button>
+          </div>
+          <p className="prefs-skip-note">{c.skipNote}</p>
           {/* My avatar */}
           <fieldset className="prefs-group">
             <legend>{c.myAvatar.title}</legend>
@@ -384,15 +393,7 @@ export default function Onboarding({ next = '/workspace', settings = false }: { 
             </div>
           )}
 
-          <div className="prefs-actions">
-            <button type="submit" className="btn btn-primary" data-testid="prefs-save" disabled={busy}>
-              <IconCheck size={17} /> {busy ? c.saving : c.save}
-            </button>
-            <button type="button" className="btn btn-secondary" data-testid="prefs-skip" disabled={busy} onClick={() => void finish('skip')}>
-              <IconWand size={16} /> {c.useDefaults}
-            </button>
-          </div>
-          <p className="prefs-skip-note">{c.skipNote}</p>
+
         </form>
 
         <aside className="prefs-preview" aria-label={c.preview}>

@@ -33,11 +33,11 @@ export function buildRenderWidgetHtml() {
   :root { color-scheme: light dark; --ink:var(--color-text-primary,#242323); --muted:var(--color-text-secondary,#73716d); --surface:var(--color-background-primary,#fff); --line:var(--color-border-primary,#e5e3df); --preview-bg:var(--color-background-secondary,#f6f5f2); --chip-bg:var(--color-background-secondary,#f0eeea); }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif; color:var(--ink); background:transparent; }
-  .card { max-width:900px; margin:auto; padding:16px; display:grid; gap:14px; }
+  .card { max-width:900px; margin:auto; padding:16px; display:grid; gap:12px; }
   h1 { margin:0; font-size:17px; font-weight:600; overflow-wrap:anywhere; }
   .meta,.status,.hint { margin:0; color:var(--muted); font-size:12px; }
   .heading { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
-  .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:10px; background:var(--preview-bg); padding:12px; }
+  .preview { display:flex; justify-content:center; align-items:flex-start; border-radius:8px; background:var(--preview-bg); padding:16px; }
   .preview img { display:block; width:auto; height:auto; max-width:100%; max-height:480px; object-fit:contain; }
   .preview[data-fit="width"] { overflow:auto; max-height:min(70vh,640px); justify-content:flex-start; }
   .preview[data-fit="width"] img { width:100%; max-width:100%; max-height:none; }
@@ -52,6 +52,10 @@ export function buildRenderWidgetHtml() {
   .toolbar { position:relative; }
   details.more { position:static; }
   details.more summary { list-style:none; }
+  .preview-controls { margin-left:auto; }
+  .preview-controls summary { color:var(--muted); }
+  .preview-controls[open] .view-options { position:absolute; right:0; top:46px; z-index:3; padding:12px; width:min(320px,80vw); background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px #0001; }
+  .preview-controls .hint { flex-basis:100%; }
   details.more summary::-webkit-details-marker { display:none; }
   .more-content { position:absolute; right:0; top:46px; z-index:2; width:min(300px,75vw); padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px #0001; }
   .more-content h2 { font-size:13px; margin:0 0 8px; }
@@ -79,13 +83,10 @@ export function buildRenderWidgetHtml() {
 <main class="card">
   <header class="heading"><h1 id="scene-title">你的对话作品</h1><p class="meta" id="save-state" role="status">等待作品…</p></header>
   <div class="preview" id="preview" data-fit="height" role="group" aria-label="预览画面" hidden><img id="preview-img" alt="完整对话作品预览" /></div>
-  <p id="long-hint" class="hint" hidden>这是一张长图。当前适合宽度展开阅读，可切换完整构图或原图。</p>
-  <div class="view-options" id="view-options" aria-label="预览尺寸" hidden>
-    <button type="button" data-fit="height" aria-pressed="true">适合高度</button><button type="button" data-fit="width" aria-pressed="false">适合宽度</button><button type="button" data-fit="original" aria-pressed="false">查看原图 / 放大</button>
-  </div>
   <div class="toolbar" id="toolbar" hidden>
     <button id="edit-work" class="primary" type="button">编辑作品</button>
     <button id="download" type="button" hidden>下载 PNG</button>
+    <details class="preview-controls" id="view-options" hidden><summary>查看尺寸</summary><div class="view-options" aria-label="预览尺寸"><button type="button" data-fit="height" aria-pressed="true">完整画面</button><button type="button" data-fit="width" aria-pressed="false">展开阅读</button><button type="button" data-fit="original" aria-pressed="false">原图大小</button><p id="long-hint" class="hint" hidden>长图已完整显示。选择「展开阅读」可放大文字，滚动阅读。</p></div></details>
     <details class="more"><summary>更多</summary><div class="more-content"><h2>作品信息</h2><p class="meta" id="scene-meta"></p><p class="hint">头像、样式与标记可在网页编辑器中调整。</p><a id="web-link" class="action" target="_blank" rel="noopener noreferrer" hidden>在网页中打开</a></div></details>
   </div>
   <form id="edit-form" hidden>
@@ -219,10 +220,11 @@ export function buildRenderWidgetHtml() {
       latest.dataUri = dataUri;
       previewBox.hidden = false;
       document.getElementById("view-options").hidden = false;
-      // Long images open width-fit so their text is readable at once; every
-      // image keeps the complete-composition and original-size options.
+      // Start with the whole composition. Scrolling is an explicit reading
+      // choice, so long artwork never opens cropped inside the result card.
       var longImage = Number.isInteger(structured.width) && Number.isInteger(structured.height) && structured.height > structured.width * 3;
-      setFit(longImage ? "width" : "height");
+      setFit("height");
+      document.getElementById("view-options").open = false;
       document.getElementById("long-hint").hidden = !longImage;
       pendingUpdateNote = wasEditing;
       beginImageRequest(dataUri);
@@ -242,6 +244,7 @@ export function buildRenderWidgetHtml() {
     var preview = document.getElementById("preview");
     if (preview) {
       preview.dataset.fit = fit;
+      preview.scrollTop = 0; preview.scrollLeft = 0;
       // Scrollable reading regions must be reachable and scrollable by keyboard.
       var scrollable = fit === "width" || fit === "original";
       if (scrollable) preview.setAttribute("tabindex", "0");

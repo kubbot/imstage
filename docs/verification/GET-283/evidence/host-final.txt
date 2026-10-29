@@ -1,0 +1,4319 @@
+TAP version 13
+# Subtest: only a current identity unauthorized response expires the session
+ok 1 - only a current identity unauthorized response expires the session
+  ---
+  duration_ms: 19.011041
+  type: 'test'
+  ...
+# Subtest: login destinations stay on permitted internal pages
+ok 2 - login destinations stay on permitted internal pages
+  ---
+  duration_ms: 0.217041
+  type: 'test'
+  ...
+# (node:29749) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: GET /api/agent/capabilities is public and exposes only non-secret status
+ok 3 - GET /api/agent/capabilities is public and exposes only non-secret status
+  ---
+  duration_ms: 42.319625
+  type: 'test'
+  ...
+# Subtest: GET /api/agent/capabilities reports unconfigured without a provider
+ok 4 - GET /api/agent/capabilities reports unconfigured without a provider
+  ---
+  duration_ms: 17.667666
+  type: 'test'
+  ...
+# Subtest: POST /api/agent/run requires a session, matching Origin and the request marker
+ok 5 - POST /api/agent/run requires a session, matching Origin and the request marker
+  ---
+  duration_ms: 191.4175
+  type: 'test'
+  ...
+# Subtest: POST /api/agent/run is denied with 503 when the AI service is not configured
+ok 6 - POST /api/agent/run is denied with 503 when the AI service is not configured
+  ---
+  duration_ms: 174.150875
+  type: 'test'
+  ...
+# Subtest: POST /api/agent/run streams admitted NDJSON with the exact event union
+ok 7 - POST /api/agent/run streams admitted NDJSON with the exact event union
+  ---
+  duration_ms: 455.78175
+  type: 'test'
+  ...
+# Subtest: POST /api/agent/run validates prompt, scene, target, attachments and history
+ok 8 - POST /api/agent/run validates prompt, scene, target, attachments and history
+  ---
+  duration_ms: 241.137666
+  type: 'test'
+  ...
+# Subtest: POST /api/agent/run surfaces an unconfigured image tool as a failed event, not success
+ok 9 - POST /api/agent/run surfaces an unconfigured image tool as a failed event, not success
+  ---
+  duration_ms: 324.880459
+  type: 'test'
+  ...
+# Subtest: agent runs enforce per-user and global active limits and release on finish
+ok 10 - agent runs enforce per-user and global active limits and release on finish
+  ---
+  duration_ms: 206.42625
+  type: 'test'
+  ...
+# Subtest: agent rate limiting is bounded per user and returns Retry-After
+ok 11 - agent rate limiting is bounded per user and returns Retry-After
+  ---
+  duration_ms: 271.980167
+  type: 'test'
+  ...
+# Subtest: the run lease and stream are cleaned up when the client disconnects
+ok 12 - the run lease and stream are cleaned up when the client disconnects
+  ---
+  duration_ms: 304.980375
+  type: 'test'
+  ...
+# Subtest: a non-reading client cannot hold the run lease past the whole-run deadline
+ok 13 - a non-reading client cannot hold the run lease past the whole-run deadline
+  ---
+  duration_ms: 281.816833
+  type: 'test'
+  ...
+# Subtest: an oversized agent body is rejected with 413 before streaming
+ok 14 - an oversized agent body is rejected with 413 before streaming
+  ---
+  duration_ms: 427.386
+  type: 'test'
+  ...
+# Subtest: generated images must actually decode; a forged PNG header cannot succeed
+ok 15 - generated images must actually decode; a forged PNG header cannot succeed
+  ---
+  duration_ms: 10.155334
+  type: 'test'
+  ...
+# Subtest: cancelled image validation never reports success
+ok 16 - cancelled image validation never reports success
+  ---
+  duration_ms: 0.198334
+  type: 'test'
+  ...
+# Subtest: normalizeObservationMetadata keeps supplied provenance and revision
+ok 17 - normalizeObservationMetadata keeps supplied provenance and revision
+  ---
+  duration_ms: 0.647292
+  type: 'test'
+  ...
+# Subtest: normalizeObservationMetadata marks missing provenance as unverified
+ok 18 - normalizeObservationMetadata marks missing provenance as unverified
+  ---
+  duration_ms: 0.102834
+  type: 'test'
+  ...
+# Subtest: buildObservationParts labels every image before it and never emits a bare image
+ok 19 - buildObservationParts labels every image before it and never emits a bare image
+  ---
+  duration_ms: 0.351333
+  type: 'test'
+  ...
+# Subtest: buildObservationParts flags missing provenance instead of inventing it
+ok 20 - buildObservationParts flags missing provenance instead of inventing it
+  ---
+  duration_ms: 0.077833
+  type: 'test'
+  ...
+# Subtest: observationLabel treats metadata as bounded single-line data
+ok 21 - observationLabel treats metadata as bounded single-line data
+  ---
+  duration_ms: 0.409625
+  type: 'test'
+  ...
+# Subtest: buildObservationParts supports metadata entries that embed their own image
+ok 22 - buildObservationParts supports metadata entries that embed their own image
+  ---
+  duration_ms: 0.346042
+  type: 'test'
+  ...
+# Subtest: a valid final finish tool is allowed on the last maxRounds iteration
+ok 23 - a valid final finish tool is allowed on the last maxRounds iteration
+  ---
+  duration_ms: 1.610125
+  type: 'test'
+  ...
+# Subtest: the tool-call cap still bounds a finish on the final round
+ok 24 - the tool-call cap still bounds a finish on the final round
+  ---
+  duration_ms: 0.444958
+  type: 'test'
+  ...
+# Subtest: a finish tool that is not the last call never terminates the run
+ok 25 - a finish tool that is not the last call never terminates the run
+  ---
+  duration_ms: 1.322292
+  type: 'test'
+  ...
+# Subtest: a mutation without a preview fails and never emits completion prose
+ok 26 - a mutation without a preview fails and never emits completion prose
+  ---
+  duration_ms: 1.294417
+  type: 'test'
+  ...
+# Subtest: a stale preview cannot complete a later mutation
+ok 27 - a stale preview cannot complete a later mutation
+  ---
+  duration_ms: 1.0455
+  type: 'test'
+  ...
+# Subtest: intermediate narration is deferred until the run is verified terminal
+ok 28 - intermediate narration is deferred until the run is verified terminal
+  ---
+  duration_ms: 0.26175
+  type: 'test'
+  ...
+# Subtest: a failed run releases no completion prose even after real mutations
+ok 29 - a failed run releases no completion prose even after real mutations
+  ---
+  duration_ms: 0.509917
+  type: 'test'
+  ...
+# Subtest: runAgent sends labeled observation images with provenance and revision
+ok 30 - runAgent sends labeled observation images with provenance and revision
+  ---
+  duration_ms: 0.278583
+  type: 'test'
+  ...
+# Subtest: runAgent marks observations without metadata as unverified, not generic
+ok 31 - runAgent marks observations without metadata as unverified, not generic
+  ---
+  duration_ms: 0.472958
+  type: 'test'
+  ...
+# Subtest: finish explains unresolved image dependency and a successful explicit replacement recovers
+ok 32 - finish explains unresolved image dependency and a successful explicit replacement recovers
+  ---
+  duration_ms: 0.791708
+  type: 'test'
+  ...
+# Subtest: select_template validates enums, preserves scene preferences/assets and exposes the complete catalog
+ok 33 - select_template validates enums, preserves scene preferences/assets and exposes the complete catalog
+  ---
+  duration_ms: 3.434833
+  type: 'test'
+  ...
+# Subtest: template changes are blocked for local targets, allowed for @scene, and truthful on no-op
+ok 34 - template changes are blocked for local targets, allowed for @scene, and truthful on no-op
+  ---
+  duration_ms: 0.286625
+  type: 'test'
+  ...
+# Subtest: initial WhatsApp request selects its template before a full rebuild and survives scene events
+ok 35 - initial WhatsApp request selects its template before a full rebuild and survives scene events
+  ---
+  duration_ms: 14.584792
+  type: 'test'
+  ...
+# Subtest: DeepSeek thinking protocol round trips reasoning without putting it in final content
+ok 36 - DeepSeek thinking protocol round trips reasoning without putting it in final content
+  ---
+  duration_ms: 19.387
+  type: 'test'
+  ...
+# Subtest: runAgent performs a genuine multi-round tool sequence and feeds results back
+ok 37 - runAgent performs a genuine multi-round tool sequence and feeds results back
+  ---
+  duration_ms: 19.015833
+  type: 'test'
+  ...
+# Subtest: runAgent recovers from invalid tool arguments via truthful error feedback
+ok 38 - runAgent recovers from invalid tool arguments via truthful error feedback
+  ---
+  duration_ms: 1.184459
+  type: 'test'
+  ...
+# Subtest: runAgent reports malformed tool argument JSON back to the model
+ok 39 - runAgent reports malformed tool argument JSON back to the model
+  ---
+  duration_ms: 0.786791
+  type: 'test'
+  ...
+# Subtest: runAgent accepts object-shaped tool arguments (already parsed)
+ok 40 - runAgent accepts object-shaped tool arguments (already parsed)
+  ---
+  duration_ms: 0.880042
+  type: 'test'
+  ...
+# Subtest: a narrated-only run is an error, never a success
+ok 41 - a narrated-only run is an error, never a success
+  ---
+  duration_ms: 0.887792
+  type: 'test'
+  ...
+# Subtest: a tool call that changes nothing is a failed tool result
+ok 42 - a tool call that changes nothing is a failed tool result
+  ---
+  duration_ms: 0.726292
+  type: 'test'
+  ...
+# Subtest: deleting a missing message is a failed tool result
+ok 43 - deleting a missing message is a failed tool result
+  ---
+  duration_ms: 1.621166
+  type: 'test'
+  ...
+# Subtest: upsert_message inserts a brand-new message as well as updating one
+ok 44 - upsert_message inserts a brand-new message as well as updating one
+  ---
+  duration_ms: 0.852708
+  type: 'test'
+  ...
+# Subtest: a new message without a valid sender fails validation and is fed back
+ok 45 - a new message without a valid sender fails validation and is fed back
+  ---
+  duration_ms: 0.822333
+  type: 'test'
+  ...
+# Subtest: targeted runs only allow the selected message to change
+ok 46 - targeted runs only allow the selected message to change
+  ---
+  duration_ms: 3.257209
+  type: 'test'
+  ...
+# Subtest: targeted run rejects a mismatched message id and never touches others
+ok 47 - targeted run rejects a mismatched message id and never touches others
+  ---
+  duration_ms: 0.447042
+  type: 'test'
+  ...
+# Subtest: create_scene preserves scene.id and existing assets without echoing base64 to the model
+ok 48 - create_scene preserves scene.id and existing assets without echoing base64 to the model
+  ---
+  duration_ms: 1.064041
+  type: 'test'
+  ...
+# Subtest: model-supplied asset/avatar values are ignored in favour of server-side assets
+ok 49 - model-supplied asset/avatar values are ignored in favour of server-side assets
+  ---
+  duration_ms: 1.156042
+  type: 'test'
+  ...
+# Subtest: generate_image sets a validated asset and never feeds base64 back to the model
+ok 50 - generate_image sets a validated asset and never feeds base64 back to the model
+  ---
+  duration_ms: 9.131417
+  type: 'test'
+  ...
+# Subtest: missing image configuration yields a truthful failed tool result and keeps text edits working
+ok 51 - missing image configuration yields a truthful failed tool result and keeps text edits working
+  ---
+  duration_ms: 0.653208
+  type: 'test'
+  ...
+# Subtest: an image provider failure is surfaced and does not fake success
+ok 52 - an image provider failure is surfaced and does not fake success
+  ---
+  duration_ms: 0.574167
+  type: 'test'
+  ...
+# Subtest: generate_image rejects avatar changes during a targeted run
+ok 53 - generate_image rejects avatar changes during a targeted run
+  ---
+  duration_ms: 0.392709
+  type: 'test'
+  ...
+# Subtest: generate_image requires an image-type message and never calls the provider otherwise
+ok 54 - generate_image requires an image-type message and never calls the provider otherwise
+  ---
+  duration_ms: 2.261833
+  type: 'test'
+  ...
+# Subtest: an aborted image tool aborts the whole batch before later mutations
+ok 55 - an aborted image tool aborts the whole batch before later mutations
+  ---
+  duration_ms: 22.094708
+  type: 'test'
+  ...
+# Subtest: an image tool that resolves after abort cannot mutate or emit
+ok 56 - an image tool that resolves after abort cannot mutate or emit
+  ---
+  duration_ms: 1.062
+  type: 'test'
+  ...
+# Subtest: attachments are forwarded as bounded multimodal image parts
+ok 57 - attachments are forwarded as bounded multimodal image parts
+  ---
+  duration_ms: 0.647209
+  type: 'test'
+  ...
+# Subtest: agent input validation enforces every documented bound
+ok 58 - agent input validation enforces every documented bound
+  ---
+  duration_ms: 0.385959
+  type: 'test'
+  ...
+# Subtest: scene resource limits reject oversized input and oversized mutations
+ok 59 - scene resource limits reject oversized input and oversized mutations
+  ---
+  duration_ms: 2.852
+  type: 'test'
+  ...
+# Subtest: checkSceneLimits reports ids, names, dates and texts
+ok 60 - checkSceneLimits reports ids, names, dates and texts
+  ---
+  duration_ms: 0.3555
+  type: 'test'
+  ...
+# Subtest: buildSceneContext is size-bounded and preserves an early target message
+ok 61 - buildSceneContext is size-bounded and preserves an early target message
+  ---
+  duration_ms: 1.651125
+  type: 'test'
+  ...
+# Subtest: runAgent stops at the round cap without claiming success
+ok 62 - runAgent stops at the round cap without claiming success
+  ---
+  duration_ms: 1.020292
+  type: 'test'
+  ...
+# Subtest: runAgent stops at the tool-call cap
+ok 63 - runAgent stops at the tool-call cap
+  ---
+  duration_ms: 0.790416
+  type: 'test'
+  ...
+# Subtest: runAgent aborts on the wall deadline with a truthful error event
+ok 64 - runAgent aborts on the wall deadline with a truthful error event
+  ---
+  duration_ms: 43.426709
+  type: 'test'
+  ...
+# Subtest: runAgent honours client cancellation without emitting done
+ok 65 - runAgent honours client cancellation without emitting done
+  ---
+  duration_ms: 17.1695
+  type: 'test'
+  ...
+# Subtest: runAgent surfaces provider failures through a bounded error event
+ok 66 - runAgent surfaces provider failures through a bounded error event
+  ---
+  duration_ms: 0.855083
+  type: 'test'
+  ...
+# Subtest: runAgent never truncates a scene whose id differs from the payload
+ok 67 - runAgent never truncates a scene whose id differs from the payload
+  ---
+  duration_ms: 9.907791
+  type: 'test'
+  ...
+# Subtest: runAgent fails an incomplete final turn before emitting done
+ok 68 - runAgent fails an incomplete final turn before emitting done
+  ---
+  duration_ms: 3.756875
+  type: 'test'
+  ...
+# Subtest: an incomplete turn is neither applied nor finalized even after real mutations
+ok 69 - an incomplete turn is neither applied nor finalized even after real mutations
+  ---
+  duration_ms: 1.340125
+  type: 'test'
+  ...
+# Subtest: stub providers without a finishReason field still run normally
+ok 70 - stub providers without a finishReason field still run normally
+  ---
+  duration_ms: 2.809666
+  type: 'test'
+  ...
+# Subtest: writeNdjsonLine resolves immediately when the socket accepts the line
+ok 71 - writeNdjsonLine resolves immediately when the socket accepts the line
+  ---
+  duration_ms: 0.418125
+  type: 'test'
+  ...
+# Subtest: writeNdjsonLine waits for drain under backpressure and cleans up
+ok 72 - writeNdjsonLine waits for drain under backpressure and cleans up
+  ---
+  duration_ms: 0.883709
+  type: 'test'
+  ...
+# Subtest: writeNdjsonLine backpressure wait is abortable by the whole-run deadline
+ok 73 - writeNdjsonLine backpressure wait is abortable by the whole-run deadline
+  ---
+  duration_ms: 0.574875
+  type: 'test'
+  ...
+# Subtest: writeNdjsonLine rejects immediately for an aborted signal or a gone socket
+ok 74 - writeNdjsonLine rejects immediately for an aborted signal or a gone socket
+  ---
+  duration_ms: 0.369084
+  type: 'test'
+  ...
+# Subtest: writeNdjsonLine rejects and removes listeners when the socket closes mid-wait
+ok 75 - writeNdjsonLine rejects and removes listeners when the socket closes mid-wait
+  ---
+  duration_ms: 0.067208
+  type: 'test'
+  ...
+# Subtest: finishNdjsonResponse ends cleanly on a normal run
+ok 76 - finishNdjsonResponse ends cleanly on a normal run
+  ---
+  duration_ms: 0.057417
+  type: 'test'
+  ...
+# Subtest: finishNdjsonResponse emits a timeout error and destroys a stuck socket boundedly
+ok 77 - finishNdjsonResponse emits a timeout error and destroys a stuck socket boundedly
+  ---
+  duration_ms: 61.841916
+  type: 'test'
+  ...
+# Subtest: finishNdjsonResponse leaves an already-finished response alone
+ok 78 - finishNdjsonResponse leaves an already-finished response alone
+  ---
+  duration_ms: 0.296792
+  type: 'test'
+  ...
+# Subtest: serializeAgentEvent emits exactly the documented union
+ok 79 - serializeAgentEvent emits exactly the documented union
+  ---
+  duration_ms: 0.670291
+  type: 'test'
+  ...
+# Subtest: AGENT_TOOL_SCHEMAS exposes the scene tools with JSON schemas
+ok 80 - AGENT_TOOL_SCHEMAS exposes the scene tools with JSON schemas
+  ---
+  duration_ms: 0.104084
+  type: 'test'
+  ...
+# Subtest: resolveAgentConfig reads the documented server-only env and degrades safely
+ok 81 - resolveAgentConfig reads the documented server-only env and degrades safely
+  ---
+  duration_ms: 1.286209
+  type: 'test'
+  ...
+# Subtest: resolveAgentConfig selects the image provider and fails closed for unknown names
+ok 82 - resolveAgentConfig selects the image provider and fails closed for unknown names
+  ---
+  duration_ms: 0.49875
+  type: 'test'
+  ...
+# Subtest: the runtime routes Tencent WAND configs through the async provider
+ok 83 - the runtime routes Tencent WAND configs through the async provider
+  ---
+  duration_ms: 9.9545
+  type: 'test'
+  ...
+# Subtest: createChatProvider posts the documented DeepSeek tool-calling request
+ok 84 - createChatProvider posts the documented DeepSeek tool-calling request
+  ---
+  duration_ms: 1.035416
+  type: 'test'
+  ...
+# Subtest: createChatProvider fails closed on incomplete, missing and unknown finish reasons
+ok 85 - createChatProvider fails closed on incomplete, missing and unknown finish reasons
+  ---
+  duration_ms: 4.627625
+  type: 'test'
+  ...
+# Subtest: createChatProvider surfaces bounded Chinese errors without leaking the key
+ok 86 - createChatProvider surfaces bounded Chinese errors without leaking the key
+  ---
+  duration_ms: 1.216709
+  type: 'test'
+  ...
+# Subtest: createChatProvider enforces a bounded response size
+ok 87 - createChatProvider enforces a bounded response size
+  ---
+  duration_ms: 0.675917
+  type: 'test'
+  ...
+# Subtest: createChatProvider propagates cancellation
+ok 88 - createChatProvider propagates cancellation
+  ---
+  duration_ms: 6.320958
+  type: 'test'
+  ...
+# Subtest: createImageProvider uses b64_json only and validates the raster payload
+ok 89 - createImageProvider uses b64_json only and validates the raster payload
+  ---
+  duration_ms: 1.448333
+  type: 'test'
+  ...
+# Subtest: agent limiter enforces global, per-user active and rate limits
+ok 90 - agent limiter enforces global, per-user active and rate limits
+  ---
+  duration_ms: 0.507167
+  type: 'test'
+  ...
+# Subtest: a mismatched imstage recreate keeps the chosen WeChat/WhatsApp skin and only update_element switches it
+ok 91 - a mismatched imstage recreate keeps the chosen WeChat/WhatsApp skin and only update_element switches it
+  ---
+  duration_ms: 0.833125
+  type: 'test'
+  ...
+# Subtest: agent guidance preserves the selected platform and never recommends imstage over it
+ok 92 - agent guidance preserves the selected platform and never recommends imstage over it
+  ---
+  duration_ms: 0.403
+  type: 'test'
+  ...
+# Subtest: Chinese preserves server validation detail and falls back generically
+ok 93 - Chinese preserves server validation detail and falls back generically
+  ---
+  duration_ms: 1.20275
+  type: 'test'
+  ...
+# Subtest: English maps Chinese server codes to stable text and never surfaces Chinese
+ok 94 - English maps Chinese server codes to stable text and never surfaces Chinese
+  ---
+  duration_ms: 0.576417
+  type: 'test'
+  ...
+# Subtest: safeNext accepts the template route and rejects everything else
+ok 95 - safeNext accepts the template route and rejects everything else
+  ---
+  duration_ms: 0.887791
+  type: 'test'
+  ...
+# (node:29911) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: GET /api/health reports ready with no-store security headers
+ok 96 - GET /api/health reports ready with no-store security headers
+  ---
+  duration_ms: 129.051292
+  type: 'test'
+  ...
+# Subtest: registration normalizes the email, establishes a session, and never leaks the hash
+ok 97 - registration normalizes the email, establishes a session, and never leaks the hash
+  ---
+  duration_ms: 508.013792
+  type: 'test'
+  ...
+# Subtest: registration validates name, email and password bounds
+ok 98 - registration validates name, email and password bounds
+  ---
+  duration_ms: 19.74775
+  type: 'test'
+  ...
+# Subtest: duplicate registration is rejected without leaking a session
+ok 99 - duplicate registration is rejected without leaking a session
+  ---
+  duration_ms: 801.385042
+  type: 'test'
+  ...
+# Subtest: passwords are not trimmed
+ok 100 - passwords are not trimmed
+  ---
+  duration_ms: 868.090083
+  type: 'test'
+  ...
+# Subtest: login succeeds with the right password and returns a uniform credential error otherwise
+ok 101 - login succeeds with the right password and returns a uniform credential error otherwise
+  ---
+  duration_ms: 1109.784875
+  type: 'test'
+  ...
+# Subtest: logout revokes the server session and clears the cookie
+ok 102 - logout revokes the server session and clears the cookie
+  ---
+  duration_ms: 200.888708
+  type: 'test'
+  ...
+# Subtest: logout is idempotent and does not require a session
+ok 103 - logout is idempotent and does not require a session
+  ---
+  duration_ms: 3.321083
+  type: 'test'
+  ...
+# Subtest: password change revokes ALL sessions and requires re-login
+ok 104 - password change revokes ALL sessions and requires re-login
+  ---
+  duration_ms: 972.753208
+  type: 'test'
+  ...
+# Subtest: password change validates the new password length
+ok 105 - password change validates the new password length
+  ---
+  duration_ms: 180.894125
+  type: 'test'
+  ...
+# Subtest: users and sessions survive a server restart
+ok 106 - users and sessions survive a server restart
+  ---
+  duration_ms: 528.011917
+  type: 'test'
+  ...
+# Subtest: sessions expire after exactly 7 days and are not extended by use
+ok 107 - sessions expire after exactly 7 days and are not extended by use
+  ---
+  duration_ms: 724.616625
+  type: 'test'
+  ...
+# Subtest: mutations require a matching Origin and the custom request header
+ok 108 - mutations require a matching Origin and the custom request header
+  ---
+  duration_ms: 230.862125
+  type: 'test'
+  ...
+# Subtest: mutations reject non-JSON content types
+ok 109 - mutations reject non-JSON content types
+  ---
+  duration_ms: 2.900834
+  type: 'test'
+  ...
+# Subtest: auth bodies over 16 KiB are rejected with 413
+ok 110 - auth bodies over 16 KiB are rejected with 413
+  ---
+  duration_ms: 4.88975
+  type: 'test'
+  ...
+# Subtest: scene bodies over 16 MiB are rejected with 413
+ok 111 - scene bodies over 16 MiB are rejected with 413
+  ---
+  duration_ms: 364.297917
+  type: 'test'
+  ...
+# Subtest: early rejections with a large body still return a readable JSON error
+ok 112 - early rejections with a large body still return a readable JSON error
+  ---
+  duration_ms: 185.0675
+  type: 'test'
+  ...
+# Subtest: scenes are created, listed, fetched, updated and deleted with revisions
+ok 113 - scenes are created, listed, fetched, updated and deleted with revisions
+  ---
+  duration_ms: 258.110584
+  type: 'test'
+  ...
+# Subtest: scene validation rejects invalid data and remote asset URLs
+ok 114 - scene validation rejects invalid data and remote asset URLs
+  ---
+  duration_ms: 322.07575
+  type: 'test'
+  ...
+# Subtest: scenes are isolated per owner and never leak across users
+ok 115 - scenes are isolated per owner and never leak across users
+  ---
+  duration_ms: 424.488167
+  type: 'test'
+  ...
+# Subtest: creating more than 100 scenes per user is rejected
+ok 116 - creating more than 100 scenes per user is rejected
+  ---
+  duration_ms: 406.91625
+  type: 'test'
+  ...
+# Subtest: repeated auth attempts are throttled per normalized email with 429
+ok 117 - repeated auth attempts are throttled per normalized email with 429
+  ---
+  duration_ms: 401.065167
+  type: 'test'
+  ...
+# Subtest: auth attempts are also throttled per remote IP
+ok 118 - auth attempts are also throttled per remote IP
+  ---
+  duration_ms: 241.976791
+  type: 'test'
+  ...
+# Subtest: createApp refuses non-loopback binds and unsafe production origins
+ok 119 - createApp refuses non-loopback binds and unsafe production origins
+  ---
+  duration_ms: 4.846334
+  type: 'test'
+  ...
+# Subtest: an HTTPS app origin marks the session cookie Secure
+ok 120 - an HTTPS app origin marks the session cookie Secure
+  ---
+  duration_ms: 309.745916
+  type: 'test'
+  ...
+# Subtest: static serving only exposes dist assets, falls back for SPA routes and never for API
+ok 121 - static serving only exposes dist assets, falls back for SPA routes and never for API
+  ---
+  duration_ms: 56.57075
+  type: 'test'
+  ...
+# Subtest: concurrent password changes cannot both commit and old login cannot outlive change
+ok 122 - concurrent password changes cannot both commit and old login cannot outlive change
+  ---
+  duration_ms: 646.516
+  type: 'test'
+  ...
+# Subtest: stale browser identity never writes or reads the newly signed-in account
+ok 123 - stale browser identity never writes or reads the newly signed-in account
+  ---
+  duration_ms: 441.912167
+  type: 'test'
+  ...
+# Subtest: static symlinks cannot disclose files outside the build directory
+ok 124 - static symlinks cannot disclose files outside the build directory
+  ---
+  duration_ms: 8.81175
+  type: 'test'
+  ...
+# Subtest: forwarded client address requires opt-in, a loopback peer and one valid IP
+ok 125 - forwarded client address requires opt-in, a loopback peer and one valid IP
+  ---
+  duration_ms: 0.193542
+  type: 'test'
+  ...
+# Subtest: one proxied client cannot exhaust a second client auth IP bucket
+ok 126 - one proxied client cannot exhaust a second client auth IP bucket
+  ---
+  duration_ms: 346.907459
+  type: 'test'
+  ...
+# Subtest: unconfigured business email renders an honest unavailable state (zh/en)
+ok 127 - unconfigured business email renders an honest unavailable state (zh/en)
+  ---
+  duration_ms: 0.494083
+  type: 'test'
+  ...
+# Subtest: a configured business email renders a real mailto link
+ok 128 - a configured business email renders a real mailto link
+  ---
+  duration_ms: 0.075167
+  type: 'test'
+  ...
+# Subtest: invalid configured values fall back to the unavailable state, never a broken link
+ok 129 - invalid configured values fall back to the unavailable state, never a broken link
+  ---
+  duration_ms: 0.055
+  type: 'test'
+  ...
+# Subtest: the commercial offer mentions only private/closed-source datasets and annotations
+ok 130 - the commercial offer mentions only private/closed-source datasets and annotations
+  ---
+  duration_ms: 0.145917
+  type: 'test'
+  ...
+# (node:30110) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: account-owned ChatGPT/MCP connections
+    # Subtest: public config is derived only from the configured app origin
+    ok 1 - public config is derived only from the configured app origin
+      ---
+      duration_ms: 13.334541
+      type: 'test'
+      ...
+    # Subtest: discovery documents are served on every documented alias
+    ok 2 - discovery documents are served on every documented alias
+      ---
+      duration_ms: 34.356041
+      type: 'test'
+      ...
+    # Subtest: unauthenticated /api/mcp returns 401 with a resource_metadata challenge
+    ok 3 - unauthenticated /api/mcp returns 401 with a resource_metadata challenge
+      ---
+      duration_ms: 5.61275
+      type: 'test'
+      ...
+    # Subtest: connection management requires a session
+    ok 4 - connection management requires a session
+      ---
+      duration_ms: 5.795834
+      type: 'test'
+      ...
+    # Subtest: dynamic registration rejects unsafe redirect URIs
+    ok 5 - dynamic registration rejects unsafe redirect URIs
+      ---
+      duration_ms: 44.329917
+      type: 'test'
+      ...
+    # Subtest: registration rejects every non-loopback or malformed HTTP redirect target
+    ok 6 - registration rejects every non-loopback or malformed HTTP redirect target
+      ---
+      duration_ms: 30.291166
+      type: 'test'
+      ...
+    # Subtest: native loopback clients may use a random local port (RFC 8252 §7.3)
+    ok 7 - native loopback clients may use a random local port (RFC 8252 §7.3)
+      ---
+      duration_ms: 20.079083
+      type: 'test'
+      ...
+    # Subtest: loopback matching keeps scheme, host, path and query exact
+    ok 8 - loopback matching keeps scheme, host, path and query exact
+      ---
+      duration_ms: 12.029375
+      type: 'test'
+      ...
+    # Subtest: connection status reflects real authentication and tool discovery
+    ok 9 - connection status reflects real authentication and tool discovery
+      ---
+      duration_ms: 25.923417
+      type: 'test'
+      ...
+    # Subtest: authorize rejects an unregistered redirect locally (never redirects)
+    ok 10 - authorize rejects an unregistered redirect locally (never redirects)
+      ---
+      duration_ms: 3.96725
+      type: 'test'
+      ...
+    # Subtest: consent is explicit, session-bound and single-use
+    ok 11 - consent is explicit, session-bound and single-use
+      ---
+      duration_ms: 47.319333
+      type: 'test'
+      ...
+    # Subtest: PKCE mismatch is rejected and a correct exchange still succeeds
+    ok 12 - PKCE mismatch is rejected and a correct exchange still succeeds
+      ---
+      duration_ms: 19.820417
+      type: 'test'
+      ...
+    # Subtest: authorization code is single-use and reuse revokes the minted family
+    ok 13 - authorization code is single-use and reuse revokes the minted family
+      ---
+      duration_ms: 29.562208
+      type: 'test'
+      ...
+    # Subtest: audience and scope are validated with standard OAuth errors
+    ok 14 - audience and scope are validated with standard OAuth errors
+      ---
+      duration_ms: 18.081084
+      type: 'test'
+      ...
+    # Subtest: denial returns a validated redirect with access_denied and state
+    ok 15 - denial returns a validated redirect with access_denied and state
+      ---
+      duration_ms: 9.289208
+      type: 'test'
+      ...
+    # Subtest: personal tokens are hashed, owner-scoped, listable and revocable
+    ok 16 - personal tokens are hashed, owner-scoped, listable and revocable
+      ---
+      duration_ms: 80.059333
+      type: 'test'
+      ...
+    # Subtest: safe Origin policy and owner-scoped deletion
+    ok 17 - safe Origin policy and owner-scoped deletion
+      ---
+      duration_ms: 16.540917
+      type: 'test'
+      ...
+    # Subtest: MCP exposes only the account scene tools with OAuth securitySchemes (scenes-only credential)
+    ok 18 - MCP exposes only the account scene tools with OAuth securitySchemes (scenes-only credential)
+      ---
+      duration_ms: 20.932166
+      type: 'test'
+      ...
+    # Subtest: hidden instance tools are not callable and never touch shared state
+    ok 19 - hidden instance tools are not callable and never touch shared state
+      ---
+      duration_ms: 46.79725
+      type: 'test'
+      ...
+    # Subtest: default full scopes reveal the account project tools with per-tool schemes
+    ok 20 - default full scopes reveal the account project tools with per-tool schemes
+      ---
+      duration_ms: 13.638166
+      type: 'test'
+      ...
+    # Subtest: legacy scenes-only credentials keep exactly the six scene tools
+    ok 21 - legacy scenes-only credentials keep exactly the six scene tools
+      ---
+      duration_ms: 19.033833
+      type: 'test'
+      ...
+    # Subtest: personal tokens honor explicit scope selection and reject unknown scopes
+    ok 22 - personal tokens honor explicit scope selection and reject unknown scopes
+      ---
+      duration_ms: 8.359042
+      type: 'test'
+      ...
+    # Subtest: tokens bound to another audience are rejected
+    ok 23 - tokens bound to another audience are rejected
+      ---
+      duration_ms: 3.30675
+      type: 'test'
+      ...
+    # Subtest: oversized OAuth fields are rejected before hashing or storage
+    ok 24 - oversized OAuth fields are rejected before hashing or storage
+      ---
+      duration_ms: 5.685667
+      type: 'test'
+      ...
+    # Subtest: MCP create -> Web read -> Web write -> MCP read -> MCP update -> render
+    ok 25 - MCP create -> Web read -> Web write -> MCP read -> MCP update -> render
+      ---
+      duration_ms: 67.005125
+      type: 'test'
+      ...
+    # Subtest: idempotent create/update retries still succeed after a later edit
+    ok 26 - idempotent create/update retries still succeed after a later edit
+      ---
+      duration_ms: 65.780708
+      type: 'test'
+      ...
+    # Subtest: two accounts are isolated across scenes, idempotency and render cache
+    ok 27 - two accounts are isolated across scenes, idempotency and render cache
+      ---
+      duration_ms: 71.030375
+      type: 'test'
+      ...
+    # Subtest: a revoked connection can be reconnected from scratch
+    ok 28 - a revoked connection can be reconnected from scratch
+      ---
+      duration_ms: 28.09425
+      type: 'test'
+      ...
+    # Subtest: refresh rotation, replay revocation, revoke and password revoke
+    ok 29 - refresh rotation, replay revocation, revoke and password revoke
+      ---
+      duration_ms: 486.501
+      type: 'test'
+      ...
+    1..29
+ok 131 - account-owned ChatGPT/MCP connections
+  ---
+  duration_ms: 1630.302917
+  type: 'test'
+  ...
+# Subtest: production allows controlled loopback redirects but never arbitrary HTTP
+    # Subtest: config advertises loopback support in production
+    ok 1 - config advertises loopback support in production
+      ---
+      duration_ms: 5.298542
+      type: 'test'
+      ...
+    # Subtest: a random loopback port still completes authorization in production
+    ok 2 - a random loopback port still completes authorization in production
+      ---
+      duration_ms: 18.501542
+      type: 'test'
+      ...
+    # Subtest: arbitrary public HTTP and non-loopback hosts stay rejected
+    ok 3 - arbitrary public HTTP and non-loopback hosts stay rejected
+      ---
+      duration_ms: 14.533292
+      type: 'test'
+      ...
+    1..3
+ok 132 - production allows controlled loopback redirects but never arbitrary HTTP
+  ---
+  duration_ms: 298.395584
+  type: 'test'
+  ...
+# Subtest: actual authorization redirects reject credentials and fragments for GET and POST
+ok 133 - actual authorization redirects reject credentials and fragments for GET and POST
+  ---
+  duration_ms: 23.048166
+  type: 'test'
+  ...
+# Subtest: disabling loopback applies to existing clients and pending consent after restart
+ok 134 - disabling loopback applies to existing clients and pending consent after restart
+  ---
+  duration_ms: 209.167
+  type: 'test'
+  ...
+# Subtest: loopback redirects can be explicitly disabled without touching HTTPS
+ok 135 - loopback redirects can be explicitly disabled without touching HTTPS
+  ---
+  duration_ms: 9.255792
+  type: 'test'
+  ...
+# Subtest: revocation while an MCP body is uploading prevents a delayed write
+ok 136 - revocation while an MCP body is uploading prevents a delayed write
+  ---
+  duration_ms: 218.245875
+  type: 'test'
+  ...
+# Subtest: in-flight render is rejected when authorization is revoked
+ok 137 - in-flight render is rejected when authorization is revoked
+  ---
+  duration_ms: 250.811708
+  type: 'test'
+  ...
+# Subtest: token expiry, refresh expiry, and recent-session gate
+    # Subtest: consent approval requires a recent session
+    ok 1 - consent approval requires a recent session
+      ---
+      duration_ms: 10.29925
+      type: 'test'
+      ...
+    # Subtest: access tokens expire and refresh tokens can be rotated once
+    ok 2 - access tokens expire and refresh tokens can be rotated once
+      ---
+      duration_ms: 221.947458
+      type: 'test'
+      ...
+    1..2
+ok 138 - token expiry, refresh expiry, and recent-session gate
+  ---
+  duration_ms: 465.418709
+  type: 'test'
+  ...
+# Subtest: OAuth and MCP request rates are bounded
+    # Subtest: dynamic registration is rate limited
+    ok 1 - dynamic registration is rate limited
+      ---
+      duration_ms: 6.2095
+      type: 'test'
+      ...
+    # Subtest: /api/mcp is rate limited before authentication
+    ok 2 - /api/mcp is rate limited before authentication
+      ---
+      duration_ms: 5.982042
+      type: 'test'
+      ...
+    1..2
+ok 139 - OAuth and MCP request rates are bounded
+  ---
+  duration_ms: 21.316625
+  type: 'test'
+  ...
+# Subtest: standalone /mcp instance server is unchanged
+ok 140 - standalone /mcp instance server is unchanged
+  ---
+  duration_ms: 18.192042
+  type: 'test'
+  ...
+# Subtest: default identity fills only fresh unspecified self, retaining sender IDs
+ok 141 - default identity fills only fresh unspecified self, retaining sender IDs
+  ---
+  duration_ms: 1.289208
+  type: 'test'
+  ...
+# Subtest: same name with different avatar remains separate; exact snapshots deduplicate across generations
+ok 142 - same name with different avatar remains separate; exact snapshots deduplicate across generations
+  ---
+  duration_ms: 0.2875
+  type: 'test'
+  ...
+# Subtest: applying a contact copies identity, keeps message ownership and does not link mutable objects
+ok 143 - applying a contact copies identity, keeps message ownership and does not link mutable objects
+  ---
+  duration_ms: 0.27475
+  type: 'test'
+  ...
+# Subtest: Agent create_scene retains selected device and matches an unambiguous saved avatar after ID changes
+ok 144 - Agent create_scene retains selected device and matches an unambiguous saved avatar after ID changes
+  ---
+  duration_ms: 336.326208
+  type: 'test'
+  ...
+# (node:30304) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: interactive/batch wrapper binds saved self even when model changes participant IDs, then persists counterpart
+ok 145 - interactive/batch wrapper binds saved self even when model changes participant IDs, then persists counterpart
+  ---
+  duration_ms: 19.704
+  type: 'test'
+  ...
+# Subtest: failed or cancelled generation cannot add contacts and a portrait-only run stays unsaved
+ok 146 - failed or cancelled generation cannot add contacts and a portrait-only run stays unsaved
+  ---
+  duration_ms: 0.810958
+  type: 'test'
+  ...
+# Subtest: actual project batch blankScene receives the account self identity
+ok 147 - actual project batch blankScene receives the account self identity
+  ---
+  duration_ms: 3.076208
+  type: 'test'
+  ...
+# Subtest: a disabled auto-save library neither validates nor stores generated people
+ok 148 - a disabled auto-save library neither validates nor stores generated people
+  ---
+  duration_ms: 0.682208
+  type: 'test'
+  ...
+# Subtest: an oversized valid generated avatar saves as a bounded deterministic thumbnail while the scene keeps its bytes
+ok 149 - an oversized valid generated avatar saves as a bounded deterministic thumbnail while the scene keeps its bytes
+  ---
+  duration_ms: 123.638041
+  type: 'test'
+  ...
+# Subtest: repeated saves of the SAME oversized original dedup through identical thumbnails
+ok 150 - repeated saves of the SAME oversized original dedup through identical thumbnails
+  ---
+  duration_ms: 108.688542
+  type: 'test'
+  ...
+# Subtest: already bounded avatars pass through byte-identical and invalid sources stay truthful failures
+ok 151 - already bounded avatars pass through byte-identical and invalid sources stay truthful failures
+  ---
+  duration_ms: 37.904333
+  type: 'test'
+  ...
+# Subtest: a full contact library remains a truthful failure and never evicts existing contacts
+ok 152 - a full contact library remains a truthful failure and never evicts existing contacts
+  ---
+  duration_ms: 70.349375
+  type: 'test'
+  ...
+# Subtest: an aborted run cannot make a late contact write
+ok 153 - an aborted run cannot make a late contact write
+  ---
+  duration_ms: 43.820917
+  type: 'test'
+  ...
+# Subtest: concurrent user edits and default choice survive the append re-read
+ok 154 - concurrent user edits and default choice survive the append re-read
+  ---
+  duration_ms: 78.12575
+  type: 'test'
+  ...
+# (node:30309) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: GET /api/contact-library returns the empty default for a fresh account
+ok 155 - GET /api/contact-library returns the empty default for a fresh account
+  ---
+  duration_ms: 302.58175
+  type: 'test'
+  ...
+# Subtest: PUT creates then increments revisions and round-trips contacts in order
+ok 156 - PUT creates then increments revisions and round-trips contacts in order
+  ---
+  duration_ms: 222.112333
+  type: 'test'
+  ...
+# Subtest: stale revisions return 409 and never mutate committed state
+ok 157 - stale revisions return 409 and never mutate committed state
+  ---
+  duration_ms: 193.738417
+  type: 'test'
+  ...
+# Subtest: contact libraries are isolated per account and require a session
+ok 158 - contact libraries are isolated per account and require a session
+  ---
+  duration_ms: 431.214291
+  type: 'test'
+  ...
+# Subtest: PUT enforces Origin, request marker and identity pinning
+ok 159 - PUT enforces Origin, request marker and identity pinning
+  ---
+  duration_ms: 882.748625
+  type: 'test'
+  ...
+# Subtest: selfContactId must reference an existing contact and default deletion is invalid
+ok 160 - selfContactId must reference an existing contact and default deletion is invalid
+  ---
+  duration_ms: 247.171333
+  type: 'test'
+  ...
+# Subtest: malformed bodies and unknown fields are rejected
+ok 161 - malformed bodies and unknown fields are rejected
+  ---
+  duration_ms: 211.684125
+  type: 'test'
+  ...
+# Subtest: duplicate contact ids are rejected case-insensitively
+ok 162 - duplicate contact ids are rejected case-insensitively
+  ---
+  duration_ms: 167.254667
+  type: 'test'
+  ...
+# Subtest: at most 100 contacts are accepted
+ok 163 - at most 100 contacts are accepted
+  ---
+  duration_ms: 162.171959
+  type: 'test'
+  ...
+# Subtest: contact library bodies over 12 MiB are rejected with 413
+ok 164 - contact library bodies over 12 MiB are rejected with 413
+  ---
+  duration_ms: 222.731625
+  type: 'test'
+  ...
+# Subtest: avatars accept local png/jpeg/webp and round-trip through GET
+ok 165 - avatars accept local png/jpeg/webp and round-trip through GET
+  ---
+  duration_ms: 216.913458
+  type: 'test'
+  ...
+# Subtest: remote URLs, SVG and forged image headers are rejected
+ok 166 - remote URLs, SVG and forged image headers are rejected
+  ---
+  duration_ms: 197.137833
+  type: 'test'
+  ...
+# Subtest: avatars above 2 MiB encoded or 4 million pixels are rejected
+ok 167 - avatars above 2 MiB encoded or 4 million pixels are rejected
+  ---
+  duration_ms: 201.571583
+  type: 'test'
+  ...
+# Subtest: total decoded avatar bytes above 8 MiB are rejected
+ok 168 - total decoded avatar bytes above 8 MiB are rejected
+  ---
+  duration_ms: 172.93975
+  type: 'test'
+  ...
+# Subtest: contact library survives a server restart and keeps revision checks
+ok 169 - contact library survives a server restart and keeps revision checks
+  ---
+  duration_ms: 239.731292
+  type: 'test'
+  ...
+# Subtest: contact tables persist on disk and reopen with a fresh DatabaseSync
+ok 170 - contact tables persist on disk and reopen with a fresh DatabaseSync
+  ---
+  duration_ms: 211.622792
+  type: 'test'
+  ...
+# Subtest: contact metadata and avatar bytes are never logged
+ok 171 - contact metadata and avatar bytes are never logged
+  ---
+  duration_ms: 201.899375
+  type: 'test'
+  ...
+# Subtest: an SVG disguised as a PNG data URI is rejected even if sharp can decode it
+ok 172 - an SVG disguised as a PNG data URI is rejected even if sharp can decode it
+  ---
+  duration_ms: 9.018791
+  type: 'test'
+  ...
+# Subtest: first Agent story keeps chosen role avatars when actor IDs and names change
+ok 173 - first Agent story keeps chosen role avatars when actor IDs and names change
+  ---
+  duration_ms: 2.851541
+  type: 'test'
+  ...
+# Subtest: Agent rebuilds never reset the custom watermark and the AI cannot edit marks at all
+ok 174 - Agent rebuilds never reset the custom watermark and the AI cannot edit marks at all
+  ---
+  duration_ms: 0.67075
+  type: 'test'
+  ...
+# Subtest: custom layouts accept only bounded declarative tokens
+ok 175 - custom layouts accept only bounded declarative tokens
+  ---
+  duration_ms: 0.949625
+  type: 'test'
+  ...
+# Subtest: custom layouts reject injection, unknown fields and unsupported values
+ok 176 - custom layouts reject injection, unknown fields and unsupported values
+  ---
+  duration_ms: 0.283208
+  type: 'test'
+  ...
+# Subtest: all dimension bounds reject NaN, Infinity and out-of-range numbers
+ok 177 - all dimension bounds reject NaN, Infinity and out-of-range numbers
+  ---
+  duration_ms: 0.649792
+  type: 'test'
+  ...
+# Subtest: DEVICE_PROFILES matches the coded device spec
+ok 178 - DEVICE_PROFILES matches the coded device spec
+  ---
+  duration_ms: 1.27875
+  type: 'test'
+  ...
+# Subtest: findDeviceProfile and normaliseSurface are total and defensive
+ok 179 - findDeviceProfile and normaliseSurface are total and defensive
+  ---
+  duration_ms: 0.185
+  type: 'test'
+  ...
+# Subtest: deviceProfile chooses an explicit matching id, else the legacy surface preset
+ok 180 - deviceProfile chooses an explicit matching id, else the legacy surface preset
+  ---
+  duration_ms: 0.329583
+  type: 'test'
+  ...
+# Subtest: deviceProfileError reports unknown ids and surface mismatches only
+ok 181 - deviceProfileError reports unknown ids and surface mismatches only
+  ---
+  duration_ms: 0.257666
+  type: 'test'
+  ...
+# Subtest: validateScene persists a surface-matching deviceProfileId
+ok 182 - validateScene persists a surface-matching deviceProfileId
+  ---
+  duration_ms: 1.526917
+  type: 'test'
+  ...
+# Subtest: validateScene rejects unknown device profile ids instead of silently dropping them
+ok 183 - validateScene rejects unknown device profile ids instead of silently dropping them
+  ---
+  duration_ms: 0.150292
+  type: 'test'
+  ...
+# Subtest: validateScene rejects device profile / surface mismatches
+ok 184 - validateScene rejects device profile / surface mismatches
+  ---
+  duration_ms: 0.381458
+  type: 'test'
+  ...
+# Subtest: a mismatched explicit id is rejected even when surface is omitted
+ok 185 - a mismatched explicit id is rejected even when surface is omitted
+  ---
+  duration_ms: 0.072041
+  type: 'test'
+  ...
+# Subtest: legacy scenes without an explicit id stay valid and never gain a deviceProfileId
+ok 186 - legacy scenes without an explicit id stay valid and never gain a deviceProfileId
+  ---
+  duration_ms: 0.582375
+  type: 'test'
+  ...
+# Subtest: device profile id survives an immutable update and a draft round trip
+ok 187 - device profile id survives an immutable update and a draft round trip
+  ---
+  duration_ms: 1.192625
+  type: 'test'
+  ...
+# Subtest: parseDraft rejects a persisted device profile mismatch
+ok 188 - parseDraft rejects a persisted device profile mismatch
+  ---
+  duration_ms: 0.154
+  type: 'test'
+  ...
+# Subtest: device fidelity fixture references real profiles with consistent export pixels
+ok 189 - device fidelity fixture references real profiles with consistent export pixels
+  ---
+  duration_ms: 0.088208
+  type: 'test'
+  ...
+# Subtest: each fixture device validates the shared semantic content
+ok 190 - each fixture device validates the shared semantic content
+  ---
+  duration_ms: 0.10675
+  type: 'test'
+  ...
+# Subtest: fixture declares required avatar, realism and semantic checks
+ok 191 - fixture declares required avatar, realism and semantic checks
+  ---
+  duration_ms: 0.106459
+  type: 'test'
+  ...
+# Subtest: circle is a shape independent of source pixel radius
+ok 192 - circle is a shape independent of source pixel radius
+  ---
+  duration_ms: 2.989541
+  type: 'test'
+  ...
+# Subtest: coordinate conversion stays in one explicit source frame
+ok 193 - coordinate conversion stays in one explicit source frame
+  ---
+  duration_ms: 0.521584
+  type: 'test'
+  ...
+# Subtest: render revision changes on asset bytes and edits, not only IDs
+ok 194 - render revision changes on asset bytes and edits, not only IDs
+  ---
+  duration_ms: 0.606667
+  type: 'test'
+  ...
+# Subtest: inspect_render refuses an obsolete revision before rendering
+ok 195 - inspect_render refuses an obsolete revision before rendering
+  ---
+  duration_ms: 8.259709
+  type: 'test'
+  ...
+# Subtest: component frame includes white photo interior, excludes nearby avatar
+ok 196 - component frame includes white photo interior, excludes nearby avatar
+  ---
+  duration_ms: 43.930292
+  type: 'test'
+  ...
+# Subtest: set_edits merges independent edits instead of silently losing earlier work
+ok 197 - set_edits merges independent edits instead of silently losing earlier work
+  ---
+  duration_ms: 4.010417
+  type: 'test'
+  ...
+# Subtest: erase region is independent from the replacement layout, and restricted to text
+ok 198 - erase region is independent from the replacement layout, and restricted to text
+  ---
+  duration_ms: 1.415542
+  type: 'test'
+  ...
+# Subtest: delete_edits removes only requested layers and enforces selection
+ok 199 - delete_edits removes only requested layers and enforces selection
+  ---
+  duration_ms: 1.499417
+  type: 'test'
+  ...
+# Subtest: reordering identical edits is a no-op, not an Agent mutation
+ok 200 - reordering identical edits is a no-op, not an Agent mutation
+  ---
+  duration_ms: 1.279792
+  type: 'test'
+  ...
+# Subtest: discarded image assets can be deleted but referenced assets cannot
+ok 201 - discarded image assets can be deleted but referenced assets cannot
+  ---
+  duration_ms: 3.46175
+  type: 'test'
+  ...
+# Subtest: source search replaces repeated occurrences in one OCR line
+ok 202 - source search replaces repeated occurrences in one OCR line
+  ---
+  duration_ms: 10932.435792
+  type: 'test'
+  ...
+# Subtest: image tools reject changing selected text into an image and moving a measured frame
+ok 203 - image tools reject changing selected text into an image and moving a measured frame
+  ---
+  duration_ms: 59.694
+  type: 'test'
+  ...
+# Subtest: album detection recovers the complete receipt width from a partial approximate box
+ok 204 - album detection recovers the complete receipt width from a partial approximate box
+  ---
+  duration_ms: 11.562042
+  type: 'test'
+  ...
+# Subtest: location media split preserves the white title area and ignores the card tail
+ok 205 - location media split preserves the white title area and ignores the card tail
+  ---
+  duration_ms: 7.630334
+  type: 'test'
+  ...
+# Subtest: message text frame excludes time and cannot later be moved with set_edits
+ok 206 - message text frame excludes time and cannot later be moved with set_edits
+  ---
+  duration_ms: 2.218833
+  type: 'test'
+  ...
+# Subtest: protected receipt rejects source sampling which could copy receipt glyphs
+ok 207 - protected receipt rejects source sampling which could copy receipt glyphs
+  ---
+  duration_ms: 0.232583
+  type: 'test'
+  ...
+# Subtest: semantic batch locks only replacements, leaving unrelated manual layers editable
+ok 208 - semantic batch locks only replacements, leaving unrelated manual layers editable
+  ---
+  duration_ms: 1666.872209
+  type: 'test'
+  ...
+# Subtest: raw erasure rejects bottom-right-as-size mistakes before destroying adjacent controls
+ok 209 - raw erasure rejects bottom-right-as-size mistakes before destroying adjacent controls
+  ---
+  duration_ms: 1.9285
+  type: 'test'
+  ...
+# Subtest: legacy erasure geometry does not block unrelated edits but cannot be enlarged
+ok 210 - legacy erasure geometry does not block unrelated edits but cannot be enlarged
+  ---
+  duration_ms: 6.058041
+  type: 'test'
+  ...
+# Subtest: source restoration erases dark and light marks and preserves outside pixels
+ok 211 - source restoration erases dark and light marks and preserves outside pixels
+  ---
+  duration_ms: 1173.281584
+  type: 'test'
+  ...
+# Subtest: text erasure touching the image edge never samples the old glyph
+ok 212 - text erasure touching the image edge never samples the old glyph
+  ---
+  duration_ms: 1228.32275
+  type: 'test'
+  ...
+# Subtest: message text flows around protected receipt pixels and erases the whole old body
+ok 213 - message text flows around protected receipt pixels and erases the whole old body
+  ---
+  duration_ms: 875.0995
+  type: 'test'
+  ...
+# Subtest: receipt protection never expands the explicitly requested erase region
+ok 214 - receipt protection never expands the explicitly requested erase region
+  ---
+  duration_ms: 628.514958
+  type: 'test'
+  ...
+# Subtest: applyGenerationEvent validates a scene event and drops unknown fields
+ok 215 - applyGenerationEvent validates a scene event and drops unknown fields
+  ---
+  duration_ms: 0.952917
+  type: 'test'
+  ...
+# Subtest: applyGenerationEvent rejects malformed scene and event structures
+ok 216 - applyGenerationEvent rejects malformed scene and event structures
+  ---
+  duration_ms: 0.244291
+  type: 'test'
+  ...
+# Subtest: applyGenerationEvent appends messages immutably and enforces ids + senders
+ok 217 - applyGenerationEvent appends messages immutably and enforces ids + senders
+  ---
+  duration_ms: 0.392209
+  type: 'test'
+  ...
+# Subtest: message-delta appends text while preserving every other field
+ok 218 - message-delta appends text while preserving every other field
+  ---
+  duration_ms: 0.368667
+  type: 'test'
+  ...
+# Subtest: asset events set avatars and message images, rejecting unsafe data
+ok 219 - asset events set avatars and message images, rejecting unsafe data
+  ---
+  duration_ms: 0.334958
+  type: 'test'
+  ...
+# Subtest: status and done leave the scene untouched but reject corrupt scenes
+ok 220 - status and done leave the scene untouched but reject corrupt scenes
+  ---
+  duration_ms: 0.099708
+  type: 'test'
+  ...
+# Subtest: isMarsPrompt recognises only requests that name both Musk and Mars
+ok 221 - isMarsPrompt recognises only requests that name both Musk and Mars
+  ---
+  duration_ms: 0.222875
+  type: 'test'
+  ...
+# Subtest: streamDemo writes the Mars fiction incrementally and ends with done
+ok 222 - streamDemo writes the Mars fiction incrementally and ends with done
+  ---
+  duration_ms: 1.65975
+  type: 'test'
+  ...
+# Subtest: streamDemo resolves tomorrow in local time across month/year/leap boundaries
+ok 223 - streamDemo resolves tomorrow in local time across month/year/leap boundaries
+  ---
+  duration_ms: 1.461208
+  type: 'test'
+  ...
+# Subtest: streamDemo rejects unrelated prompts instead of silently producing Mars
+ok 224 - streamDemo rejects unrelated prompts instead of silently producing Mars
+  ---
+  duration_ms: 0.369542
+  type: 'test'
+  ...
+# Subtest: streamDemo abort is safe before the first yield and between yields
+ok 225 - streamDemo abort is safe before the first yield and between yields
+  ---
+  duration_ms: 0.189458
+  type: 'test'
+  ...
+# Subtest: streamRemote parses CRLF NDJSON split across UTF-8 chunk boundaries
+ok 226 - streamRemote parses CRLF NDJSON split across UTF-8 chunk boundaries
+  ---
+  duration_ms: 10.500209
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects premature EOF without a done event
+ok 227 - streamRemote rejects premature EOF without a done event
+  ---
+  duration_ms: 0.91975
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects malformed, unknown and oversized events
+ok 228 - streamRemote rejects malformed, unknown and oversized events
+  ---
+  duration_ms: 84.188417
+  type: 'test'
+  ...
+# Subtest: streamRemote surfaces provider error records and HTTP failures in Chinese
+ok 229 - streamRemote surfaces provider error records and HTTP failures in Chinese
+  ---
+  duration_ms: 1.400708
+  type: 'test'
+  ...
+# Subtest: streamRemote validates content type and never falls back to the local demo
+ok 230 - streamRemote validates content type and never falls back to the local demo
+  ---
+  duration_ms: 0.501042
+  type: 'test'
+  ...
+# Subtest: streamRemote rejects an invalid previousScene before calling the provider
+ok 231 - streamRemote rejects an invalid previousScene before calling the provider
+  ---
+  duration_ms: 0.147958
+  type: 'test'
+  ...
+# Subtest: streamRemote honours an already-aborted signal without fetching
+ok 232 - streamRemote honours an already-aborted signal without fetching
+  ---
+  duration_ms: 0.086334
+  type: 'test'
+  ...
+# Subtest: streamRemote cancels and releases the reader when the consumer stops
+ok 233 - streamRemote cancels and releases the reader when the consumer stops
+  ---
+  duration_ms: 0.219625
+  type: 'test'
+  ...
+# Subtest: streamRemote abort cancels the reader and surfaces AbortError
+ok 234 - streamRemote abort cancels the reader and surfaces AbortError
+  ---
+  duration_ms: 2.865958
+  type: 'test'
+  ...
+# Subtest: remote image events may exceed 1MB while staying within the raster limit
+ok 235 - remote image events may exceed 1MB while staying within the raster limit
+  ---
+  duration_ms: 14.016958
+  type: 'test'
+  ...
+# Subtest: remote done must be terminal and cannot certify missing images
+ok 236 - remote done must be terminal and cannot certify missing images
+  ---
+  duration_ms: 1.11
+  type: 'test'
+  ...
+# Subtest: archive schemaVersion stays 1 and caller provenance/ids/hashes are untouched
+ok 237 - archive schemaVersion stays 1 and caller provenance/ids/hashes are untouched
+  ---
+  duration_ms: 2.592625
+  type: 'test'
+  ...
+# Subtest: record.voiceTranscript is optional, exact and never replaces or invents text
+ok 238 - record.voiceTranscript is optional, exact and never replaces or invents text
+  ---
+  duration_ms: 0.478292
+  type: 'test'
+  ...
+# Subtest: backwards compatible: a legacy scene without any transcript exports no transcript field
+ok 239 - backwards compatible: a legacy scene without any transcript exports no transcript field
+  ---
+  duration_ms: 0.4235
+  type: 'test'
+  ...
+# Subtest: archived scene JSON keeps the exact transcript for re-import
+ok 240 - archived scene JSON keeps the exact transcript for re-import
+  ---
+  duration_ms: 0.664625
+  type: 'test'
+  ...
+# Subtest: React SSR: payment payload is neutralized in the chat list preview and message body
+ok 241 - React SSR: payment payload is neutralized in the chat list preview and message body
+  ---
+  duration_ms: 17.483291
+  type: 'test'
+  ...
+# Subtest: deterministic HTML: payment payload is neutralized in the chat list preview and message body
+ok 242 - deterministic HTML: payment payload is neutralized in the chat list preview and message body
+  ---
+  duration_ms: 0.943542
+  type: 'test'
+  ...
+# Subtest: phone export SSR also neutralizes payment payloads
+ok 243 - phone export SSR also neutralizes payment payloads
+  ---
+  duration_ms: 1.406667
+  type: 'test'
+  ...
+# Subtest: ipad-window is a registry-only tablet preset on the unchanged ios surface
+ok 244 - ipad-window is a registry-only tablet preset on the unchanged ios surface
+  ---
+  duration_ms: 1.058625
+  type: 'test'
+  ...
+# Subtest: no new top-level tablet surface exists and formFactor never persists
+ok 245 - no new top-level tablet surface exists and formFactor never persists
+  ---
+  duration_ms: 1.249875
+  type: 'test'
+  ...
+# Subtest: ipad-window survives validateDraft/serializeDraft and mismatches are rejected
+ok 246 - ipad-window survives validateDraft/serializeDraft and mismatches are rejected
+  ---
+  duration_ms: 2.382
+  type: 'test'
+  ...
+# Subtest: existing profile sizes and legacy fallbacks are unchanged
+ok 247 - existing profile sizes and legacy fallbacks are unchanged
+  ---
+  duration_ms: 1.003542
+  type: 'test'
+  ...
+# Subtest: render profile matrix: same content, stable ids, export pixels = logical × DPR
+ok 248 - render profile matrix: same content, stable ids, export pixels = logical × DPR
+  ---
+  duration_ms: 0.480792
+  type: 'test'
+  ...
+# Subtest: MCP SceneView SSR renders the transcript below the voice bubble, safely escaped
+ok 249 - MCP SceneView SSR renders the transcript below the voice bubble, safely escaped
+  ---
+  duration_ms: 10.047292
+  type: 'test'
+  ...
+# Subtest: MCP SceneView SSR renders phone/desktop compact and tablet two-pane from real scene data only
+ok 250 - MCP SceneView SSR renders phone/desktop compact and tablet two-pane from real scene data only
+  ---
+  duration_ms: 5.719833
+  type: 'test'
+  ...
+# Subtest: tablet group titles and member counts come from the actual scene
+ok 251 - tablet group titles and member counts come from the actual scene
+  ---
+  duration_ms: 1.810875
+  type: 'test'
+  ...
+# Subtest: deterministic HTML renderer shares voiceTranscript semantics
+ok 252 - deterministic HTML renderer shares voiceTranscript semantics
+  ---
+  duration_ms: 1.397208
+  type: 'test'
+  ...
+# Subtest: deterministic HTML renderer draws the tablet two-pane only for ipad-window
+ok 253 - deterministic HTML renderer draws the tablet two-pane only for ipad-window
+  ---
+  duration_ms: 1.337833
+  type: 'test'
+  ...
+# Subtest: adaptSceneForRenderer keeps the explicit transcript in the shared message contract
+ok 254 - adaptSceneForRenderer keeps the explicit transcript in the shared message contract
+  ---
+  duration_ms: 0.40975
+  type: 'test'
+  ...
+# Subtest: validateScene accepts a bounded custom layout and rejects unsafe tokens
+ok 255 - validateScene accepts a bounded custom layout and rejects unsafe tokens
+  ---
+  duration_ms: 2.236791
+  type: 'test'
+  ...
+# Subtest: Agent update_element and create_scene accept layout; targeted edits allow it
+ok 256 - Agent update_element and create_scene accept layout; targeted edits allow it
+  ---
+  duration_ms: 0.98
+  type: 'test'
+  ...
+# Subtest: MCP scene bounds, create and patch preserve validated layout only
+ok 257 - MCP scene bounds, create and patch preserve validated layout only
+  ---
+  duration_ms: 1.103833
+  type: 'test'
+  ...
+# Subtest: shared SceneView renders the custom layout as neutral bounded chrome
+ok 258 - shared SceneView renders the custom layout as neutral bounded chrome
+  ---
+  duration_ms: 7.462667
+  type: 'test'
+  ...
+# Subtest: explicit ?lang wins over the saved preference and the browser language
+ok 259 - explicit ?lang wins over the saved preference and the browser language
+  ---
+  duration_ms: 0.658583
+  type: 'test'
+  ...
+# Subtest: lang is read from both the search string and the hash query
+ok 260 - lang is read from both the search string and the hash query
+  ---
+  duration_ms: 0.131292
+  type: 'test'
+  ...
+# Subtest: withLangParam keeps hash routing and unrelated query parameters
+ok 261 - withLangParam keeps hash routing and unrelated query parameters
+  ---
+  duration_ms: 0.12775
+  type: 'test'
+  ...
+# Subtest: creation handoff is explicit, scoped to a new session and carries the scenario
+ok 262 - creation handoff is explicit, scoped to a new session and carries the scenario
+  ---
+  duration_ms: 0.064875
+  type: 'test'
+  ...
+# Subtest: locale decides the platform and the authored conversation
+ok 263 - locale decides the platform and the authored conversation
+  ---
+  duration_ms: 1.783083
+  type: 'test'
+  ...
+# Subtest: each seeded scene is independent and free of avatars until they are injected
+ok 264 - each seeded scene is independent and free of avatars until they are injected
+  ---
+  duration_ms: 0.119833
+  type: 'test'
+  ...
+# Subtest: demo photos are attached to the right person per language as data URIs
+ok 265 - demo photos are attached to the right person per language as data URIs
+  ---
+  duration_ms: 0.338083
+  type: 'test'
+  ...
+# Subtest: group scenes keep each photo unique and validation rejects raw paths
+ok 266 - group scenes keep each photo unique and validation rejects raw paths
+  ---
+  duration_ms: 0.212375
+  type: 'test'
+  ...
+# Subtest: handoff tokens are validated before touching storage
+ok 267 - handoff tokens are validated before touching storage
+  ---
+  duration_ms: 0.254875
+  type: 'test'
+  ...
+# Subtest: an explicit scenario query selects a scene and defaults are preserved
+ok 268 - an explicit scenario query selects a scene and defaults are preserved
+  ---
+  duration_ms: 0.2915
+  type: 'test'
+  ...
+# Subtest: the Wukang scenario is one authored story in both languages
+ok 269 - the Wukang scenario is one authored story in both languages
+  ---
+  duration_ms: 0.546667
+  type: 'test'
+  ...
+# Subtest: story photos are bounded same-origin assets and become portable data URIs
+ok 270 - story photos are bounded same-origin assets and become portable data URIs
+  ---
+  duration_ms: 0.411542
+  type: 'test'
+  ...
+# Subtest: both locales expose the same copy shape with no empty strings
+ok 271 - both locales expose the same copy shape with no empty strings
+  ---
+  duration_ms: 0.728375
+  type: 'test'
+  ...
+# Subtest: Wukang keeps the matching portrait and self avatar without changing legacy roles
+ok 272 - Wukang keeps the matching portrait and self avatar without changing legacy roles
+  ---
+  duration_ms: 0.090875
+  type: 'test'
+  ...
+# Subtest: only the newest revision publishes
+ok 273 - only the newest revision publishes
+  ---
+  duration_ms: 3.458417
+  type: 'test'
+  ...
+# Subtest: cancel discards an in-flight result and does not rerun
+ok 274 - cancel discards an in-flight result and does not rerun
+  ---
+  duration_ms: 0.466875
+  type: 'test'
+  ...
+# Subtest: a stale failure is ignored while the current revision still fails loudly
+ok 275 - a stale failure is ignored while the current revision still fails loudly
+  ---
+  duration_ms: 2.66725
+  type: 'test'
+  ...
+# Subtest: a settled queue renders again on the next request
+ok 276 - a settled queue renders again on the next request
+  ---
+  duration_ms: 3.117125
+  type: 'test'
+  ...
+# Subtest: the playback is bounded to one short, terminating sequence
+ok 277 - the playback is bounded to one short, terminating sequence
+  ---
+  duration_ms: 0.606125
+  type: 'test'
+  ...
+# Subtest: a beat index folds deterministically into a frame
+ok 278 - a beat index folds deterministically into a frame
+  ---
+  duration_ms: 0.179542
+  type: 'test'
+  ...
+# Subtest: a frame renders the authored scene without the shared missing-image placeholder
+ok 279 - a frame renders the authored scene without the shared missing-image placeholder
+  ---
+  duration_ms: 0.260542
+  type: 'test'
+  ...
+# Subtest: automatic playback requires an on-screen stage in a visible document
+ok 280 - automatic playback requires an on-screen stage in a visible document
+  ---
+  duration_ms: 0.416541
+  type: 'test'
+  ...
+# Subtest: the four process steps are authored in both languages
+ok 281 - the four process steps are authored in both languages
+  ---
+  duration_ms: 0.115
+  type: 'test'
+  ...
+# Subtest: an instruction travels with the scene inside a bounded session payload
+ok 282 - an instruction travels with the scene inside a bounded session payload
+  ---
+  duration_ms: 1.171333
+  type: 'test'
+  ...
+# (node:30585) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: MCP templates use the shared contract, isolate revisions and reject unsafe targets
+ok 283 - MCP templates use the shared contract, isolate revisions and reject unsafe targets
+  ---
+  duration_ms: 70.921041
+  type: 'test'
+  ...
+# Subtest: MCP projects bound rules/defaults and enforce optimistic revisions
+ok 284 - MCP projects bound rules/defaults and enforce optimistic revisions
+  ---
+  duration_ms: 29.358667
+  type: 'test'
+  ...
+# Subtest: MCP batch creates independent scenes atomically, idempotently and without any model call
+ok 285 - MCP batch creates independent scenes atomically, idempotently and without any model call
+  ---
+  duration_ms: 33.993375
+  type: 'test'
+  ...
+# Subtest: MCP batch validates the full request before writing anything
+ok 286 - MCP batch validates the full request before writing anything
+  ---
+  duration_ms: 29.157708
+  type: 'test'
+  ...
+# Subtest: MCP update_project preserves omitted rules and defaults for a rename
+ok 287 - MCP update_project preserves omitted rules and defaults for a rename
+  ---
+  duration_ms: 16.977458
+  type: 'test'
+  ...
+# Subtest: MCP batch enforces adapter bounds on template instances and writes nothing on failure
+ok 288 - MCP batch enforces adapter bounds on template instances and writes nothing on failure
+  ---
+  duration_ms: 26.715792
+  type: 'test'
+  ...
+# Subtest: canonical batch hashing preserves own prototype keys
+ok 289 - canonical batch hashing preserves own prototype keys
+  ---
+  duration_ms: 0.279333
+  type: 'test'
+  ...
+# Subtest: short bounded screenshot matches the viewport exactly
+ok 290 - short bounded screenshot matches the viewport exactly
+  ---
+  duration_ms: 1118.537666
+  type: 'test'
+  ...
+# Subtest: long screenshot keeps full content height > 1200 with no stale bottom pixels
+ok 291 - long screenshot keeps full content height > 1200 with no stale bottom pixels
+  ---
+  duration_ms: 1956.631333
+  type: 'test'
+  ...
+# Subtest: very long scenes hit the pixel cap honestly (before capture)
+ok 292 - very long scenes hit the pixel cap honestly (before capture)
+  ---
+  duration_ms: 1270.93675
+  type: 'test'
+  ...
+# Subtest: watermark on/off renders differently with the real renderer
+ok 293 - watermark on/off renders differently with the real renderer
+  ---
+  duration_ms: 2455.550625
+  type: 'test'
+  ...
+# Subtest: too-tall bounded requests fail instead of silently cropping
+ok 294 - too-tall bounded requests fail instead of silently cropping
+  ---
+  duration_ms: 1007.530584
+  type: 'test'
+  ...
+# Subtest: GET-35 profile matrix renders the same content and never clips the voice transcript
+ok 295 - GET-35 profile matrix renders the same content and never clips the voice transcript
+  ---
+  duration_ms: 8792.34825
+  type: 'test'
+  ...
+# (node:30890) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: scene adapter reuses the shared validator and rejects anything outside the renderer subset
+ok 296 - scene adapter reuses the shared validator and rejects anything outside the renderer subset
+  ---
+  duration_ms: 1.642375
+  type: 'test'
+  ...
+# Subtest: scene patcher applies targeted changes atomically and keeps operations ordered
+ok 297 - scene patcher applies targeted changes atomically and keeps operations ordered
+  ---
+  duration_ms: 0.783084
+  type: 'test'
+  ...
+# Subtest: a failing patch never partially mutates the source scene
+ok 298 - a failing patch never partially mutates the source scene
+  ---
+  duration_ms: 0.218458
+  type: 'test'
+  ...
+# Subtest: renderer adapter maps embedded image data URIs to assets and assetIndex
+ok 299 - renderer adapter maps embedded image data URIs to assets and assetIndex
+  ---
+  duration_ms: 0.217
+  type: 'test'
+  ...
+# Subtest: idempotency keys deduplicate store writes and reject reuse with different bodies
+ok 300 - idempotency keys deduplicate store writes and reject reuse with different bodies
+  ---
+  duration_ms: 6.481291
+  type: 'test'
+  ...
+# Subtest: store keeps every revision snapshot and reports actionable conflicts
+ok 301 - store keeps every revision snapshot and reports actionable conflicts
+  ---
+  duration_ms: 2.2995
+  type: 'test'
+  ...
+# Subtest: store persists across reopen and prunes old render artifacts
+ok 302 - store persists across reopen and prunes old render artifacts
+  ---
+  duration_ms: 8.025959
+  type: 'test'
+  ...
+# Subtest: render option validation enforces surface, output kind and pixel-friendly ranges
+ok 303 - render option validation enforces surface, output kind and pixel-friendly ranges
+  ---
+  duration_ms: 0.152375
+  type: 'test'
+  ...
+# Subtest: render ids are deterministic for identical inputs
+ok 304 - render ids are deterministic for identical inputs
+  ---
+  duration_ms: 0.502041
+  type: 'test'
+  ...
+# Subtest: config parsing enforces isolated data dir and token rules
+ok 305 - config parsing enforces isolated data dir and token rules
+  ---
+  duration_ms: 0.544625
+  type: 'test'
+  ...
+# Subtest: widget markup is self-contained, uses the MCP Apps bridge and never trusts scene HTML
+ok 306 - widget markup is self-contained, uses the MCP Apps bridge and never trusts scene HTML
+  ---
+  duration_ms: 0.40125
+  type: 'test'
+  ...
+# Subtest: capabilities describe the honest fidelity subset
+ok 307 - capabilities describe the honest fidelity subset
+  ---
+  duration_ms: 0.16825
+  type: 'test'
+  ...
+# Subtest: shared Web render is the platform-template UI with the default watermark on every platform
+ok 308 - shared Web render is the platform-template UI with the default watermark on every platform
+  ---
+  duration_ms: 20.89025
+  type: 'test'
+  ...
+# Subtest: MCP Apps bridge actually displays the result, exports PNG and targets the same scene on follow-up
+ok 309 - MCP Apps bridge actually displays the result, exports PNG and targets the same scene on follow-up
+  ---
+  duration_ms: 1276.027833
+  type: 'test'
+  ...
+# Subtest: ChatGPT Work metadata-only results load initially and on partial globals updates
+ok 310 - ChatGPT Work metadata-only results load initially and on partial globals updates
+  ---
+  duration_ms: 3889.875208
+  type: 'test'
+  ...
+# Subtest: long images open as a complete composition with opt-in reading
+ok 311 - long images open as a complete composition with opt-in reading
+  ---
+  duration_ms: 850.624417
+  type: 'test'
+  ...
+# Subtest: rejected follow-up retains the draft, re-enables retry and never silently sends twice
+ok 312 - rejected follow-up retains the draft, re-enables retry and never silently sends twice
+  ---
+  duration_ms: 853.780583
+  type: 'test'
+  ...
+# Subtest: host theme updates and repeated results cannot complete an edit; stale download errors cannot replace current state
+ok 313 - host theme updates and repeated results cannot complete an edit; stale download errors cannot replace current state
+  ---
+  duration_ms: 1173.30725
+  type: 'test'
+  ...
+# Subtest: preview success and PNG download wait for the real image load; late events from older result epochs are rejected
+ok 314 - preview success and PNG download wait for the real image load; late events from older result epochs are rejected
+  ---
+  duration_ms: 779.628792
+  type: 'test'
+  ...
+# Subtest: an image that fails to load never announces preview success or offers PNG
+ok 315 - an image that fails to load never announces preview success or offers PNG
+  ---
+  duration_ms: 718.373
+  type: 'test'
+  ...
+# Subtest: MCP Apps hostContext theme drives the widget and unknown themes fall back to the system
+ok 316 - MCP Apps hostContext theme drives the widget and unknown themes fall back to the system
+  ---
+  duration_ms: 702.110833
+  type: 'test'
+  ...
+# Subtest: width-fit bounds the reading region for genuinely tall images and stays keyboard-scrollable
+ok 317 - width-fit bounds the reading region for genuinely tall images and stays keyboard-scrollable
+  ---
+  duration_ms: 915.550458
+  type: 'test'
+  ...
+# Subtest: a delayed image cannot overwrite a later edit waiting state, on success or error
+ok 318 - a delayed image cannot overwrite a later edit waiting state, on success or error
+  ---
+  duration_ms: 784.762667
+  type: 'test'
+  ...
+# Subtest: standard hostContext theme outranks stale legacy window.openai.theme across metadata-only updates
+ok 319 - standard hostContext theme outranks stale legacy window.openai.theme across metadata-only updates
+  ---
+  duration_ms: 676.763042
+  type: 'test'
+  ...
+# (node:31094) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: IMStage MCP protocol (real SDK client over HTTP)
+    # Subtest: initialize exposes server info and instructions
+    ok 1 - initialize exposes server info and instructions
+      ---
+      duration_ms: 0.2405
+      type: 'test'
+      ...
+    # Subtest: tools/list advertises exactly the owner flow and attaches the widget only to render
+    ok 2 - tools/list advertises exactly the owner flow and attaches the widget only to render
+      ---
+      duration_ms: 17.517208
+      type: 'test'
+      ...
+    # Subtest: imstage_get_capabilities documents the real supported subset and examples
+    ok 3 - imstage_get_capabilities documents the real supported subset and examples
+      ---
+      duration_ms: 6.780375
+      type: 'test'
+      ...
+    # Subtest: create returns an opaque server id + revision 1 and preserves the normalized scene
+    ok 4 - create returns an opaque server id + revision 1 and preserves the normalized scene
+      ---
+      duration_ms: 6.522709
+      type: 'test'
+      ...
+    # Subtest: create rejects a caller-supplied id and unknown fields
+    ok 5 - create rejects a caller-supplied id and unknown fields
+      ---
+      duration_ms: 10.259916
+      type: 'test'
+      ...
+    # Subtest: get_scene returns the stored revision and latestRevision
+    ok 6 - get_scene returns the stored revision and latestRevision
+      ---
+      duration_ms: 7.01025
+      type: 'test'
+      ...
+    # Subtest: update applies a targeted patch and bumps the revision
+    ok 7 - update applies a targeted patch and bumps the revision
+      ---
+      duration_ms: 3.463125
+      type: 'test'
+      ...
+    # Subtest: model scene create/update/inline render reject watermark switches before writing
+    ok 8 - model scene create/update/inline render reject watermark switches before writing
+      ---
+      duration_ms: 27.403042
+      type: 'test'
+      ...
+    # Subtest: owner scene ids retain a trusted user switch through get and unrelated edits
+    ok 9 - owner scene ids retain a trusted user switch through get and unrelated edits
+      ---
+      duration_ms: 6.04275
+      type: 'test'
+      ...
+    # Subtest: standalone project defaults reject model switches and preserve the stored user choice
+    ok 10 - standalone project defaults reject model switches and preserve the stored user choice
+      ---
+      duration_ms: 9.281917
+      type: 'test'
+      ...
+    # Subtest: standalone templates reject raw switches and retain a trusted switch when replacement omits it
+    ok 11 - standalone templates reject raw switches and retain a trusted switch when replacement omits it
+      ---
+      duration_ms: 27.991083
+      type: 'test'
+      ...
+    # Subtest: standalone batches reject raw and patch switches atomically while trusted template ids retain false
+    ok 12 - standalone batches reject raw and patch switches atomically while trusted template ids retain false
+      ---
+      duration_ms: 19.486208
+      type: 'test'
+      ...
+    # Subtest: rendering a trusted scene id does not reset the user switch
+    ok 13 - rendering a trusted scene id does not reset the user switch
+      ---
+      duration_ms: 1319.190584
+      type: 'test'
+      ...
+    # Subtest: stale expectedRevision returns an actionable revision_conflict and does not mutate
+    ok 14 - stale expectedRevision returns an actionable revision_conflict and does not mutate
+      ---
+      duration_ms: 3.781125
+      type: 'test'
+      ...
+    # Subtest: concurrent updates with the same expectedRevision: exactly one wins
+    ok 15 - concurrent updates with the same expectedRevision: exactly one wins
+      ---
+      duration_ms: 6.661
+      type: 'test'
+      ...
+    # Subtest: invalid patch keeps the stored scene unchanged
+    ok 16 - invalid patch keeps the stored scene unchanged
+      ---
+      duration_ms: 6.808417
+      type: 'test'
+      ...
+    # Subtest: create/update idempotency keys deduplicate retries
+    ok 17 - create/update idempotency keys deduplicate retries
+      ---
+      duration_ms: 11.041958
+      type: 'test'
+      ...
+    # Subtest: malformed input and bounds fail loudly
+    ok 18 - malformed input and bounds fail loudly
+      ---
+      duration_ms: 11.184625
+      type: 'test'
+      ...
+    # Subtest: render returns PNG image content, scene state and render metadata
+    ok 19 - render returns PNG image content, scene state and render metadata
+      ---
+      duration_ms: 864.186042
+      type: 'test'
+      ...
+    # Subtest: render rejects screenshot output that would clip tall content
+    ok 20 - render rejects screenshot output that would clip tall content
+      ---
+      duration_ms: 719.105083
+      type: 'test'
+      ...
+    # Subtest: render bounds long screenshots by pixels
+    ok 21 - render bounds long screenshots by pixels
+      ---
+      duration_ms: 803.127
+      type: 'test'
+      ...
+    # Subtest: render supports inline scenes without persisting them
+    ok 22 - render supports inline scenes without persisting them
+      ---
+      duration_ms: 670.995208
+      type: 'test'
+      ...
+    # Subtest: render accepts an inline embedded image and rejects sceneId+scene together
+    ok 23 - render accepts an inline embedded image and rejects sceneId+scene together
+      ---
+      duration_ms: 674.506209
+      type: 'test'
+      ...
+    # Subtest: widget resource is self-contained and mutation tools have no widget
+    ok 24 - widget resource is self-contained and mutation tools have no widget
+      ---
+      duration_ms: 14.751708
+      type: 'test'
+      ...
+    # Subtest: rendered PNG is downloadable through a resource
+    ok 25 - rendered PNG is downloadable through a resource
+      ---
+      duration_ms: 779.648542
+      type: 'test'
+      ...
+    # Subtest: scene snapshot resources expose historical revisions
+    ok 26 - scene snapshot resources expose historical revisions
+      ---
+      duration_ms: 6.589958
+      type: 'test'
+      ...
+    # Subtest: bearer auth denies missing and wrong tokens
+    ok 27 - bearer auth denies missing and wrong tokens
+      ---
+      duration_ms: 5.650916
+      type: 'test'
+      ...
+    # Subtest: malformed JSON body is rejected before the transport
+    ok 28 - malformed JSON body is rejected before the transport
+      ---
+      duration_ms: 0.647167
+      type: 'test'
+      ...
+    # Subtest: restart persistence reads the same scene and revision
+    ok 29 - restart persistence reads the same scene and revision
+      ---
+      duration_ms: 7.791958
+      type: 'test'
+      ...
+    1..29
+ok 320 - IMStage MCP protocol (real SDK client over HTTP)
+  ---
+  duration_ms: 6095.176125
+  type: 'test'
+  ...
+# Subtest: IMStage MCP private tunnel mode allows loopback without a token but keeps storage isolated
+ok 321 - IMStage MCP private tunnel mode allows loopback without a token but keeps storage isolated
+  ---
+  duration_ms: 12.786125
+  type: 'test'
+  ...
+# Subtest: IMStage MCP refuses to start without a token or private tunnel flag
+ok 322 - IMStage MCP refuses to start without a token or private tunnel flag
+  ---
+  duration_ms: 0.384042
+  type: 'test'
+  ...
+# Subtest: stateless transport rejects hostile browser origins/hosts and safely replays no-op edits
+ok 323 - stateless transport rejects hostile browser origins/hosts and safely replays no-op edits
+  ---
+  duration_ms: 25.723083
+  type: 'test'
+  ...
+# (node:31297) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: hosted Agent runs leave a start record and finalize ok/error/partial accurately
+ok 324 - hosted Agent runs leave a start record and finalize ok/error/partial accurately
+  ---
+  duration_ms: 457.302167
+  type: 'test'
+  ...
+# Subtest: an abrupt provider failure still leaves the running record and finalizes to error
+ok 325 - an abrupt provider failure still leaves the running record and finalizes to error
+  ---
+  duration_ms: 162.796917
+  type: 'test'
+  ...
+# Subtest: project batch tasks are audited with flow=batch and account isolation
+ok 326 - project batch tasks are audited with flow=batch and account isolation
+  ---
+  duration_ms: 290.856459
+  type: 'test'
+  ...
+# Subtest: account MCP writes are audited per account (create/update/render)
+ok 327 - account MCP writes are audited per account (create/update/render)
+  ---
+  duration_ms: 17.231959
+  type: 'test'
+  ...
+# Subtest: standalone MCP scene writes audit in the same transaction and fail loudly without it
+ok 328 - standalone MCP scene writes audit in the same transaction and fail loudly without it
+  ---
+  duration_ms: 1.934667
+  type: 'test'
+  ...
+# Subtest: hosted deterministic render outputs are audited (flow=render) with the output hash
+ok 329 - hosted deterministic render outputs are audited (flow=render) with the output hash
+  ---
+  duration_ms: 1.267958
+  type: 'test'
+  ...
+# Subtest: validated scenes never smuggle prompt text into the audit through hashes
+ok 330 - validated scenes never smuggle prompt text into the audit through hashes
+  ---
+  duration_ms: 136.634416
+  type: 'test'
+  ...
+# (node:31375) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: audit rows contain exactly the documented metadata, never prompts or content
+ok 331 - audit rows contain exactly the documented metadata, never prompts or content
+  ---
+  duration_ms: 1.742375
+  type: 'test'
+  ...
+# Subtest: scene hash is deterministic and independent of content order
+ok 332 - scene hash is deterministic and independent of content order
+  ---
+  duration_ms: 0.083209
+  type: 'test'
+  ...
+# Subtest: durable 90-day retention: cleanup deletes expired rows and only those
+ok 333 - durable 90-day retention: cleanup deletes expired rows and only those
+  ---
+  duration_ms: 0.310375
+  type: 'test'
+  ...
+# Subtest: the MCP store records durable audit rows for hosted AI-supplied scenes and batches
+ok 334 - the MCP store records durable audit rows for hosted AI-supplied scenes and batches
+  ---
+  duration_ms: 4.174
+  type: 'test'
+  ...
+# Subtest: policy constants match what the renderers enforce
+ok 335 - policy constants match what the renderers enforce
+  ---
+  duration_ms: 0.06375
+  type: 'test'
+  ...
+# (node:31378) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: standalone MCP render cache: pre-policy blobs are blocked without deletion
+ok 336 - standalone MCP render cache: pre-policy blobs are blocked without deletion
+  ---
+  duration_ms: 3.306584
+  type: 'test'
+  ...
+# Subtest: account render cache: pre-policy blobs are blocked without deletion
+ok 337 - account render cache: pre-policy blobs are blocked without deletion
+  ---
+  duration_ms: 0.67075
+  type: 'test'
+  ...
+# Subtest: imstage://renders/{id}.png resource read path blocks pre-policy blobs on both servers
+ok 338 - imstage://renders/{id}.png resource read path blocks pre-policy blobs on both servers
+  ---
+  duration_ms: 10.882417
+  type: 'test'
+  ...
+# Subtest: the deterministic renderer draws the disclosure by default, whatever obsolete aliases say
+ok 339 - the deterministic renderer draws the disclosure by default, whatever obsolete aliases say
+  ---
+  duration_ms: 1.381334
+  type: 'test'
+  ...
+# Subtest: a user-chosen watermark-free scene suppresses the disclosure and custom watermark everywhere
+ok 340 - a user-chosen watermark-free scene suppresses the disclosure and custom watermark everywhere
+  ---
+  duration_ms: 0.220375
+  type: 'test'
+  ...
+# Subtest: each platform template renders its own chrome; payment cards never render
+ok 341 - each platform template renders its own chrome; payment cards never render
+  ---
+  duration_ms: 9.131458
+  type: 'test'
+  ...
+# Subtest: the browser SceneView (preview + html-to-image export DOM) carries the disclosure by default
+ok 342 - the browser SceneView (preview + html-to-image export DOM) carries the disclosure by default
+  ---
+  duration_ms: 2.709417
+  type: 'test'
+  ...
+# Subtest: imports cannot smuggle payment messages or obsolete toggle aliases through
+ok 343 - imports cannot smuggle payment messages or obsolete toggle aliases through
+  ---
+  duration_ms: 0.556416
+  type: 'test'
+  ...
+# Subtest: creation APIs reject payment message types outright
+ok 344 - creation APIs reject payment message types outright
+  ---
+  duration_ms: 0.361417
+  type: 'test'
+  ...
+# Subtest: scene hashes for the audit are canonical, content-private and watermark-sensitive
+ok 345 - scene hashes for the audit are canonical, content-private and watermark-sensitive
+  ---
+  duration_ms: 0.150708
+  type: 'test'
+  ...
+# Subtest: legacy payment notices preserve calendar dates and explain retirement bilingually
+ok 346 - legacy payment notices preserve calendar dates and explain retirement bilingually
+  ---
+  duration_ms: 0.941875
+  type: 'test'
+  ...
+# (node:31380) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the AI生成/虚构 disclosure is mandatory; custom watermarks are untouched and cannot hide it
+ok 347 - the AI生成/虚构 disclosure is mandatory; custom watermarks are untouched and cannot hide it
+  ---
+  duration_ms: 0.455875
+  type: 'test'
+  ...
+# Subtest: shared defaults fill only missing keys and never overwrite explicit intent
+ok 348 - shared defaults fill only missing keys and never overwrite explicit intent
+  ---
+  duration_ms: 0.179
+  type: 'test'
+  ...
+# Subtest: agent rebuilds keep the custom watermark; the AI can never edit marks
+ok 349 - agent rebuilds keep the custom watermark; the AI can never edit marks
+  ---
+  duration_ms: 0.857542
+  type: 'test'
+  ...
+# Subtest: mark on/off changes the shared renderer content fingerprint (no stale cache)
+ok 350 - mark on/off changes the shared renderer content fingerprint (no stale cache)
+  ---
+  duration_ms: 0.310584
+  type: 'test'
+  ...
+# Subtest: portrait generator is deterministic, seeded and decodable
+ok 351 - portrait generator is deterministic, seeded and decodable
+  ---
+  duration_ms: 47.281541
+  type: 'test'
+  ...
+# Subtest: rectangular avatars are proportionally square-cropped to 256 without stretching
+ok 352 - rectangular avatars are proportionally square-cropped to 256 without stretching
+  ---
+  duration_ms: 18.940125
+  type: 'test'
+  ...
+# Subtest: remote URLs, SVG, forged headers and pixel bombs are rejected
+ok 353 - remote URLs, SVG, forged headers and pixel bombs are rejected
+  ---
+  duration_ms: 15.252667
+  type: 'test'
+  ...
+# Subtest: a header-valid but truncated image is mapped to 400, not a raw 500
+ok 354 - a header-valid but truncated image is mapped to 400, not a raw 500
+  ---
+  duration_ms: 1.11175
+  type: 'test'
+  ...
+# Subtest: new registration is pending; legacy accounts are never auto-prompted
+ok 355 - new registration is pending; legacy accounts are never auto-prompted
+  ---
+  duration_ms: 156.819792
+  type: 'test'
+  ...
+# Subtest: a skipped/unconfigured account has a stable built-in other avatar in Web and MCP defaults
+ok 356 - a skipped/unconfigured account has a stable built-in other avatar in Web and MCP defaults
+  ---
+  duration_ms: 145.473417
+  type: 'test'
+  ...
+# Subtest: save and skip both complete onboarding and store avatars; the mandatory mark cannot be disabled
+ok 357 - save and skip both complete onboarding and store avatars; the mandatory mark cannot be disabled
+  ---
+  duration_ms: 145.614792
+  type: 'test'
+  ...
+# Subtest: saved preferences never rewrite existing scenes
+ok 358 - saved preferences never rewrite existing scenes
+  ---
+  duration_ms: 144.495541
+  type: 'test'
+  ...
+# Subtest: per-account isolation and concurrent revision conflicts
+ok 359 - per-account isolation and concurrent revision conflicts
+  ---
+  duration_ms: 293.966375
+  type: 'test'
+  ...
+# Subtest: preferences require a session, origin and matching account header
+ok 360 - preferences require a session, origin and matching account header
+  ---
+  duration_ms: 174.080917
+  type: 'test'
+  ...
+# Subtest: events are allowlisted, deduped, and never carry avatar content
+ok 361 - events are allowlisted, deduped, and never carry avatar content
+  ---
+  duration_ms: 174.382708
+  type: 'test'
+  ...
+# Subtest: account-once events cannot be deduped around with a client-supplied key
+ok 362 - account-once events cannot be deduped around with a client-supplied key
+  ---
+  duration_ms: 144.216667
+  type: 'test'
+  ...
+# Subtest: avatar decode failure through the preferences API is a 400 that changes nothing
+ok 363 - avatar decode failure through the preferences API is a 400 that changes nothing
+  ---
+  duration_ms: 143.451208
+  type: 'test'
+  ...
+# Subtest: contact library stays empty after preferences save (no avatar disclosure)
+ok 364 - contact library stays empty after preferences save (no avatar disclosure)
+  ---
+  duration_ms: 143.92
+  type: 'test'
+  ...
+# Subtest: MCP new scenes receive account defaults while explicit overrides survive
+ok 365 - MCP new scenes receive account defaults while explicit overrides survive
+  ---
+  duration_ms: 15.794667
+  type: 'test'
+  ...
+# Subtest: standalone MCP with no account defaults keeps system behaviour
+ok 366 - standalone MCP with no account defaults keeps system behaviour
+  ---
+  duration_ms: 0.145875
+  type: 'test'
+  ...
+# Subtest: MCP records first_artwork only after a real successful render
+ok 367 - MCP records first_artwork only after a real successful render
+  ---
+  duration_ms: 3.391833
+  type: 'test'
+  ...
+# Subtest: MCP does not count a failed render
+ok 368 - MCP does not count a failed render
+  ---
+  duration_ms: 2.72825
+  type: 'test'
+  ...
+# Subtest: MCP does not count a render whose post-render authorization was revoked
+ok 369 - MCP does not count a render whose post-render authorization was revoked
+  ---
+  duration_ms: 2.718042
+  type: 'test'
+  ...
+# Subtest: imstage_create_scene rejects authorization revoked while account defaults are pending
+ok 370 - imstage_create_scene rejects authorization revoked while account defaults are pending
+  ---
+  duration_ms: 4.799208
+  type: 'test'
+  ...
+# Subtest: imstage_get_capabilities rejects authorization revoked while account defaults are pending
+ok 371 - imstage_get_capabilities rejects authorization revoked while account defaults are pending
+  ---
+  duration_ms: 4.5965
+  type: 'test'
+  ...
+# (node:31425) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: account project automation bridges MCP and HTTP for one owner
+    # Subtest: MCP project create with type/brief is visible on the web API
+    ok 1 - MCP project create with type/brief is visible on the web API
+      ---
+      duration_ms: 37.032084
+      type: 'test'
+      ...
+    # Subtest: scenario planning bridges HTTP and MCP for 50 cases
+    ok 2 - scenario planning bridges HTTP and MCP for 50 cases
+      ---
+      duration_ms: 11.949416
+      type: 'test'
+      ...
+    # Subtest: content batches submit 20/20/10 and resume missing keys
+    ok 3 - content batches submit 20/20/10 and resume missing keys
+      ---
+      duration_ms: 85.197208
+      type: 'test'
+      ...
+    # Subtest: idempotent retries return the original receipt after defaults changed
+    ok 4 - idempotent retries return the original receipt after defaults changed
+      ---
+      duration_ms: 9.713208
+      type: 'test'
+      ...
+    # Subtest: MCP rejects raw scene switches while Web user overrides survive defaults
+    ok 5 - MCP rejects raw scene switches while Web user overrides survive defaults
+      ---
+      duration_ms: 23.335583
+      type: 'test'
+      ...
+    # Subtest: duplicate keys and duplicate dialogues are rejected
+    ok 6 - duplicate keys and duplicate dialogues are rejected
+      ---
+      duration_ms: 18.447
+      type: 'test'
+      ...
+    # Subtest: template values+patch freeze a snapshot at submit time
+    ok 7 - template values+patch freeze a snapshot at submit time
+      ---
+      duration_ms: 16.695667
+      type: 'test'
+      ...
+    # Subtest: validation failures roll back the whole batch
+    ok 8 - validation failures roll back the whole batch
+      ---
+      duration_ms: 10.263666
+      type: 'test'
+      ...
+    # Subtest: case progress tracks live scene mutations (PUT/DELETE/attach/detach)
+    ok 9 - case progress tracks live scene mutations (PUT/DELETE/attach/detach)
+      ---
+      duration_ms: 42.748708
+      type: 'test'
+      ...
+    # Subtest: idempotent replay survives template deletion and settings changes
+    ok 10 - idempotent replay survives template deletion and settings changes
+      ---
+      duration_ms: 19.988209
+      type: 'test'
+      ...
+    # Subtest: account scene capacity is enforced on real submissions
+    ok 11 - account scene capacity is enforced on real submissions
+      ---
+      duration_ms: 105.730667
+      type: 'test'
+      ...
+    # Subtest: foreign ownership, scope filtering and revocation cannot leak data
+    ok 12 - foreign ownership, scope filtering and revocation cannot leak data
+      ---
+      duration_ms: 24.686125
+      type: 'test'
+      ...
+    # Subtest: bounded summaries never dump full scenes or assets
+    ok 13 - bounded summaries never dump full scenes or assets
+      ---
+      duration_ms: 16.33225
+      type: 'test'
+      ...
+    # Subtest: an explicitly empty scope grant is never promoted to full access
+    ok 14 - an explicitly empty scope grant is never promoted to full access
+      ---
+      duration_ms: 0.244416
+      type: 'test'
+      ...
+    1..14
+ok 372 - account project automation bridges MCP and HTTP for one owner
+  ---
+  duration_ms: 731.456833
+  type: 'test'
+  ...
+# Subtest: edited and detached cases use live dialogue hashes and explicit pending keys
+ok 373 - edited and detached cases use live dialogue hashes and explicit pending keys
+  ---
+  duration_ms: 183.6445
+  type: 'test'
+  ...
+# Subtest: scenario content batches preserve rules, recipe and cast after project edits
+ok 374 - scenario content batches preserve rules, recipe and cast after project edits
+  ---
+  duration_ms: 150.521625
+  type: 'test'
+  ...
+# Subtest: evaluation cases require caller labels and cleared drafts become pending again
+ok 375 - evaluation cases require caller labels and cleared drafts become pending again
+  ---
+  duration_ms: 153.266334
+  type: 'test'
+  ...
+# Subtest: account MCP protects user watermark choices across scenes, projects, scenarios, templates and batches
+ok 376 - account MCP protects user watermark choices across scenes, projects, scenarios, templates and batches
+  ---
+  duration_ms: 260.342417
+  type: 'test'
+  ...
+# (node:31440) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: HTTP export endpoints keep Cookie/Origin/marker rules and share state with MCP
+ok 377 - HTTP export endpoints keep Cookie/Origin/marker rules and share state with MCP
+  ---
+  duration_ms: 326.256958
+  type: 'test'
+  ...
+# Subtest: download endpoints: Cookie or Bearer (both scopes), ticket headers and anonymous use
+ok 378 - download endpoints: Cookie or Bearer (both scopes), ticket headers and anonymous use
+  ---
+  duration_ms: 284.843666
+  type: 'test'
+  ...
+# Subtest: tool discovery: full grants see 27 tools, legacy grants keep 6
+ok 379 - tool discovery: full grants see 27 tools, legacy grants keep 6
+  ---
+  duration_ms: 260.59425
+  type: 'test'
+  ...
+# (node:31446) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: 50 cases export a validated ZIP of real PNG/Scene/JSONL/README/manifest
+ok 380 - 50 cases export a validated ZIP of real PNG/Scene/JSONL/README/manifest
+  ---
+  duration_ms: 776.797167
+  type: 'test'
+  ...
+# Subtest: assets: real inline images extracted, dummy AAAA never becomes a binary asset
+ok 381 - assets: real inline images extracted, dummy AAAA never becomes a binary asset
+  ---
+  duration_ms: 279.281167
+  type: 'test'
+  ...
+# Subtest: allowPartial stays partial; freeze rejects copied duplicate dialogues
+ok 382 - allowPartial stays partial; freeze rejects copied duplicate dialogues
+  ---
+  duration_ms: 262.68525
+  type: 'test'
+  ...
+# Subtest: evaluation_dataset: caller annotations, provenance, frozen recipe after type change
+ok 383 - evaluation_dataset: caller annotations, provenance, frozen recipe after type change
+  ---
+  duration_ms: 286.403667
+  type: 'test'
+  ...
+# Subtest: PNG reuse: edit 1 of 50 scenes → renders 1, reuses 49; history stays downloadable
+ok 384 - PNG reuse: edit 1 of 50 scenes → renders 1, reuses 49; history stays downloadable
+  ---
+  duration_ms: 1102.946125
+  type: 'test'
+  ...
+# Subtest: revoke while renderer is blocked interrupts without committing output
+ok 385 - revoke while renderer is blocked interrupts without committing output
+  ---
+  duration_ms: 262.942583
+  type: 'test'
+  ...
+# Subtest: failure item retry re-runs only failed items; cancel keeps committed output
+ok 386 - failure item retry re-runs only failed items; cancel keeps committed output
+  ---
+  duration_ms: 252.50375
+  type: 'test'
+  ...
+# Subtest: graceful stop interrupts in-flight work; restart retry resumes the snapshot
+ok 387 - graceful stop interrupts in-flight work; restart retry resumes the snapshot
+  ---
+  duration_ms: 334.501084
+  type: 'test'
+  ...
+# Subtest: tickets: anonymous bounded capability, expiry, route binding, per-ticket revocation
+ok 388 - tickets: anonymous bounded capability, expiry, route binding, per-ticket revocation
+  ---
+  duration_ms: 395.264583
+  type: 'test'
+  ...
+# Subtest: retention: expiry enforced at read, sweep purges files and snapshot blobs
+ok 389 - retention: expiry enforced at read, sweep purges files and snapshot blobs
+  ---
+  duration_ms: 1058.901542
+  type: 'test'
+  ...
+# Subtest: autoExport queues exactly one deduped export; replay and edits behave honestly
+ok 390 - autoExport queues exactly one deduped export; replay and edits behave honestly
+  ---
+  duration_ms: 433.249959
+  type: 'test'
+  ...
+# Subtest: whole-project export namespaces two scenarios sharing case-001 keys
+ok 391 - whole-project export namespaces two scenarios sharing case-001 keys
+  ---
+  duration_ms: 461.459459
+  type: 'test'
+  ...
+# Subtest: idempotent export replay precedes revision checks; same key different body conflicts
+ok 392 - idempotent export replay precedes revision checks; same key different body conflicts
+  ---
+  duration_ms: 245.507625
+  type: 'test'
+  ...
+# Subtest: foreign owners and scenes-only credentials cannot reach exports
+ok 393 - foreign owners and scenes-only credentials cannot reach exports
+  ---
+  duration_ms: 734.273917
+  type: 'test'
+  ...
+# Subtest: project deletion cancels and purges every own export, ticket and file
+ok 394 - project deletion cancels and purges every own export, ticket and file
+  ---
+  duration_ms: 908.821334
+  type: 'test'
+  ...
+# Subtest: zip writer: independent Python decode, byte limit and safe paths
+ok 395 - zip writer: independent Python decode, byte limit and safe paths
+  ---
+  duration_ms: 61.46475
+  type: 'test'
+  ...
+# Subtest: async batch authorization: expiry during the defaults await never commits
+ok 396 - async batch authorization: expiry during the defaults await never commits
+  ---
+  duration_ms: 182.093333
+  type: 'test'
+  ...
+# Subtest: concurrent same-key batches resolve to one frozen receipt, never duplicate errors
+ok 397 - concurrent same-key batches resolve to one frozen receipt, never duplicate errors
+  ---
+  duration_ms: 138.802417
+  type: 'test'
+  ...
+# Subtest: project completion requires full delivery coverage (two scenarios / subset packs)
+ok 398 - project completion requires full delivery coverage (two scenarios / subset packs)
+  ---
+  duration_ms: 587.05525
+  type: 'test'
+  ...
+# Subtest: delivery summary finds the whole package deterministically (newer covering subsets, same coverage)
+ok 399 - delivery summary finds the whole package deterministically (newer covering subsets, same coverage)
+  ---
+  duration_ms: 263.363916
+  type: 'test'
+  ...
+# Subtest: publish race: cancel during a blocked publish commit never serves a stale ZIP
+ok 400 - publish race: cancel during a blocked publish commit never serves a stale ZIP
+  ---
+  duration_ms: 177.140875
+  type: 'test'
+  ...
+# Subtest: scope metadata: re-attached case scenes are loose; selected cases carry frozen scenario recipe
+ok 401 - scope metadata: re-attached case scenes are loose; selected cases carry frozen scenario recipe
+  ---
+  duration_ms: 267.449834
+  type: 'test'
+  ...
+# Subtest: quota charges incoming snapshots before rendering and removes uncommitted copies
+ok 402 - quota charges incoming snapshots before rendering and removes uncommitted copies
+  ---
+  duration_ms: 218.488833
+  type: 'test'
+  ...
+# Subtest: a failed atomic PNG rename leaves no staging file
+ok 403 - a failed atomic PNG rename leaves no staging file
+  ---
+  duration_ms: 177.755667
+  type: 'test'
+  ...
+# Subtest: public failure metadata never leaks filesystem paths
+ok 404 - public failure metadata never leaks filesystem paths
+  ---
+  duration_ms: 175.990958
+  type: 'test'
+  ...
+# (node:31556) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: all 50 case prompts resolve bilingual variations and preset guidance in the frozen scenario language
+ok 405 - all 50 case prompts resolve bilingual variations and preset guidance in the frozen scenario language
+  ---
+  duration_ms: 2.948792
+  type: 'test'
+  ...
+# Subtest: 50 distinct cases generate through 20/20/10 persisted chunks with the client closed
+ok 406 - 50 distinct cases generate through 20/20/10 persisted chunks with the client closed
+  ---
+  duration_ms: 515.498584
+  type: 'test'
+  ...
+# Subtest: 100 cases run through the durable driver with at most 3 queued chunks
+ok 407 - 100 cases run through the durable driver with at most 3 queued chunks
+  ---
+  duration_ms: 1123.36375
+  type: 'test'
+  ...
+# Subtest: double click and idempotent replay never repeat model calls
+ok 408 - double click and idempotent replay never repeat model calls
+  ---
+  duration_ms: 261.133208
+  type: 'test'
+  ...
+# Subtest: reserved case keys reject MCP writes until released; stale attempts cannot seize a re-bound reservation
+ok 409 - reserved case keys reject MCP writes until released; stale attempts cannot seize a re-bound reservation
+  ---
+  duration_ms: 453.691042
+  type: 'test'
+  ...
+# Subtest: in-process fencing: a stale task cannot publish or release a re-bound reservation
+ok 410 - in-process fencing: a stale task cannot publish or release a re-bound reservation
+  ---
+  duration_ms: 5.708125
+  type: 'test'
+  ...
+# Subtest: active reservations count toward account capacity in every create path
+ok 411 - active reservations count toward account capacity in every create path
+  ---
+  duration_ms: 639.49275
+  type: 'test'
+  ...
+# Subtest: capacity pre-flight rejects an unpayable generation before any model call
+ok 412 - capacity pre-flight rejects an unpayable generation before any model call
+  ---
+  duration_ms: 551.525666
+  type: 'test'
+  ...
+# Subtest: post-lease capacity recheck fails honestly without a provider call
+ok 413 - post-lease capacity recheck fails honestly without a provider call
+  ---
+  duration_ms: 222.918625
+  type: 'test'
+  ...
+# Subtest: session revocation mid-run cancels without publishing and releases reservations
+ok 414 - session revocation mid-run cancels without publishing and releases reservations
+  ---
+  duration_ms: 543.50175
+  type: 'test'
+  ...
+# Subtest: restart marks generation interrupted; explicit retry re-runs only missing keys
+ok 415 - restart marks generation interrupted; explicit retry re-runs only missing keys
+  ---
+  duration_ms: 277.016375
+  type: 'test'
+  ...
+# Subtest: failed items are retried only; no-mutation results fail honestly
+ok 416 - failed items are retried only; no-mutation results fail honestly
+  ---
+  duration_ms: 170.003542
+  type: 'test'
+  ...
+# Subtest: auto-export queues the shared scenario export after the last committed case
+ok 417 - auto-export queues the shared scenario export after the last committed case
+  ---
+  duration_ms: 296.77175
+  type: 'test'
+  ...
+# Subtest: unconfigured AI fails clearly while caller content submission stays usable
+ok 418 - unconfigured AI fails clearly while caller content submission stays usable
+  ---
+  duration_ms: 352.051125
+  type: 'test'
+  ...
+# Subtest: evaluation dataset scenarios refuse unlabeled AI generation
+ok 419 - evaluation dataset scenarios refuse unlabeled AI generation
+  ---
+  duration_ms: 173.857583
+  type: 'test'
+  ...
+# Subtest: deleting a project releases every generation reservation immediately
+ok 420 - deleting a project releases every generation reservation immediately
+  ---
+  duration_ms: 464.366333
+  type: 'test'
+  ...
+# Subtest: 404/409 deletes never release another project’s reservations
+ok 421 - 404/409 deletes never release another project’s reservations
+  ---
+  duration_ms: 337.44325
+  type: 'test'
+  ...
+# Subtest: model prompt carries the frozen cast names/roles; later cast edits never change it
+ok 422 - model prompt carries the frozen cast names/roles; later cast edits never change it
+  ---
+  duration_ms: 201.998084
+  type: 'test'
+  ...
+# Subtest: rate pacing: deferred scenario tasks resume across windows with exact starts and no user retry
+ok 423 - rate pacing: deferred scenario tasks resume across windows with exact starts and no user retry
+  ---
+  duration_ms: 567.711458
+  type: 'test'
+  ...
+# Subtest: rate pacing yields the single worker to another account and sweeps revoked deferred work
+ok 424 - rate pacing yields the single worker to another account and sweeps revoked deferred work
+  ---
+  duration_ms: 687.1585
+  type: 'test'
+  ...
+# Subtest: cancel and session revocation while deferred release reservations without provider calls
+ok 425 - cancel and session revocation while deferred release reservations without provider calls
+  ---
+  duration_ms: 460.91
+  type: 'test'
+  ...
+# Subtest: legacy batch entry cannot strand internal chunks: list hides them, cancel delegates to the parent, retry rejects
+ok 426 - legacy batch entry cannot strand internal chunks: list hides them, cancel delegates to the parent, retry rejects
+  ---
+  duration_ms: 326.828958
+  type: 'test'
+  ...
+# Subtest: the frozen per-scenario watermark override reaches every persisted generated scene
+ok 427 - the frozen per-scenario watermark override reaches every persisted generated scene
+  ---
+  duration_ms: 220.25525
+  type: 'test'
+  ...
+# Subtest: a rate-limited account yields before the legacy wait budget elapses
+ok 428 - a rate-limited account yields before the legacy wait budget elapses
+  ---
+  duration_ms: 345.440792
+  type: 'test'
+  ...
+# Subtest: stopping during a denied lease reconciles parent and reservations, preserving legacy interruption
+ok 429 - stopping during a denied lease reconciles parent and reservations, preserving legacy interruption
+  ---
+  duration_ms: 205.178958
+  type: 'test'
+  ...
+# (node:31766) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: project recipes are versioned and complete for every type
+ok 430 - project recipes are versioned and complete for every type
+  ---
+  duration_ms: 0.770208
+  type: 'test'
+  ...
+# Subtest: scenario presets carry variation dimensions and generation guidance
+ok 431 - scenario presets carry variation dimensions and generation guidance
+  ---
+  duration_ms: 0.269625
+  type: 'test'
+  ...
+# Subtest: case plans are deterministic, stable and bounded
+ok 432 - case plans are deterministic, stable and bounded
+  ---
+  duration_ms: 5.685
+  type: 'test'
+  ...
+# Subtest: legacy databases migrate additively to the custom recipe v1
+ok 433 - legacy databases migrate additively to the custom recipe v1
+  ---
+  duration_ms: 1.7355
+  type: 'test'
+  ...
+# Subtest: projects carry type/brief and scenarios freeze parent defaults
+ok 434 - projects carry type/brief and scenarios freeze parent defaults
+  ---
+  duration_ms: 5.293958
+  type: 'test'
+  ...
+# Subtest: scenario bounds, idempotency and ownership are enforced
+ok 435 - scenario bounds, idempotency and ownership are enforced
+  ---
+  duration_ms: 10.420334
+  type: 'test'
+  ...
+# Subtest: case plans cover the full variation space (coprime stride, no dimension collapse)
+ok 436 - case plans cover the full variation space (coprime stride, no dimension collapse)
+  ---
+  duration_ms: 7.877709
+  type: 'test'
+  ...
+# Subtest: objectives pick the semantic goal dimension and guidance is concrete
+ok 437 - objectives pick the semantic goal dimension and guidance is concrete
+  ---
+  duration_ms: 2.8735
+  type: 'test'
+  ...
+# Subtest: scenario plans carry meaningful generation guidance per case
+ok 438 - scenario plans carry meaningful generation guidance per case
+  ---
+  duration_ms: 1.861667
+  type: 'test'
+  ...
+# (node:31768) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: projects CRUD enforces ownership, bounds and conflict-safe revisions
+ok 439 - projects CRUD enforces ownership, bounds and conflict-safe revisions
+  ---
+  duration_ms: 338.156
+  type: 'test'
+  ...
+# Subtest: project deletion preserves scenes and only removes the association
+ok 440 - project deletion preserves scenes and only removes the association
+  ---
+  duration_ms: 148.148458
+  type: 'test'
+  ...
+# Subtest: attaching an existing scene requires ownership
+ok 441 - attaching an existing scene requires ownership
+  ---
+  duration_ms: 258.413625
+  type: 'test'
+  ...
+# Subtest: batch enqueue validates prompt/platform bounds and is idempotent per key
+ok 442 - batch enqueue validates prompt/platform bounds and is idempotent per key
+  ---
+  duration_ms: 158.449375
+  type: 'test'
+  ...
+# Subtest: batch generation snapshots project rules at enqueue
+ok 443 - batch generation snapshots project rules at enqueue
+  ---
+  duration_ms: 139.041334
+  type: 'test'
+  ...
+# Subtest: successful batch tasks publish brand-new scenes attached to the project
+ok 444 - successful batch tasks publish brand-new scenes attached to the project
+  ---
+  duration_ms: 137.261125
+  type: 'test'
+  ...
+# Subtest: a failed tool never publishes a scene and is reported as failed
+ok 445 - a failed tool never publishes a scene and is reported as failed
+  ---
+  duration_ms: 138.94325
+  type: 'test'
+  ...
+# Subtest: cancelling a running batch aborts it and publishes nothing
+ok 446 - cancelling a running batch aborts it and publishes nothing
+  ---
+  duration_ms: 148.21825
+  type: 'test'
+  ...
+# Subtest: a revoked session cancels the active batch job
+ok 447 - a revoked session cancels the active batch job
+  ---
+  duration_ms: 203.411542
+  type: 'test'
+  ...
+# Subtest: explicit retry re-runs only failed tasks with a fresh idempotent job
+ok 448 - explicit retry re-runs only failed tasks with a fresh idempotent job
+  ---
+  duration_ms: 153.644167
+  type: 'test'
+  ...
+# Subtest: restart recovery marks pending jobs interrupted without false success
+ok 449 - restart recovery marks pending jobs interrupted without false success
+  ---
+  duration_ms: 341.137417
+  type: 'test'
+  ...
+# Subtest: markInterruptedJobs is idempotent and leaves terminal jobs untouched
+ok 450 - markInterruptedJobs is idempotent and leaves terminal jobs untouched
+  ---
+  duration_ms: 5.743166
+  type: 'test'
+  ...
+# Subtest: agent runs honor an owned projectId rule snapshot and reject cross-account projects
+ok 451 - agent runs honor an owned projectId rule snapshot and reject cross-account projects
+  ---
+  duration_ms: 295.894583
+  type: 'test'
+  ...
+# Subtest: batch enqueue is rejected when the AI service is not configured
+ok 452 - batch enqueue is rejected when the AI service is not configured
+  ---
+  duration_ms: 132.759208
+  type: 'test'
+  ...
+# Subtest: cancel while waiting for a lease never starts a paid run
+ok 453 - cancel while waiting for a lease never starts a paid run
+  ---
+  duration_ms: 107.105792
+  type: 'test'
+  ...
+# Subtest: session revoked before the watcher ticks prevents publishing a finished run
+ok 454 - session revoked before the watcher ticks prevents publishing a finished run
+  ---
+  duration_ms: 16.195541
+  type: 'test'
+  ...
+# Subtest: a successful scene mutation followed by failed image generation is not batch success
+ok 455 - a successful scene mutation followed by failed image generation is not batch success
+  ---
+  duration_ms: 156.495833
+  type: 'test'
+  ...
+# Subtest: concurrent retries of one failed batch return one job
+ok 456 - concurrent retries of one failed batch return one job
+  ---
+  duration_ms: 139.843584
+  type: 'test'
+  ...
+# Subtest: scene publication and task completion roll back together on a task write failure
+ok 457 - scene publication and task completion roll back together on a task write failure
+  ---
+  duration_ms: 1.139708
+  type: 'test'
+  ...
+# Subtest: ordinary scene save associates the owned project and rejects another account project atomically
+ok 458 - ordinary scene save associates the owned project and rejects another account project atomically
+  ---
+  duration_ms: 274.07625
+  type: 'test'
+  ...
+# Subtest: ordinary save can move a scene to another project and explicitly detach it
+ok 459 - ordinary save can move a scene to another project and explicitly detach it
+  ---
+  duration_ms: 144.921042
+  type: 'test'
+  ...
+# Subtest: attaching a scene already in another project never reports a false success
+ok 460 - attaching a scene already in another project never reports a false success
+  ---
+  duration_ms: 138.781084
+  type: 'test'
+  ...
+# Subtest: project detach HTTP endpoint removes the association and preserves the scene
+ok 461 - project detach HTTP endpoint removes the association and preserves the scene
+  ---
+  duration_ms: 145.453375
+  type: 'test'
+  ...
+# Subtest: batch input rejects ambiguous legacy/new mixing and validates variants
+ok 462 - batch input rejects ambiguous legacy/new mixing and validates variants
+  ---
+  duration_ms: 0.5645
+  type: 'test'
+  ...
+# Subtest: frozen variant values and template snapshot survive template deletion
+ok 463 - frozen variant values and template snapshot survive template deletion
+  ---
+  duration_ms: 146.420541
+  type: 'test'
+  ...
+# Subtest: batch rejects values without a template, a stale template revision and ambiguous input
+ok 464 - batch rejects values without a template, a stale template revision and ambiguous input
+  ---
+  duration_ms: 137.603333
+  type: 'test'
+  ...
+# Subtest: same-key retry recovers the frozen job after the template is updated and deleted
+ok 465 - same-key retry recovers the frozen job after the template is updated and deleted
+  ---
+  duration_ms: 147.816042
+  type: 'test'
+  ...
+# Subtest: real-screenshot reference templates are rejected at the API — no template/batch bypass
+ok 466 - real-screenshot reference templates are rejected at the API — no template/batch bypass
+  ---
+  duration_ms: 147.009833
+  type: 'test'
+  ...
+# Subtest: rich scene validates fields, persists through normalization and rejects arbitrary CSS
+ok 467 - rich scene validates fields, persists through normalization and rejects arbitrary CSS
+  ---
+  duration_ms: 1.513125
+  type: 'test'
+  ...
+# Subtest: invalid tool arguments are recoverable; model cannot inject a screenshot document
+ok 468 - invalid tool arguments are recoverable; model cannot inject a screenshot document
+  ---
+  duration_ms: 0.570667
+  type: 'test'
+  ...
+# Subtest: selected participant and background edits cannot alter messages or another person
+ok 469 - selected participant and background edits cannot alter messages or another person
+  ---
+  duration_ms: 0.277416
+  type: 'test'
+  ...
+# Subtest: rich selected context remains valid JSON without leaking embedded image bytes
+ok 470 - rich selected context remains valid JSON without leaking embedded image bytes
+  ---
+  duration_ms: 0.517375
+  type: 'test'
+  ...
+# Subtest: image editing supplies reference bytes and explicit compatible response format
+ok 471 - image editing supplies reference bytes and explicit compatible response format
+  ---
+  duration_ms: 2.376041
+  type: 'test'
+  ...
+# Subtest: screenshot layers are real validated mutations, selection cannot change another patch
+ok 472 - screenshot layers are real validated mutations, selection cannot change another patch
+  ---
+  duration_ms: 1974.585292
+  type: 'test'
+  ...
+# Subtest: successful text mutation followed by failed required image is not a successful task
+ok 473 - successful text mutation followed by failed required image is not a successful task
+  ---
+  duration_ms: 10.081416
+  type: 'test'
+  ...
+# Subtest: unused generated screenshot assets persist without counting as completed output
+    # Subtest: finish
+    ok 1 - finish
+      ---
+      duration_ms: 1618.021792
+      type: 'test'
+      ...
+    # Subtest: assistant
+    ok 2 - assistant
+      ---
+      duration_ms: 1094.296
+      type: 'test'
+      ...
+    1..2
+ok 474 - unused generated screenshot assets persist without counting as completed output
+  ---
+  duration_ms: 2713.551167
+  type: 'test'
+  ...
+# Subtest: an earlier text edit cannot hide a generated image that was never placed
+ok 475 - an earlier text edit cannot hide a generated image that was never placed
+  ---
+  duration_ms: 1526.086292
+  type: 'test'
+  ...
+# Subtest: generated screenshot image placed in a layer and previewed can complete
+ok 476 - generated screenshot image placed in a layer and previewed can complete
+  ---
+  duration_ms: 1564.532292
+  type: 'test'
+  ...
+# Subtest: screenshot provider failures prevent completion regardless of error wording
+ok 477 - screenshot provider failures prevent completion regardless of error wording
+  ---
+  duration_ms: 1249.265209
+  type: 'test'
+  ...
+# Subtest: reference source verification rejects physical dimensions beyond the declared plan
+ok 478 - reference source verification rejects physical dimensions beyond the declared plan
+  ---
+  duration_ms: 25.76725
+  type: 'test'
+  ...
+# Subtest: accepted WebP screenshot sources and assets render through PNG normalization
+ok 479 - accepted WebP screenshot sources and assets render through PNG normalization
+  ---
+  duration_ms: 1085.792708
+  type: 'test'
+  ...
+# Subtest: buildSceneContext includes the explicit transcript within the existing text cap
+ok 480 - buildSceneContext includes the explicit transcript within the existing text cap
+  ---
+  duration_ms: 1.625042
+  type: 'test'
+  ...
+# Subtest: buildSceneContext never materialises a transcript the scene does not carry
+ok 481 - buildSceneContext never materialises a transcript the scene does not carry
+  ---
+  duration_ms: 0.215292
+  type: 'test'
+  ...
+# Subtest: buildSceneContext bounds the transcript like message text (2000 chars)
+ok 482 - buildSceneContext bounds the transcript like message text (2000 chars)
+  ---
+  duration_ms: 0.264667
+  type: 'test'
+  ...
+# Subtest: checkSceneLimits rejects an over-long transcript defensively
+ok 483 - checkSceneLimits rejects an over-long transcript defensively
+  ---
+  duration_ms: 0.42
+  type: 'test'
+  ...
+# Subtest: asset stripping/preservation keeps text transcripts untouched
+ok 484 - asset stripping/preservation keeps text transcripts untouched
+  ---
+  duration_ms: 1.023666
+  type: 'test'
+  ...
+# Subtest: targeted edits may change the selected transcript only
+ok 485 - targeted edits may change the selected transcript only
+  ---
+  duration_ms: 0.656292
+  type: 'test'
+  ...
+# Subtest: createScene("weekend") matches the sample brief
+ok 486 - createScene("weekend") matches the sample brief
+  ---
+  duration_ms: 3.204334
+  type: 'test'
+  ...
+# Subtest: createScene("launch") has a three-person design launch group
+ok 487 - createScene("launch") has a three-person design launch group
+  ---
+  duration_ms: 0.276958
+  type: 'test'
+  ...
+# Subtest: createScene("welcome") starts with a new-friend system message
+ok 488 - createScene("welcome") starts with a new-friend system message
+  ---
+  duration_ms: 0.2485
+  type: 'test'
+  ...
+# Subtest: createScene returns independent fresh copies with stable message ids
+ok 489 - createScene returns independent fresh copies with stable message ids
+  ---
+  duration_ms: 0.96875
+  type: 'test'
+  ...
+# Subtest: updateScene returns a new scene and leaves the original untouched
+ok 490 - updateScene returns a new scene and leaves the original untouched
+  ---
+  duration_ms: 0.568583
+  type: 'test'
+  ...
+# Subtest: updateMessage replaces only the target message
+ok 491 - updateMessage replaces only the target message
+  ---
+  duration_ms: 0.177708
+  type: 'test'
+  ...
+# Subtest: updateMessage on a missing id returns the same reference
+ok 492 - updateMessage on a missing id returns the same reference
+  ---
+  duration_ms: 0.139583
+  type: 'test'
+  ...
+# Subtest: addMessage appends with a unique stable id without mutating the source
+ok 493 - addMessage appends with a unique stable id without mutating the source
+  ---
+  duration_ms: 0.804875
+  type: 'test'
+  ...
+# Subtest: addMessage defaults system messages to an empty sender
+ok 494 - addMessage defaults system messages to an empty sender
+  ---
+  duration_ms: 0.684542
+  type: 'test'
+  ...
+# Subtest: deleteMessage removes the target immutably and no-ops on unknown ids
+ok 495 - deleteMessage removes the target immutably and no-ops on unknown ids
+  ---
+  duration_ms: 1.930792
+  type: 'test'
+  ...
+# Subtest: moveMessage reorders immutably and clamps out-of-range moves
+ok 496 - moveMessage reorders immutably and clamps out-of-range moves
+  ---
+  duration_ms: 0.961125
+  type: 'test'
+  ...
+# Subtest: updateParticipant renames and clears avatars immutably
+ok 497 - updateParticipant renames and clears avatars immutably
+  ---
+  duration_ms: 0.489083
+  type: 'test'
+  ...
+# Subtest: addParticipant allocates a stable unique id
+ok 498 - addParticipant allocates a stable unique id
+  ---
+  duration_ms: 0.811084
+  type: 'test'
+  ...
+# Subtest: message ids stay unique even for non-numeric ids
+ok 499 - message ids stay unique even for non-numeric ids
+  ---
+  duration_ms: 0.321958
+  type: 'test'
+  ...
+# Subtest: validateScene accepts a well-formed scene and normalises it
+ok 500 - validateScene accepts a well-formed scene and normalises it
+  ---
+  duration_ms: 2.986708
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-objects and missing core fields
+ok 501 - validateScene rejects non-objects and missing core fields
+  ---
+  duration_ms: 0.24175
+  type: 'test'
+  ...
+# Subtest: validateScene rejects unknown platforms and message types
+ok 502 - validateScene rejects unknown platforms and message types
+  ---
+  duration_ms: 1.297208
+  type: 'test'
+  ...
+# Subtest: validateScene rejects broken participants and dangling senders
+ok 503 - validateScene rejects broken participants and dangling senders
+  ---
+  duration_ms: 1.411708
+  type: 'test'
+  ...
+# Subtest: validateScene rejects a selfId that is not a participant
+ok 504 - validateScene rejects a selfId that is not a participant
+  ---
+  duration_ms: 0.595125
+  type: 'test'
+  ...
+# Subtest: validateScene rejects non-array messages and bad field types
+ok 505 - validateScene rejects non-array messages and bad field types
+  ---
+  duration_ms: 0.539084
+  type: 'test'
+  ...
+# Subtest: parseSceneJson handles corrupt JSON and valid JSON
+ok 506 - parseSceneJson handles corrupt JSON and valid JSON
+  ---
+  duration_ms: 0.315625
+  type: 'test'
+  ...
+# Subtest: draft round-trips through serializeDraft and parseDraft
+ok 507 - draft round-trips through serializeDraft and parseDraft
+  ---
+  duration_ms: 0.435916
+  type: 'test'
+  ...
+# Subtest: parseDraft rejects corrupt, mis-versioned and malformed drafts
+ok 508 - parseDraft rejects corrupt, mis-versioned and malformed drafts
+  ---
+  duration_ms: 0.309167
+  type: 'test'
+  ...
+# Subtest: history supports commit, undo and redo
+ok 509 - history supports commit, undo and redo
+  ---
+  duration_ms: 0.249375
+  type: 'test'
+  ...
+# Subtest: a new commit clears the redo branch
+ok 510 - a new commit clears the redo branch
+  ---
+  duration_ms: 0.105583
+  type: 'test'
+  ...
+# Subtest: committing the same reference is a no-op
+ok 511 - committing the same reference is a no-op
+  ---
+  duration_ms: 0.079375
+  type: 'test'
+  ...
+# Subtest: undo isolation: histories and scenes never leak into each other
+ok 512 - undo isolation: histories and scenes never leak into each other
+  ---
+  duration_ms: 0.211333
+  type: 'test'
+  ...
+# Subtest: resetHistory drops the past and future
+ok 513 - resetHistory drops the past and future
+  ---
+  duration_ms: 0.329708
+  type: 'test'
+  ...
+# Subtest: validation failure never mutates the input object
+ok 514 - validation failure never mutates the input object
+  ---
+  duration_ms: 0.170292
+  type: 'test'
+  ...
+# Subtest: untrusted drafts cannot request external images or unsupported data content
+ok 515 - untrusted drafts cannot request external images or unsupported data content
+  ---
+  duration_ms: 0.463375
+  type: 'test'
+  ...
+# Subtest: scene date and device time survive draft round trip independently
+ok 516 - scene date and device time survive draft round trip independently
+  ---
+  duration_ms: 3.797292
+  type: 'test'
+  ...
+# Subtest: a seeded scenario produces a real localized scene, never a placeholder
+ok 517 - a seeded scenario produces a real localized scene, never a placeholder
+  ---
+  duration_ms: 22.336833
+  type: 'test'
+  ...
+# Subtest: a handoff instruction is pre-filled, bounded, and never auto-sent
+ok 518 - a handoff instruction is pre-filled, bounded, and never auto-sent
+  ---
+  duration_ms: 1.071459
+  type: 'test'
+  ...
+# Subtest: an unknown scenario falls back to a blank localized conversation on WeChat
+ok 519 - an unknown scenario falls back to a blank localized conversation on WeChat
+  ---
+  duration_ms: 0.424916
+  type: 'test'
+  ...
+# Subtest: fresh blank, seeded, legacy and project inheritance stay distinct
+ok 520 - fresh blank, seeded, legacy and project inheritance stay distinct
+  ---
+  duration_ms: 2.267333
+  type: 'test'
+  ...
+# Subtest: recovery keeps the handed-off scene and instruction and drops unsafe state
+ok 521 - recovery keeps the handed-off scene and instruction and drops unsafe state
+  ---
+  duration_ms: 1.03025
+  type: 'test'
+  ...
+# Subtest: recovery without a prompt keeps the seed instead of erasing it
+ok 522 - recovery without a prompt keeps the seed instead of erasing it
+  ---
+  duration_ms: 1.688875
+  type: 'test'
+  ...
+# Subtest: a new session record is independent and starts unversioned
+ok 523 - a new session record is independent and starts unversioned
+  ---
+  duration_ms: 0.464708
+  type: 'test'
+  ...
+# Subtest: reference draft recovery is rejected without replacing or mutating its source
+ok 524 - reference draft recovery is rejected without replacing or mutating its source
+  ---
+  duration_ms: 3.063916
+  type: 'test'
+  ...
+# Subtest: x: scene round-trip, real template tool, MCP and deterministic render
+ok 525 - x: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 19.417666
+  type: 'test'
+  ...
+# Subtest: jike: scene round-trip, real template tool, MCP and deterministic render
+ok 526 - jike: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 2.742291
+  type: 'test'
+  ...
+# Subtest: threads: scene round-trip, real template tool, MCP and deterministic render
+ok 527 - threads: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 2.643042
+  type: 'test'
+  ...
+# Subtest: xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+ok 528 - xiaohongshu: scene round-trip, real template tool, MCP and deterministic render
+  ---
+  duration_ms: 1.891875
+  type: 'test'
+  ...
+# Subtest: social HTML preserves quotes, safe inline media, album captions and link subtitles
+ok 529 - social HTML preserves quotes, safe inline media, album captions and link subtitles
+  ---
+  duration_ms: 4.252459
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored image quotes
+ok 530 - HTML preserves authored image quotes
+  ---
+  duration_ms: 2.032125
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored location quotes
+ok 531 - HTML preserves authored location quotes
+  ---
+  duration_ms: 3.174208
+  type: 'test'
+  ...
+# Subtest: HTML preserves authored voice quotes
+ok 532 - HTML preserves authored voice quotes
+  ---
+  duration_ms: 5.648708
+  type: 'test'
+  ...
+# Subtest: shared social HTML adapts indexed assets without remote resources or executable scene strings
+ok 533 - shared social HTML adapts indexed assets without remote resources or executable scene strings
+  ---
+  duration_ms: 6.685542
+  type: 'test'
+  ...
+# Subtest: social custom layouts keep canonical content, explicit appearance and watermark policy
+ok 534 - social custom layouts keep canonical content, explicit appearance and watermark policy
+  ---
+  duration_ms: 4.0335
+  type: 'test'
+  ...
+# Subtest: social renderer retains the caller device profile override and validates it
+ok 535 - social renderer retains the caller device profile override and validates it
+  ---
+  duration_ms: 9.031167
+  type: 'test'
+  ...
+# Subtest: extract original pixels without invoking an image generator; emit labeled crop for visual verification
+ok 536 - extract original pixels without invoking an image generator; emit labeled crop for visual verification
+  ---
+  duration_ms: 16.883458
+  type: 'test'
+  ...
+# Subtest: invalid attachment, out-of-bounds and wrong selected participant never mutate or call provider
+ok 537 - invalid attachment, out-of-bounds and wrong selected participant never mutate or call provider
+  ---
+  duration_ms: 4.655708
+  type: 'test'
+  ...
+# Subtest: screenshot avatar generation refuses unrelated text-only generation; enhancement sends the cropped bytes
+ok 538 - screenshot avatar generation refuses unrelated text-only generation; enhancement sends the cropped bytes
+  ---
+  duration_ms: 7.396208
+  type: 'test'
+  ...
+# Subtest: explicitly requested new avatar and ordinary text-only creation remain available
+ok 539 - explicitly requested new avatar and ordinary text-only creation remain available
+  ---
+  duration_ms: 4.176125
+  type: 'test'
+  ...
+# Subtest: runtime passes real attachments to crop tool and permits recovery after a missing-reference generation
+ok 540 - runtime passes real attachments to crop tool and permits recovery after a missing-reference generation
+  ---
+  duration_ms: 6.475667
+  type: 'test'
+  ...
+# Subtest: failed extraction cannot be followed by a false completion after a text change
+ok 541 - failed extraction cannot be followed by a false completion after a text change
+  ---
+  duration_ms: 1.050459
+  type: 'test'
+  ...
+# Subtest: public runs reject the screenshot crop tool; the prompt never offers screenshot reconstruction
+ok 542 - public runs reject the screenshot crop tool; the prompt never offers screenshot reconstruction
+  ---
+  duration_ms: 0.315792
+  type: 'test'
+  ...
+# Subtest: scoped extraction preserves every field outside the selected participant
+ok 543 - scoped extraction preserves every field outside the selected participant
+  ---
+  duration_ms: 7.894708
+  type: 'test'
+  ...
+# Subtest: avatar localization snaps an approximate AI box to the complete original avatar pixels
+ok 544 - avatar localization snaps an approximate AI box to the complete original avatar pixels
+  ---
+  duration_ms: 295.088
+  type: 'test'
+  ...
+# Subtest: crop coordinates apply after EXIF rotation, preserving the displayed source pixels
+ok 545 - crop coordinates apply after EXIF rotation, preserving the displayed source pixels
+  ---
+  duration_ms: 14.107917
+  type: 'test'
+  ...
+# Subtest: the public screenshot→template seed entry module is gone
+ok 546 - the public screenshot→template seed entry module is gone
+  ---
+  duration_ms: 0.643625
+  type: 'test'
+  ...
+# Subtest: imported scenes carrying a real-screenshot reference layer are rejected
+ok 547 - imported scenes carrying a real-screenshot reference layer are rejected
+  ---
+  duration_ms: 0.485959
+  type: 'test'
+  ...
+# Subtest: template definitions cannot freeze a screenshot edit layer
+ok 548 - template definitions cannot freeze a screenshot edit layer
+  ---
+  duration_ms: 0.295167
+  type: 'test'
+  ...
+# Subtest: hostile disclosure overrides in an import are stripped: the mark cannot be turned off
+ok 549 - hostile disclosure overrides in an import are stripped: the mark cannot be turned off
+  ---
+  duration_ms: 0.091292
+  type: 'test'
+  ...
+# (node:32086) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: template CRUD is account-scoped, revision-safe and lists only summaries
+ok 550 - template CRUD is account-scoped, revision-safe and lists only summaries
+  ---
+  duration_ms: 456.730292
+  type: 'test'
+  ...
+# Subtest: instantiation is independent, never mutates the source, and rejects hostile or invalid values
+ok 551 - instantiation is independent, never mutates the source, and rejects hostile or invalid values
+  ---
+  duration_ms: 357.890708
+  type: 'test'
+  ...
+# Subtest: custom layout survives template creation, listing mode and instantiation
+ok 552 - custom layout survives template creation, listing mode and instantiation
+  ---
+  duration_ms: 222.8135
+  type: 'test'
+  ...
+# Subtest: deleting a template keeps scenes created from it
+ok 553 - deleting a template keeps scenes created from it
+  ---
+  duration_ms: 236.725708
+  type: 'test'
+  ...
+# Subtest: invalid template payloads are rejected atomically without storing rows
+ok 554 - invalid template payloads are rejected atomically without storing rows
+  ---
+  duration_ms: 164.12625
+  type: 'test'
+  ...
+# Subtest: template instances have independent names, photos and IDs without mutating the source
+ok 555 - template instances have independent names, photos and IDs without mutating the source
+  ---
+  duration_ms: 1.443333
+  type: 'test'
+  ...
+# Subtest: omitted values keep snapshot defaults, while unknown and hostile keys fail atomically
+ok 556 - omitted values keep snapshot defaults, while unknown and hostile keys fail atomically
+  ---
+  duration_ms: 0.61325
+  type: 'test'
+  ...
+# Subtest: variable declarations require existing compatible unique targets and bounded labels
+ok 557 - variable declarations require existing compatible unique targets and bounded labels
+  ---
+  duration_ms: 0.204958
+  type: 'test'
+  ...
+# Subtest: replacement type, image bounds and fresh ID are enforced
+ok 558 - replacement type, image bounds and fresh ID are enforced
+  ---
+  duration_ms: 0.279459
+  type: 'test'
+  ...
+# Subtest: discovery produces reusable typed variables without interpreting user text as code
+ok 559 - discovery produces reusable typed variables without interpreting user text as code
+  ---
+  duration_ms: 0.229083
+  type: 'test'
+  ...
+# Subtest: snapshot normalization is detached and rejects unsupported template fields
+ok 560 - snapshot normalization is detached and rejects unsupported template fields
+  ---
+  duration_ms: 0.072458
+  type: 'test'
+  ...
+# Subtest: real-screenshot reference templates are rejected (policy: synthetic scenes only)
+ok 561 - real-screenshot reference templates are rejected (policy: synthetic scenes only)
+  ---
+  duration_ms: 0.537917
+  type: 'test'
+  ...
+# (node:32128) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: template persistence isolates owners and keeps heavy scenes out of list responses
+ok 562 - template persistence isolates owners and keeps heavy scenes out of list responses
+  ---
+  duration_ms: 5.765958
+  type: 'test'
+  ...
+# Subtest: updates and deletion use optimistic revisions and do not mutate frozen snapshots
+ok 563 - updates and deletion use optimistic revisions and do not mutate frozen snapshots
+  ---
+  duration_ms: 2.744167
+  type: 'test'
+  ...
+# Subtest: invalid definitions roll back and quotas are scoped to an explicit owner
+ok 564 - invalid definitions roll back and quotas are scoped to an explicit owner
+  ---
+  duration_ms: 6.346875
+  type: 'test'
+  ...
+# Subtest: text-to-image submits once, polls to completion and validates the downloaded raster
+ok 565 - text-to-image submits once, polls to completion and validates the downloaded raster
+  ---
+  duration_ms: 27.138666
+  type: 'test'
+  ...
+# Subtest: a reference edit transmits the actual inline data URL and never drops it
+ok 566 - a reference edit transmits the actual inline data URL and never drops it
+  ---
+  duration_ms: 2.1095
+  type: 'test'
+  ...
+# Subtest: unsupported or malformed references fail closed before any network call
+ok 567 - unsupported or malformed references fail closed before any network call
+  ---
+  duration_ms: 0.882083
+  type: 'test'
+  ...
+# Subtest: reference normalization returns null only when no reference was supplied
+ok 568 - reference normalization returns null only when no reference was supplied
+  ---
+  duration_ms: 0.535416
+  type: 'test'
+  ...
+# Subtest: terminal task failures are reported honestly without echoing upstream data
+ok 569 - terminal task failures are reported honestly without echoing upstream data
+  ---
+  duration_ms: 3.198125
+  type: 'test'
+  ...
+# Subtest: an unknown task status fails closed
+ok 570 - an unknown task status fails closed
+  ---
+  duration_ms: 1.096542
+  type: 'test'
+  ...
+# Subtest: submit HTTP errors are sanitized to a status-only message
+ok 571 - submit HTTP errors are sanitized to a status-only message
+  ---
+  duration_ms: 1.541959
+  type: 'test'
+  ...
+# Subtest: caller abort during polling rejects with AbortError
+ok 572 - caller abort during polling rejects with AbortError
+  ---
+  duration_ms: 16.064166
+  type: 'test'
+  ...
+# Subtest: the deadline bounds polling and never resubmits the task
+ok 573 - the deadline bounds polling and never resubmits the task
+  ---
+  duration_ms: 41.226917
+  type: 'test'
+  ...
+# Subtest: a non-string or empty prompt is rejected
+ok 574 - a non-string or empty prompt is rejected
+  ---
+  duration_ms: 0.826333
+  type: 'test'
+  ...
+# Subtest: completed-image downloads only allowlisted Tencent COS hosts
+ok 575 - completed-image downloads only allowlisted Tencent COS hosts
+  ---
+  duration_ms: 5.119625
+  type: 'test'
+  ...
+# Subtest: allowlisted COS host shapes are accepted and plain HTTP is upgraded
+ok 576 - allowlisted COS host shapes are accepted and plain HTTP is upgraded
+  ---
+  duration_ms: 0.2295
+  type: 'test'
+  ...
+# Subtest: an HTTP result URL is fetched over HTTPS and never insecurely
+ok 577 - an HTTP result URL is fetched over HTTPS and never insecurely
+  ---
+  duration_ms: 4.469833
+  type: 'test'
+  ...
+# Subtest: auth-bearing submit and poll requests are never redirected
+ok 578 - auth-bearing submit and poll requests are never redirected
+  ---
+  duration_ms: 3.913417
+  type: 'test'
+  ...
+# Subtest: a redirecting download is rejected and never followed
+ok 579 - a redirecting download is rejected and never followed
+  ---
+  duration_ms: 0.897875
+  type: 'test'
+  ...
+# Subtest: a fetch-level redirect rejection is mapped to a sanitized download error
+ok 580 - a fetch-level redirect rejection is mapped to a sanitized download error
+  ---
+  duration_ms: 0.45525
+  type: 'test'
+  ...
+# Subtest: downloads are byte-limited
+ok 581 - downloads are byte-limited
+  ---
+  duration_ms: 0.522833
+  type: 'test'
+  ...
+# Subtest: downloaded bytes must decode as a real image
+ok 582 - downloaded bytes must decode as a real image
+  ---
+  duration_ms: 3.410834
+  type: 'test'
+  ...
+# Subtest: anniversary fixture preserves dates, order and deterministic two-day labels across JSON roundtrip
+ok 583 - anniversary fixture preserves dates, order and deterministic two-day labels across JSON roundtrip
+  ---
+  duration_ms: 3.014666
+  type: 'test'
+  ...
+# Subtest: the evaluator fails all-today storytelling, reversed days, missing agreement and false repayment
+ok 584 - the evaluator fails all-today storytelling, reversed days, missing agreement and false repayment
+  ---
+  duration_ms: 0.446583
+  type: 'test'
+  ...
+# Subtest: legacy duplicate Today is hidden without destroying the underlying editable message
+ok 585 - legacy duplicate Today is hidden without destroying the underlying editable message
+  ---
+  duration_ms: 0.153666
+  type: 'test'
+  ...
+# Subtest: date validation catches impossible dates and reference date; timezone rollover is explicit
+ok 586 - date validation catches impossible dates and reference date; timezone rollover is explicit
+  ---
+  duration_ms: 8.8625
+  type: 'test'
+  ...
+# Subtest: provider context contains frozen reference date and per-message dates
+ok 587 - provider context contains frozen reference date and per-message dates
+  ---
+  duration_ms: 0.474667
+  type: 'test'
+  ...
+# Subtest: repayment accepts transfer cards with lender receipt but rejects negation and reversed payer
+ok 588 - repayment accepts transfer cards with lender receipt but rejects negation and reversed payer
+  ---
+  duration_ms: 0.494583
+  type: 'test'
+  ...
+# Subtest: MCP create_scene accepts a bounded explicit transcript on voice messages
+ok 589 - MCP create_scene accepts a bounded explicit transcript on voice messages
+  ---
+  duration_ms: 1.179709
+  type: 'test'
+  ...
+# Subtest: MCP strict validation rejects wrong types, over-long values and non-voice use
+ok 590 - MCP strict validation rejects wrong types, over-long values and non-voice use
+  ---
+  duration_ms: 0.89425
+  type: 'test'
+  ...
+# Subtest: MCP update patch can modify the transcript and keeps strict bounds
+ok 591 - MCP update patch can modify the transcript and keeps strict bounds
+  ---
+  duration_ms: 0.89975
+  type: 'test'
+  ...
+# Subtest: agent upsert_message can create and modify an explicit transcript
+ok 592 - agent upsert_message can create and modify an explicit transcript
+  ---
+  duration_ms: 0.657459
+  type: 'test'
+  ...
+# Subtest: agent create_scene carries explicit transcripts and never invents missing ones
+ok 593 - agent create_scene carries explicit transcripts and never invents missing ones
+  ---
+  duration_ms: 0.512833
+  type: 'test'
+  ...
+# Subtest: agent tools reject a transcript on non-voice messages and over-long values
+ok 594 - agent tools reject a transcript on non-voice messages and over-long values
+  ---
+  duration_ms: 0.208542
+  type: 'test'
+  ...
+# Subtest: dialogue identity distinguishes explicit voice wording while preserving legacy hashes
+ok 595 - dialogue identity distinguishes explicit voice wording while preserving legacy hashes
+  ---
+  duration_ms: 1.800708
+  type: 'test'
+  ...
+# Subtest: voiceTranscript is optional: legacy voice scenes validate without gaining one
+ok 596 - voiceTranscript is optional: legacy voice scenes validate without gaining one
+  ---
+  duration_ms: 1.210417
+  type: 'test'
+  ...
+# Subtest: loading an old voice scene never treats text/subtitle as a hidden transcript
+ok 597 - loading an old voice scene never treats text/subtitle as a hidden transcript
+  ---
+  duration_ms: 0.143542
+  type: 'test'
+  ...
+# Subtest: an explicit transcript is kept and survives draft/export round trips
+ok 598 - an explicit transcript is kept and survives draft/export round trips
+  ---
+  duration_ms: 0.436042
+  type: 'test'
+  ...
+# Subtest: validateScene rejects invalid transcript types instead of dropping them
+ok 599 - validateScene rejects invalid transcript types instead of dropping them
+  ---
+  duration_ms: 0.654167
+  type: 'test'
+  ...
+# Subtest: validateScene rejects over-long transcripts (max 2000) instead of truncating them
+ok 600 - validateScene rejects over-long transcripts (max 2000) instead of truncating them
+  ---
+  duration_ms: 0.0945
+  type: 'test'
+  ...
+# Subtest: validateScene rejects a transcript on non-voice messages (no hidden payloads)
+ok 601 - validateScene rejects a transcript on non-voice messages (no hidden payloads)
+  ---
+  duration_ms: 0.1855
+  type: 'test'
+  ...
+# Subtest: voiceTranscriptError is total and reports exactly one reason
+ok 602 - voiceTranscriptError is total and reports exactly one reason
+  ---
+  duration_ms: 0.09525
+  type: 'test'
+  ...
+# Subtest: an explicit TEXT→VOICE switch copies the wording once and undo restores the text message
+ok 603 - an explicit TEXT→VOICE switch copies the wording once and undo restores the text message
+  ---
+  duration_ms: 0.317083
+  type: 'test'
+  ...
+# Subtest: loading an old voice message never auto-copies labels when switching types
+ok 604 - loading an old voice message never auto-copies labels when switching types
+  ---
+  duration_ms: 0.266417
+  type: 'test'
+  ...
+# Subtest: VOICE→TEXT moves an explicit transcript back into the visible text
+ok 605 - VOICE→TEXT moves an explicit transcript back into the visible text
+  ---
+  duration_ms: 0.169708
+  type: 'test'
+  ...
+# Subtest: every other type conversion simply drops the invalid transcript
+ok 606 - every other type conversion simply drops the invalid transcript
+  ---
+  duration_ms: 0.098458
+  type: 'test'
+  ...
+# Subtest: Inspector direct merges can leave a voice message with an explicit empty transcript
+ok 607 - Inspector direct merges can leave a voice message with an explicit empty transcript
+  ---
+  duration_ms: 0.123167
+  type: 'test'
+  ...
+# Subtest: new voice composer input makes the words an explicit synthetic transcript
+ok 608 - new voice composer input makes the words an explicit synthetic transcript
+  ---
+  duration_ms: 0.162792
+  type: 'test'
+  ...
+# Subtest: addMessage enforces the same transcript contract
+ok 609 - addMessage enforces the same transcript contract
+  ---
+  duration_ms: 0.170208
+  type: 'test'
+  ...
+# Subtest: updateMessage treats an empty transcript as omission
+ok 610 - updateMessage treats an empty transcript as omission
+  ---
+  duration_ms: 0.051292
+  type: 'test'
+  ...
+# Subtest: rendered presence helper never invents a transcript
+ok 611 - rendered presence helper never invents a transcript
+  ---
+  duration_ms: 0.028375
+  type: 'test'
+  ...
+# Subtest: a 2001-char text→voice conversion is rejected with a typed error and keeps the old scene valid
+ok 612 - a 2001-char text→voice conversion is rejected with a typed error and keeps the old scene valid
+  ---
+  duration_ms: 0.248334
+  type: 'test'
+  ...
+# Subtest: exact 2000 chars convert and round-trip multiline Unicode unchanged
+ok 613 - exact 2000 chars convert and round-trip multiline Unicode unchanged
+  ---
+  duration_ms: 0.113458
+  type: 'test'
+  ...
+# Subtest: voice composer oversize input throws the typed error instead of silently truncating
+ok 614 - voice composer oversize input throws the typed error instead of silently truncating
+  ---
+  duration_ms: 0.1095
+  type: 'test'
+  ...
+# Subtest: existing ordinary text input is never length-restricted by the transcript cap
+ok 615 - existing ordinary text input is never length-restricted by the transcript cap
+  ---
+  duration_ms: 0.041459
+  type: 'test'
+  ...
+# Subtest: inspector conversions: voice→image drops the transcript in one undoable gesture
+ok 616 - inspector conversions: voice→image drops the transcript in one undoable gesture
+  ---
+  duration_ms: 0.198375
+  type: 'test'
+  ...
+# Subtest: inspector conversions never promote legacy voice labels into transcripts
+ok 617 - inspector conversions never promote legacy voice labels into transcripts
+  ---
+  duration_ms: 0.120875
+  type: 'test'
+  ...
+# (node:32153) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: scene watermarkEnabled round-trips booleans, defaults to on and rejects non-boolean
+ok 618 - scene watermarkEnabled round-trips booleans, defaults to on and rejects non-boolean
+  ---
+  duration_ms: 1.279167
+  type: 'test'
+  ...
+# Subtest: conversation schema keeps the optional watermark boolean and rejects non-booleans
+ok 619 - conversation schema keeps the optional watermark boolean and rejects non-booleans
+  ---
+  duration_ms: 0.76925
+  type: 'test'
+  ...
+# Subtest: project watermark validation: default on, explicit off, rejection of coercion
+ok 620 - project watermark validation: default on, explicit off, rejection of coercion
+  ---
+  duration_ms: 0.095
+  type: 'test'
+  ...
+# Subtest: project watermarkEnabled persists through create/get/list/update and is account-isolated
+ok 621 - project watermarkEnabled persists through create/get/list/update and is account-isolated
+  ---
+  duration_ms: 331.953417
+  type: 'test'
+  ...
+# Subtest: additive migration keeps legacy project rows on and never rewrites stored data
+ok 622 - additive migration keeps legacy project rows on and never rewrites stored data
+  ---
+  duration_ms: 1.980542
+  type: 'test'
+  ...
+# Subtest: batch blank scenes freeze the project watermark switch and keep it on retry
+ok 623 - batch blank scenes freeze the project watermark switch and keep it on retry
+  ---
+  duration_ms: 163.379833
+  type: 'test'
+  ...
+# Subtest: create_scene preserves the starting watermark flag and update_element can never change it
+ok 624 - create_scene preserves the starting watermark flag and update_element can never change it
+  ---
+  duration_ms: 0.545792
+  type: 'test'
+  ...
+# Subtest: server Agent runs preserve scene settings even when project defaults differ
+ok 625 - server Agent runs preserve scene settings even when project defaults differ
+  ---
+  duration_ms: 162.78575
+  type: 'test'
+  ...
+# Subtest: deterministic HTML renders every platform template differently and honours on/off
+ok 626 - deterministic HTML renders every platform template differently and honours on/off
+  ---
+  duration_ms: 8.624083
+  type: 'test'
+  ...
+# Subtest: render cache ids and audit scene hashes distinguish watermark on/off scenes
+ok 627 - render cache ids and audit scene hashes distinguish watermark on/off scenes
+  ---
+  duration_ms: 0.879209
+  type: 'test'
+  ...
+# Subtest: template header uses the counterpart and safely falls back for a solo scene
+ok 628 - template header uses the counterpart and safely falls back for a solo scene
+  ---
+  duration_ms: 0.271208
+  type: 'test'
+  ...
+# Subtest: WhatsApp deterministic palette follows browser bubbles and surface header
+ok 629 - WhatsApp deterministic palette follows browser bubbles and surface header
+  ---
+  duration_ms: 0.0945
+  type: 'test'
+  ...
+1..629
+# tests 710
+# suites 0
+# pass 710
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 145287.8845
