@@ -20,7 +20,6 @@ import {
   IconMoodSmile,
   IconPhoto,
   IconPlus,
-  IconWifi,
 } from '@tabler/icons-react';
 import type { Message, Participant, Scene } from './model';
 import './studio.css';
@@ -203,7 +202,9 @@ export function SceneView({ scene, selectedId, onSelect, exportMode = false, pen
         <span className="scene-status-time">{scene.deviceTime}</span>
         <span className="scene-status-icons" aria-hidden="true">
           <span className="scene-signal" aria-hidden="true"><i/><i/><i/><i/></span>
-          <IconWifi size={15} stroke={1.8} />
+          <svg className="scene-wifi" width="17" height="13" viewBox="0 0 17 13" fill="currentColor" aria-hidden="true">
+            <path d="M.5 3.6a12 12 0 0 1 16 0l-1.65 1.8a9.55 9.55 0 0 0-12.7 0L.5 3.6Zm3.1 3.3a7.35 7.35 0 0 1 9.8 0l-1.7 1.8a4.8 4.8 0 0 0-6.4 0L3.6 6.9Zm3.1 3.3a2.7 2.7 0 0 1 3.6 0L8.5 12.2l-1.8-2Z" />
+          </svg>
 
           <span className="scene-battery" aria-hidden="true"><i style={{width:`${scene.battery??80}%`}}/>{scene.battery!==undefined&&<b className="scene-battery-number">{scene.battery}</b>}</span>
         </span>
