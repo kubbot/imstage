@@ -133,7 +133,7 @@ test('returning Google subject keeps its account when the verified email changes
   assert.equal(result.body.user.email, user.email);
 });
 
-test('a matching verified Google email signs into the password account and preserves existing works', async t => {
+test('a matching Workspace Google email signs into the password account and preserves existing works', async t => {
   const f = await fixture(t), c = f.client();
   const user = await passwordAccount(c, 'google-owner@example.test');
   const id = crypto.randomUUID();
@@ -142,7 +142,7 @@ test('a matching verified Google email signs into the password account and prese
   assert.equal(saved.status, 200);
   await c.request('/api/auth/logout', {});
   let flow = await f.challenge(c);
-  const merged = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow) });
+  const merged = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow, { hd: 'example.test' }) });
   assert.equal(merged.status, 200);
   assert.deepEqual(merged.body.user, user);
   assert.equal((await c.request('/api/auth/session')).body.user.id, user.id);
@@ -163,6 +163,59 @@ test('a matching verified Google email signs into the password account and prese
   assert.equal(read.status, 200);
   assert.equal((await read.json()).item.scene.title, scene.title);
 });
+
+test('a matching Gmail account signs in without a hosted-domain claim', async t => {
+  const f = await fixture(t), c = f.client();
+  const user = await passwordAccount(c, 'google-owner@gmail.com');
+  await c.request('/api/auth/logout', {});
+  const flow = await f.challenge(c);
+  const result = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow, { email: user.email }) });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.user.id, user.id);
+});
+
+for (const [label, claim] of [['absent', undefined], ['empty', ''], ['non-string', 123], ['mismatched', 'other.test']]) {
+  test(`a verified third-party email with ${label} hosted domain cannot bind a password account`, async t => {
+    const f = await fixture(t), c = f.client();
+    const user = await passwordAccount(c, 'google-owner@example.test');
+    await c.request('/api/auth/logout', {});
+    let flow = await f.challenge(c);
+    const denied = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow, { hd: claim }) });
+    assert.equal(denied.status, 409);
+    assert.equal(denied.body.error.code, 'google_account_link_required');
+    assert.equal(c.jar.has('imstage_session'), false);
+    assert.equal((await c.request('/api/auth/session')).body.user, null);
+    const login = await c.request('/api/auth/login', { email: user.email, password: PASSWORD });
+    assert.equal(login.body.user.id, user.id);
+    assert.equal((await c.request('/api/auth/methods')).body.google.linked, false);
+    if (label === 'absent') {
+      flow = await f.challenge(c, 'link', { password: PASSWORD });
+      const linked = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow) });
+      assert.equal(linked.status, 200);
+      assert.equal(linked.body.user.id, user.id);
+      await c.request('/api/auth/logout', {});
+      assert.equal((await googleAccount(f, c)).id, user.id);
+    }
+  });
+}
+
+for (const [label, claims, expected] of [['third-party', {}, 409], ['Workspace', { hd: 'example.test' }, 200]]) {
+  test(`pending ${label} registration rechecks email authority if a password account appears`, async t => {
+    const f = await fixture(t), c = f.client(), other = f.client();
+    const flow = await f.challenge(c);
+    const pending = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow, claims) });
+    assert.equal(pending.body.registrationRequired, true);
+    assert.deepEqual(Object.keys(pending.body.profile).sort(), ['email', 'name']);
+    const owner = await passwordAccount(other, 'google-owner@example.test');
+    const result = await c.request('/api/auth/google/register', { flowId: flow.flowId, termsAccepted: true });
+    assert.equal(result.status, expected);
+    if (expected === 409) {
+      assert.equal(result.body.error.code, 'google_account_link_required');
+      assert.equal((await c.request('/api/auth/session')).body.user, null);
+      assert.equal((await other.request('/api/auth/methods')).body.google.linked, false);
+    } else assert.equal(result.body.user.id, owner.id);
+  });
+}
 
 test('an unverified matching Google email cannot link or create a session', async t => {
   const f = await fixture(t), c = f.client();

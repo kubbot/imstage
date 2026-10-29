@@ -970,6 +970,8 @@ function googleAccountResult(ctx, req, browser, flowId, profile, termsAccepted, 
     row = { id: crypto.randomUUID(), email: profile.email, name: displayName.trim() };
     ctx.db.prepare('INSERT INTO users(id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)').run(row.id, row.email, row.name, GOOGLE_ONLY_PASSWORD_HASH, dateISO(ctx.nowMs()));
     preferences.createDefaultPreferences(ctx.db, row.id, ctx.nowMs());
+  } else if (profile.emailAuthoritative !== true) {
+    throw new HttpError(409, 'google_account_link_required', '该邮箱已有账号，请先用密码登录，再到账号设置关联 Google');
   }
   ctx.google.link(row.id, profile);
   ctx.google.advanceBrowser(browser);

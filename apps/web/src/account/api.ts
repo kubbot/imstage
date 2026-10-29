@@ -127,6 +127,7 @@ const CODE_EN: Record<string, string> = {
   google_already_linked: 'This Google account is already linked. Existing sign-in methods cannot be overwritten.',
   google_last_signin_method: 'Keep at least one sign-in method.',
   google_busy: 'Google sign-in is busy. Please retry later.',
+  google_account_link_required: 'This email already has an account. Sign in with your password, then link Google in account settings.',
   auth_operation_superseded: 'Another sign-in operation changed this session. Please retry.',
   terms_required: 'Please accept the terms and privacy notice first.',
   unauthorized: 'Please sign in again.',
