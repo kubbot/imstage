@@ -85,6 +85,7 @@ function initialize(db) {
     );
     CREATE TABLE IF NOT EXISTS auth_browser_contexts (
       hash TEXT PRIMARY KEY,
+      generation TEXT NOT NULL,
       epoch INTEGER NOT NULL,
       current_flow_id TEXT,
       updated_at_ms INTEGER NOT NULL
@@ -118,14 +119,14 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
     if (!TOKEN.test(key ?? '')) fail('invalid_request');
     return hash(key);
   };
-  const snapshotOf = row => ({ hash: row.hash, epoch: Number(row.epoch) });
+  const snapshotOf = row => ({ hash: row.hash, generation: row.generation, epoch: Number(row.epoch) });
 
   function prune() {
     const now = nowMs();
     db.prepare('DELETE FROM google_auth_flows WHERE expires_at_ms <= ?').run(now);
     db.prepare(`DELETE FROM auth_browser_contexts WHERE updated_at_ms < ?
       AND NOT EXISTS (SELECT 1 FROM google_auth_flows f WHERE f.browser_hash=auth_browser_contexts.hash)
-      AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.auth_context_hash=auth_browser_contexts.hash AND s.expires_at_ms>?)`).run(now - 30 * 86400_000, now);
+      AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.auth_context_hash=auth_browser_contexts.hash AND s.expires_at_ms>?)`).run(now - TTL, now);
   }
 
   function captureBrowser(key) {
@@ -136,9 +137,10 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
       if (!row) {
         prune();
         if (db.prepare('SELECT count(*) AS n FROM auth_browser_contexts').get().n >= 10000) fail('google_busy');
-        db.prepare('INSERT INTO auth_browser_contexts(hash,epoch,updated_at_ms) VALUES (?,0,?)').run(h, nowMs());
+        db.prepare('INSERT INTO auth_browser_contexts(hash,generation,epoch,updated_at_ms) VALUES (?,?,0,?)').run(h, crypto.randomUUID(), nowMs());
         row = db.prepare('SELECT * FROM auth_browser_contexts WHERE hash=?').get(h);
       }
+      db.prepare('UPDATE auth_browser_contexts SET updated_at_ms=? WHERE hash=?').run(nowMs(), h);
       return snapshotOf(row);
     });
   }
@@ -146,7 +148,7 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
   function assertSnapshot(snapshot, force = false) {
     if (!snapshot) fail('google_storage_unavailable');
     const row = db.prepare('SELECT * FROM auth_browser_contexts WHERE hash=?').get(snapshot.hash);
-    if (!row || (!force && Number(row.epoch) !== snapshot.epoch)) fail('auth_operation_superseded');
+    if (!row || (!force && (Number(row.epoch) !== snapshot.epoch || row.generation !== snapshot.generation))) fail('auth_operation_superseded');
     return row;
   }
 
@@ -161,7 +163,7 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
       db.prepare('DELETE FROM google_auth_flows WHERE browser_hash=?').run(snapshot.hash);
       const epoch = Number(row.epoch) + 1;
       db.prepare('UPDATE auth_browser_contexts SET epoch=?,current_flow_id=NULL,updated_at_ms=? WHERE hash=?').run(epoch, nowMs(), snapshot.hash);
-      return { hash: snapshot.hash, epoch };
+      return { hash: snapshot.hash, generation: row.generation, epoch };
     });
   }
 
@@ -224,7 +226,7 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
       || typeof payload.email !== 'string' || payload.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)
       || typeof payload.nonce !== 'string' || hash(payload.nonce) !== claimed.nonceHash) fail('google_invalid_identity');
     const email = payload.email.trim().toLowerCase();
-    const name = (typeof payload.name === 'string' ? payload.name : email.split('@')[0]).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80) || 'Google user';
+    const name = (typeof payload.name === 'string' ? payload.name : email.split('@')[0]).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60) || 'Google user';
     return { sub: payload.sub, email, name };
   }
 
@@ -284,5 +286,21 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
     });
   }
 
-  return { enabled, clientId: enabled ? configuredId : null, captureBrowser, advanceBrowser, issue, claim, recheck, verifyCredential, markRegistration, pending, identity, link, methods, unlink, cancel };
+  function peekHash(h) {
+    const row = db.prepare('SELECT * FROM auth_browser_contexts WHERE hash=?').get(h ?? '');
+    return row ? snapshotOf(row) : null;
+  }
+  const peekBrowser = key => TOKEN.test(key ?? '') ? peekHash(hash(key)) : null;
+  function peekFlow(id, token) {
+    const row = ID.test(id ?? '') ? db.prepare('SELECT * FROM google_auth_flows WHERE id=?').get(id) : null;
+    return row && cookieMatches(row, token) ? peekHash(row.browser_hash) : null;
+  }
+  function pendingForBrowser(snapshot, cookies, binding) {
+    if (!snapshot) return null;
+    const row = db.prepare('SELECT current_flow_id FROM auth_browser_contexts WHERE hash=?').get(snapshot.hash);
+    const id = row?.current_flow_id;
+    const profile = pending(snapshot, id, cookies(id), binding);
+    return profile ? { flowId: id, profile: { email: profile.email, name: profile.name } } : null;
+  }
+  return { enabled, clientId: enabled ? configuredId : null, captureBrowser, peekBrowser, peekHash, peekFlow, pendingForBrowser, advanceBrowser, issue, claim, recheck, verifyCredential, markRegistration, pending, identity, link, methods, unlink, cancel };
 }

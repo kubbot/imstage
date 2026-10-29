@@ -195,3 +195,32 @@ test('Google verification validates a real RSA signature rather than decoding an
   const forged = encode({ alg: 'RS256', kid: 'synthetic' }) + '.' + encode({ ...payload, sub: 'forged' }) + '.' + signature;
   await assert.rejects(module.verifyGoogleIdToken(forged, CLIENT, { client }), rejected('google_invalid_identity'));
 });
+
+test('expired unused browser metadata is reclaimed without revalidating an old snapshot', t => {
+  const { auth, advanceTime, db } = fixture(t);
+  const key = contextKey(), old = auth.captureBrowser(key);
+  advanceTime(600001);
+  auth.captureBrowser(contextKey());
+  assert.equal(db.prepare('SELECT count(*) AS n FROM auth_browser_contexts WHERE hash=?').get(old.hash).n, 0);
+  auth.captureBrowser(key);
+  assert.throws(() => auth.advanceBrowser(old), rejected('auth_operation_superseded'));
+});
+
+test('session ownership survives nonce-flow expiry', t => {
+  const { auth, advanceTime, db } = fixture(t);
+  const key = contextKey(), snapshot = auth.captureBrowser(key);
+  db.prepare('INSERT INTO sessions(id,user_id,token_hash,created_at,expires_at_ms,auth_context_hash) VALUES (?,?,?,?,?,?)').run('persistent', 'u1', 'persistent-token', '2026-01-01', Date.now() + 86400000, snapshot.hash);
+  advanceTime(600001);
+  auth.captureBrowser(contextKey());
+  auth.advanceBrowser(auth.captureBrowser(key));
+  assert.equal(db.prepare('SELECT count(*) AS n FROM sessions WHERE id=?').get('persistent').n, 0);
+});
+
+test('an old auth snapshot cannot survive re-creation of expired browser metadata', t => {
+  const { auth, advanceTime } = fixture(t);
+  const key = contextKey(), old = auth.captureBrowser(key);
+  advanceTime(31 * 86400000);
+  auth.captureBrowser(contextKey());
+  auth.captureBrowser(key);
+  assert.throws(() => auth.advanceBrowser(old), rejected('auth_operation_superseded'));
+});
