@@ -4,12 +4,12 @@ Local / self-hosted backend for IMStage accounts and owned scenes.
 
 `services/api/server.mjs` implements the real backend only: registration, login,
 logout, password change, opaque server-side sessions, and per-user scene,
-contact, template and project persistence. Auth uses the Node standard library; the separate Agent service uses `sharp` to verify generated images actually decode.
+contact, template and project persistence. Password auth uses the Node standard library; optional Google identity verification uses the pinned official `google-auth-library`; the separate Agent service uses `sharp` to verify generated images actually decode.
 
 ## What this is (and is not)
 
 - Real local/self-hosted auth backed by SQLite and scrypt.
-- No OAuth provider, no email verification, no password-reset-by-email. There is
+- Google user sign-in is optional; no password-account email verification or password-reset-by-email. There is
   no way to recover an account through this server; document that to users.
 - Not a Vercel/serverless backend. It is a long-lived Node process with a local
   SQLite file storing both accounts and sessions. Rate-limit counters are process-local.
@@ -44,6 +44,7 @@ and the API must share one origin. `dist/` is produced by `npm run build`.
 | Database file | — | `<data dir>/imstage.db` | Created with mode `0600`; WAL mode. |
 | App origin | `IMSTAGE_APP_ORIGIN` | `http://127.0.0.1:4417` | Exact browser origin allowed on mutations. |
 | Trusted proxy | `IMSTAGE_TRUST_LOOPBACK_PROXY` | unset | Set `1` only behind a local proxy that overwrites `X-Real-IP`; used for auth throttling. |
+| Google Web client | `IMSTAGE_GOOGLE_CLIENT_ID` | unset | Optional Web application client; absence hides Google login. No client secret. |
 | Static dir | `IMSTAGE_DIST_DIR` | `dist` | Built web app; missing directory → static 404s. |
 | Project export dir | `IMSTAGE_PROJECT_EXPORT_DIR` | `<db dir>/project-exports` | Deterministic export files (ZIP + per-item PNGs). A memory database without an explicit dir uses its own temporary directory, removed on close. |
 | Node env | `NODE_ENV` | `development` | In `production`, a non-loopback origin must be `https://` or startup fails. |
@@ -304,3 +305,45 @@ safety and static serving. It uses its own scoped sub-directory under
 sub-directory.
 
 The browser sends `X-IMStage-User` on authenticated requests. If it does not match the cookie session, the API rejects the request instead of operating on a different account after another tab switches users. Password changes recheck the session and old password hash after hashing. Session records are capped at 20 per user; expired records are pruned on session creation.
+
+## Google user sign-in
+
+Configure a Google Auth Platform **Web application** client with the exact
+canonical frontend origin in Authorized JavaScript origins. The GIS popup uses
+no redirect endpoint or client secret. Enable the appropriate external production
+audience and basic identity only. Keep the runtime client ID in the private
+provider env file, outside Git; the browser receives the public client ID from
+`GET /api/auth/google/config`. No Google API access/refresh tokens are requested.
+
+The official GIS button supplies an ID token over same-origin JSON POST to
+`/api/auth/google/credential`. The server verifies Google's signature, issuer,
+audience, expiry, verified email and a one-use nonce. Flows expire after 600s and
+require a random HttpOnly, SameSite=Strict cookie scoped to `/api/auth` (Secure on
+HTTPS), plus a shared browser context from IndexedDB. The IDB transaction commits
+before any first-party auth request. Durable epochs invalidate delayed requests;
+session ownership outlives nonce cleanup so logout revokes late cookies from
+both password and Google login. Legacy clients that never obtain secure browser
+storage retain password auth without the same cross-tab cancellation guarantee.
+
+Google `sub` is the identity key. Matching an existing local email never links
+accounts: first sign in with the password, then confirm it again in settings to
+link Google. New Google accounts require explicit terms consent. Pending consent
+stores verified profile data server-side for at most 10 minutes and can resume on
+reload; raw credentials are never stored or logged. Existing names, emails and
+saved works are preserved. Google-only users have an unusable password marker
+and cannot unlink their only method; password-capable users must prove their
+password to unlink, which revokes their sessions.
+
+Routes: `GET /api/auth/google/config`, `GET /api/auth/methods`, and JSON POST to
+`/api/auth/google/{challenge,credential,register,cancel,unlink}`. Mutations retain
+exact Origin/custom-header guards and independent rate limits. Challenge/link,
+verification and commit recheck the session and captured browser epoch across
+async boundaries. An expired flow requires a fresh button; provider/SDK failures
+leave password login available. Test verifier injection is programmatic only;
+there is no runtime environment bypass.
+
+References: [GIS setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid),
+[JS API](https://developers.google.com/identity/gsi/web/reference/js-reference),
+[server verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
+Local RSA/provider fixtures prove implementation behavior, not real provider
+configuration or production acceptance. Record live acceptance separately.

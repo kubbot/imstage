@@ -158,3 +158,19 @@ is configured). Issue its certificate, add the host to MCP allowed hosts, update
 Nginx and the rewrite, then change the API's exact frontend origin. Verify TLS,
 login/save and redirects before retiring old URLs. DNS changes require the actual
 domain and DNS provider; neither is guessed here.
+
+### Optional Google login on the Mac backend
+
+Add a private mode-600 environment file containing `IMSTAGE_GOOGLE_CLIENT_ID`
+to `environmentFiles`; preserve every existing provider file. Use a dedicated
+Google Web client whose authorized JavaScript origin matches `appOrigin` exactly.
+No secret or redirect URI is needed for the GIS popup. Rebuild/deploy the reviewed
+revision; confirm `/api/auth/google/config` from the frontend origin, then test
+real Google login, consent, refresh/restart persistence and logout. Password smoke
+alone is not Google acceptance. Schema changes are additive and old accounts and
+works remain in the same SQLite database.
+
+On shared Macs, preserve the existing effective auto-deploy LaunchAgent host
+policy. Replacing updater code does not require reinstalling the timer. In
+particular, an operator-tuned Standard process policy should not be overwritten
+by the installer's Background default during a provider-only configuration change.

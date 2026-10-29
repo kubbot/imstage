@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { IconArrowRight, IconEye, IconEyeOff, IconLock } from '@tabler/icons-react';
 import { useAuth } from './Auth';
+import GoogleSignIn from './GoogleSignIn';
+import { TermsConsent } from './TermsConsent';
 import { api, ApiError, errorText, safeNext, type User } from './api';
 import { cachedPreferences, ensurePreferences } from '../preferences/api';
 import { useCopy } from '../i18n';
@@ -64,13 +66,14 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
   return <section className="auth-layout">
     <div className="auth-story" aria-hidden="true"><span className="account-kicker">{story.label}</span><h2>{story.title[0]}<br />{story.title[1]}</h2><p>{story.body}</p><div className="auth-specimen"><ScaledSceneFrame><SceneView scene={example} exportMode locale={locale} /></ScaledSceneFrame></div><span className="auth-caption">{story.caption}</span></div>
     <div className="auth-form-panel"><div className="auth-form-heading"><span className="account-kicker">{register ? a.registerKicker : a.loginKicker}</span><h1>{register ? a.registerTitle : a.loginTitle}</h1><p>{register ? a.registerLede : a.loginLede}</p></div>
+      <GoogleSignIn onSuccess={accept} disabled={busy} />
       <form onSubmit={submit} className="account-form" aria-label={register ? a.registerTitle : a.loginTitle}>
         <fieldset disabled={busy}>
           {register && <label>{a.nameLabel}<input name="name" autoComplete="nickname" required maxLength={60} value={name} onChange={e => { remembered.name = e.target.value; setName(e.target.value); }} placeholder={a.namePlaceholder} /></label>}
           <label>{a.emailLabel}<input name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required maxLength={254} value={email} onChange={e => { remembered.email = e.target.value; setEmail(e.target.value); }} placeholder="you@example.com" /></label>
           <label>{a.passwordLabel}<span className="password-field"><input name="password" type={visible ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} required minLength={register ? 6 : undefined} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} aria-describedby={register ? 'password-hint' : undefined} /><button type="button" aria-label={visible ? a.hidePassword : a.showPassword} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <IconEyeOff size={19} /> : <IconEye size={19} />}</button></span></label>
           {register && <p id="password-hint" className="field-hint">{a.passwordHint}</p>}
-          {register && <label className="auth-terms"><input type="checkbox" data-testid="terms-consent" required checked={agreed} onChange={e => setAgreed(e.target.checked)} /> <span>{locale === 'zh' ? <>我已阅读并同意 <a href="#/terms">使用条款</a> 与 <a href="#/privacy">隐私与留存</a>：仅限测试与学习用途；禁止伪造证据、欺诈、诽谤、冒充或误导性使用；所有输出固定带「AI生成 / 虚构」标识，不得移除。</> : <>I have read and accept the <a href="#/terms">terms of use</a> and <a href="#/privacy">privacy &amp; retention</a> notices: testing and learning only; no fabricated evidence, fraud, defamation, impersonation or misleading use; every output carries a fixed “AI-generated / fictional” label that must not be removed.</>}</span></label>}
+          {register && <TermsConsent checked={agreed} onChange={setAgreed} />}
         </fieldset>
         {error && <p className="account-error" role="alert">{error}</p>}
         <button className="btn btn-primary auth-submit" disabled={busy || (register && !agreed)} type="submit">{busy ? (register ? a.registerBusy : a.loginBusy) : (register ? a.createAccount : a.login)} {!busy && <IconArrowRight size={18} />}</button>

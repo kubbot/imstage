@@ -136,6 +136,7 @@ const API_SECURITY_HEADERS = Object.freeze({
 });
 
 const STATIC_SECURITY_HEADERS = Object.freeze({
+  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
