@@ -148,6 +148,30 @@ class MacReleaseTest(unittest.TestCase):
             self.assertFalse(macos.bootstrap_account(self.cfg))
             request.assert_not_called()
 
+    def test_restart_waits_for_launchd_to_finish_unloading_the_job(self):
+        results = [subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 5, stderr=b'Input/output error'), subprocess.CompletedProcess([], 0)]
+        with patch.object(macos.subprocess, 'run', side_effect=results) as run, patch.object(macos.time, 'sleep') as sleep:
+            macos.restart(self.cfg)
+        self.assertEqual([call.args[0][1] for call in run.call_args_list], ['bootout', 'bootstrap', 'bootstrap'])
+        sleep.assert_called_once_with(0.5)
+
+    def test_restart_stops_after_a_bounded_number_of_transient_errors(self):
+        def unavailable(command, **kwargs):
+            return subprocess.CompletedProcess(command, 0 if command[1] == 'bootout' else 5, stderr=b'Input/output error')
+        with patch.object(macos.subprocess, 'run', side_effect=unavailable) as run, patch.object(macos.time, 'sleep') as sleep:
+            with self.assertRaises(subprocess.CalledProcessError):
+                macos.restart(self.cfg)
+        self.assertEqual(run.call_count, 21)
+        self.assertEqual(sleep.call_count, 19)
+
+    def test_restart_does_not_retry_unrelated_errors(self):
+        results = [subprocess.CompletedProcess([], 0), subprocess.CompletedProcess(['launchctl', 'bootstrap'], 64)]
+        with patch.object(macos.subprocess, 'run', side_effect=results) as run, patch.object(macos.time, 'sleep') as sleep:
+            with self.assertRaises(subprocess.CalledProcessError):
+                macos.restart(self.cfg)
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
