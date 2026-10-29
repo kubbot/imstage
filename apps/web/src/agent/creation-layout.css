@@ -48,8 +48,17 @@
 .agent-chat .agent-drop-entry{margin-top:0;margin-bottom:12px;border-radius:7px}
 
 /* Target-platform skin selector: prominent, bilingual and always visible. */
-.agent-render-toolbar .canvas-platform{display:flex;align-items:center;gap:6px;min-height:36px;padding:2px 10px;border:1px solid var(--accent);border-radius:8px;background:var(--surface);font-size:11px;color:var(--muted);flex-shrink:0}
+.agent-render-toolbar .canvas-platform{display:flex;align-items:center;gap:6px;min-height:36px;padding:2px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;font-size:11px;color:var(--muted);flex-shrink:0}
 .agent-render-toolbar .canvas-platform>span{white-space:nowrap}
 .agent-render-toolbar .canvas-platform select{max-width:150px;min-height:30px;font-size:12px;font-weight:600;color:var(--text);border:0;background:transparent;padding:0 2px}
 .agent-render-toolbar .canvas-platform select:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:660px){.agent-render-toolbar .canvas-platform{padding:2px 6px;gap:3px}.agent-render-toolbar .canvas-platform select{max-width:118px;font-size:11px}}
+
+/* The artwork leads; controls keep the existing Studio palette and density. */
+.agent-workspace .agent-canvas:has(.agent-empty-hint){position:relative}
+.agent-workspace .agent-empty-hint{display:flex;flex-direction:column;align-items:center;justify-content:center;position:absolute;inset:0;z-index:1;margin:0;padding:24px;text-align:center;background:var(--bg)}
+.agent-empty-hint h2{font-size:22px;font-weight:500;letter-spacing:-.02em;margin:0 0 12px}
+.agent-empty-hint>p{max-width:30ch;font-size:14px;line-height:1.8;color:var(--muted);margin:0 0 20px}
+.agent-empty-hint .agent-button{min-height:44px}
+.agent-workspace .agent-tools{border:0;border-top:1px solid var(--line);border-radius:0;padding:8px 0}
+.agent-workspace .agent-tools summary{min-height:36px;align-content:center}
