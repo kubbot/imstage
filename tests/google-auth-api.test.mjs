@@ -133,7 +133,7 @@ test('returning Google subject keeps its account when the verified email changes
   assert.equal(result.body.user.email, user.email);
 });
 
-test('a matching password email is not automatically linked and existing works survive explicit linking', async t => {
+test('a matching verified Google email signs into the password account and preserves existing works', async t => {
   const f = await fixture(t), c = f.client();
   const user = await passwordAccount(c, 'google-owner@example.test');
   const id = crypto.randomUUID();
@@ -142,22 +142,42 @@ test('a matching password email is not automatically linked and existing works s
   assert.equal(saved.status, 200);
   await c.request('/api/auth/logout', {});
   let flow = await f.challenge(c);
-  const collision = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow), termsAccepted: true });
-  assert.equal(collision.status, 409);
-  assert.equal(collision.body.error.code, 'google_account_link_required');
-  assert.equal((await c.request('/api/auth/session')).body.user, null);
-  assert.equal((await c.request('/api/auth/login', { email: user.email, password: PASSWORD })).body.user.id, user.id);
-  assert.equal((await c.request('/api/auth/google/challenge', { intent: 'link', password: 'wrong' })).status, 401);
+  const merged = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow) });
+  assert.equal(merged.status, 200);
+  assert.deepEqual(merged.body.user, user);
   assert.equal((await c.request('/api/auth/session')).body.user.id, user.id);
-  flow = await f.challenge(c, 'link', { password: PASSWORD });
-  const linked = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow) });
-  assert.equal(linked.status, 200);
-  assert.equal(linked.body.user.id, user.id);
+  const methods = (await c.request('/api/auth/methods')).body;
+  assert.equal(methods.google.linked, true);
+  assert.equal(methods.password, true);
   await c.request('/api/auth/logout', {});
-  assert.equal((await googleAccount(f, c)).id, user.id);
+  const passwordLogin = await c.request('/api/auth/login', { email: user.email, password: PASSWORD });
+  assert.equal(passwordLogin.status, 200);
+  assert.equal(passwordLogin.body.user.id, user.id);
+  await c.request('/api/auth/logout', {});
+  flow = await f.challenge(c);
+  const returning = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow) });
+  assert.equal(returning.status, 200);
+  assert.equal(returning.body.user.id, user.id);
+  assert.equal((await c.request('/api/auth/session')).body.user.id, user.id);
   const read = await fetch(f.base + '/api/scenes/' + id, { headers: { 'x-imstage-user': user.id, cookie: [...c.jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
   assert.equal(read.status, 200);
   assert.equal((await read.json()).item.scene.title, scene.title);
+});
+
+test('an unverified matching Google email cannot link or create a session', async t => {
+  const f = await fixture(t), c = f.client();
+  const user = await passwordAccount(c, 'google-owner@example.test');
+  await c.request('/api/auth/logout', {});
+  const flow = await f.challenge(c);
+  const rejected = await c.request('/api/auth/google/credential', { flowId: flow.flowId, credential: f.token(flow, { email_verified: false }) });
+  assert.equal(rejected.status, 401);
+  assert.equal(rejected.body.error.code, 'google_invalid_identity');
+  assert.equal(c.jar.has('imstage_session'), false);
+  assert.equal((await c.request('/api/auth/session')).body.user, null);
+  const login = await c.request('/api/auth/login', { email: user.email, password: PASSWORD });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.user.id, user.id);
+  assert.equal((await c.request('/api/auth/methods')).body.google.linked, false);
 });
 
 test('Google identity already belonging to another user cannot replace a password account', async t => {

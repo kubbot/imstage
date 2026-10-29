@@ -963,10 +963,7 @@ function googleAccountResult(ctx, req, browser, flowId, profile, termsAccepted, 
   let row;
   if (linked) {
     row = ctx.db.prepare('SELECT id,email,name FROM users WHERE id=?').get(linked.userId);
-  } else {
-    if (ctx.db.prepare('SELECT id FROM users WHERE email=?').get(profile.email)) {
-      throw new HttpError(409, 'google_account_link_required', '该邮箱已有账号，请先用密码登录，再到账号设置关联 Google');
-    }
+  } else if ((row = ctx.db.prepare('SELECT id,email,name FROM users WHERE email=?').get(profile.email)) === undefined) {
     if (termsAccepted !== true) return null;
     const displayName = name === undefined ? profile.name : name;
     if (typeof displayName !== 'string' || !displayName.trim() || displayName.trim().length > 60) throw new HttpError(400, 'invalid_name', '名称长度需为 1-60 个字符');
