@@ -3218,6 +3218,7 @@ export function createApp(options = {}) {
   const config = resolveConfig(options);
   const db = openDatabase(config.dbPath);
   const google = createGoogleAuth(db, { clientId: config.googleClientId, nowMs: config.nowMs, verifyToken: options.googleVerifyToken });
+  google.prune();
   const semaphore = new Semaphore(config.hashConcurrency);
   const limiters = {
     authBrowser: new FixedWindowLimiter(config.rateLimit.authBrowser),
@@ -3428,6 +3429,11 @@ export function createApp(options = {}) {
     },
   };
 
+  const googleCleanupTimer = setInterval(() => {
+    try { google.prune(); }
+    catch { config.logger.error('[imstage-api] Google authentication cleanup failed'); }
+  }, 60_000);
+  googleCleanupTimer.unref();
   const server = http.createServer((req, res) => {
     route(ctx, req, res).catch((err) => {
       sendError(req, res, ctx, err).catch(() => {
@@ -3447,6 +3453,7 @@ export function createApp(options = {}) {
   const close = async () => {
     if (closed) return;
     closed = true;
+    clearInterval(googleCleanupTimer);
     await projectExports.stop();
     await batchQueue.stop();
     await new Promise((resolve) => {

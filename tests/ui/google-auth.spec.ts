@@ -157,3 +157,38 @@ test('Google consent is usable in English on a narrow screen', async ({ page }) 
   await page.keyboard.press('Space');
   await expect(page.getByRole('button', { name: 'Accept and create account' })).toBeEnabled();
 });
+
+test('Google remains usable after a rejected password attempt', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/auth/login', route => route.fulfill({ status: 401, json: { error: { code: 'invalid_credentials', message: '邮箱或密码不正确' } } }));
+  await page.goto('/#/login');
+  await expect(page.getByRole('button', { name: '使用 Google 登录', exact: true })).toBeVisible();
+  await page.getByLabel('邮箱', { exact: true }).fill('synthetic@example.test');
+  await page.getByLabel('密码', { exact: true }).fill('wrong-synthetic-password');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('邮箱或密码不正确');
+  await expect(page.getByRole('button', { name: '使用 Google 登录', exact: true })).toBeVisible();
+  await credential(page);
+  await expect(page.getByTestId('google-registration')).toBeVisible();
+});
+
+test('a slow Google SDK cannot supersede a password login already in progress', async ({ page }) => {
+  const calls = await fixture(page);
+  let releaseSdk!: () => void, releasePassword!: () => void;
+  const sdkGate = new Promise<void>(r => { releaseSdk = r; });
+  const passwordGate = new Promise<void>(r => { releasePassword = r; });
+  let passwordReceived = false;
+  await page.route('https://accounts.google.com/gsi/client', async route => { await sdkGate; await route.fallback(); });
+  await page.route('**/api/auth/login', async route => { passwordReceived = true; await passwordGate; await route.fulfill({ status: 401, json: { error: { code: 'invalid_credentials', message: '邮箱或密码不正确' } } }); });
+  await page.goto('/#/login');
+  await page.getByLabel('邮箱', { exact: true }).fill('synthetic@example.test');
+  await page.getByLabel('密码', { exact: true }).fill('wrong-synthetic-password');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect.poll(() => passwordReceived).toBe(true);
+  releaseSdk();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).google))).toBe(true);
+  expect(calls.filter(c => c.path.endsWith('/challenge'))).toHaveLength(0);
+  releasePassword();
+  await expect(page.getByRole('alert')).toContainText('邮箱或密码不正确');
+  await expect(page.getByRole('button', { name: '使用 Google 登录', exact: true })).toBeVisible();
+});

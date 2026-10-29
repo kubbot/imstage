@@ -47,6 +47,7 @@ export default function GoogleSignIn({ intent = 'signin', onSuccess, disabled = 
     active.current = true;
     let cancelled = false;
     const mine = ++owner;
+    const preparingRevision = authOperationVersion();
     settled.current = false;
     async function prepare() {
       setError('');
@@ -56,14 +57,14 @@ export default function GoogleSignIn({ intent = 'signin', onSuccess, disabled = 
         setEnabled(config.enabled);
         if (!config.enabled) return;
         if (!await browserAuthContext()) throw new Error(zh ? '浏览器安全存储不可用，请使用邮箱密码登录。' : 'Secure browser storage is unavailable. Use your email and password.');
-        if (cancelled || owner !== mine) return;
+        if (cancelled || owner !== mine || authOperationVersion() !== preparingRevision) return;
         if (intent === 'signin' && config.pending) {
           settled.current = true; flow.current = config.pending.flowId;
           setPending(config.pending); setName(config.pending.profile.name); return;
         }
         if (!linkStarted) return;
         const id = await loadSdk();
-        if (cancelled || owner !== mine) return;
+        if (cancelled || owner !== mine || authOperationVersion() !== preparingRevision) return;
         const challenge = await api<{ flowId: string; nonce: string; clientId: string }>('/auth/google/challenge', { method: 'POST', body: { intent, ...(intent === 'link' ? { password } : {}) }, optional: true });
         flow.current = challenge.flowId; lease.current = authOperationVersion();
         setPassword('');

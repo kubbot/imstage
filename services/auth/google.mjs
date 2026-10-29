@@ -47,18 +47,18 @@ function transaction(db, work) {
 
 let library;
 const clients = new Map();
-async function googleClient(clientId) {
+export async function googleVerificationClient(clientId) {
   if (!clients.has(clientId)) {
     library ??= import('google-auth-library');
     const { OAuth2Client } = await library;
-    clients.set(clientId, new OAuth2Client({ clientId, transporterOptions: { timeout: 8000, retry: false } }));
+    clients.set(clientId, new OAuth2Client({ clientId, transporterOptions: { timeout: 8000, retryConfig: { retry: 0 } } }));
   }
   return clients.get(clientId);
 }
 
 export async function verifyGoogleIdToken(credential, clientId, { client } = {}) {
   try {
-    const verifier = client ?? await googleClient(clientId);
+    const verifier = client ?? await googleVerificationClient(clientId);
     const ticket = await verifier.verifyIdToken({ idToken: credential, audience: clientId });
     return ticket.getPayload();
   } catch (error) {
@@ -302,5 +302,5 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
     const profile = pending(snapshot, id, cookies(id), binding);
     return profile ? { flowId: id, profile: { email: profile.email, name: profile.name } } : null;
   }
-  return { enabled, clientId: enabled ? configuredId : null, captureBrowser, peekBrowser, peekHash, peekFlow, pendingForBrowser, advanceBrowser, issue, claim, recheck, verifyCredential, markRegistration, pending, identity, link, methods, unlink, cancel };
+  return { enabled, clientId: enabled ? configuredId : null, prune, captureBrowser, peekBrowser, peekHash, peekFlow, pendingForBrowser, advanceBrowser, issue, claim, recheck, verifyCredential, markRegistration, pending, identity, link, methods, unlink, cancel };
 }

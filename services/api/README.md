@@ -328,8 +328,8 @@ storage retain password auth without the same cross-tab cancellation guarantee.
 Google `sub` is the identity key. Matching an existing local email never links
 accounts: first sign in with the password, then confirm it again in settings to
 link Google. New Google accounts require explicit terms consent. Pending consent
-stores verified profile data server-side for at most 10 minutes and can resume on
-reload; raw credentials are never stored or logged. Existing names, emails and
+stores verified profile data server-side; it expires after 10 minutes and can resume on
+reload before expiry. Cleanup runs every minute and at startup; raw credentials are never stored or logged. Existing names, emails and
 saved works are preserved. Google-only users have an unusable password marker
 and cannot unlink their only method; password-capable users must prove their
 password to unlink, which revokes their sessions.

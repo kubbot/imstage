@@ -27,6 +27,7 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
   const [error, setError] = useState('');
   const [help, setHelp] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [googleAttempt, setGoogleAttempt] = useState(0);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const register = mode === 'register';
@@ -61,12 +62,12 @@ export default function AuthPage({ mode, next }: { mode: 'login' | 'register'; n
       if (!active.current) { void refresh(); return; }
       accept(result.user); setPassword('');
     } catch (error) { if (!active.current) return; setError(register && error instanceof ApiError && error.status === 0 ? a.registrationUncertain : errorText(error)); }
-    finally { if (active.current) setBusy(false); }
+    finally { if (active.current) { setBusy(false); setGoogleAttempt(value => value + 1); } }
   }
   return <section className="auth-layout">
     <div className="auth-story" aria-hidden="true"><span className="account-kicker">{story.label}</span><h2>{story.title[0]}<br />{story.title[1]}</h2><p>{story.body}</p><div className="auth-specimen"><ScaledSceneFrame><SceneView scene={example} exportMode locale={locale} /></ScaledSceneFrame></div><span className="auth-caption">{story.caption}</span></div>
     <div className="auth-form-panel"><div className="auth-form-heading"><span className="account-kicker">{register ? a.registerKicker : a.loginKicker}</span><h1>{register ? a.registerTitle : a.loginTitle}</h1><p>{register ? a.registerLede : a.loginLede}</p></div>
-      <GoogleSignIn onSuccess={accept} disabled={busy} />
+      <GoogleSignIn key={googleAttempt} onSuccess={accept} disabled={busy} />
       <form onSubmit={submit} className="account-form" aria-label={register ? a.registerTitle : a.loginTitle}>
         <fieldset disabled={busy}>
           {register && <label>{a.nameLabel}<input name="name" autoComplete="nickname" required maxLength={60} value={name} onChange={e => { remembered.name = e.target.value; setName(e.target.value); }} placeholder={a.namePlaceholder} /></label>}

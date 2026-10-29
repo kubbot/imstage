@@ -224,3 +224,31 @@ test('an old auth snapshot cannot survive re-creation of expired browser metadat
   auth.captureBrowser(key);
   assert.throws(() => auth.advanceBrowser(old), rejected('auth_operation_superseded'));
 });
+
+test('certificate transport fails once without the Google library extending the retry budget', async t => {
+  assert.equal(typeof module.googleVerificationClient, 'function');
+  const { createServer } = await import('node:http');
+  let requests = 0;
+  const server = createServer((req, res) => { requests++; res.writeHead(503, { 'content-type': 'application/json' }); res.end('{}'); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const client = await module.googleVerificationClient(CLIENT);
+  const original = { ...client.endpoints };
+  t.after(() => Object.assign(client.endpoints, original));
+  const endpoint = new URL(`http://127.0.0.1:${server.address().port}/certs`);
+  client.endpoints.oauth2FederatedSignonPemCertsUrl = endpoint;
+  client.endpoints.oauth2FederatedSignonJwkCertsUrl = endpoint;
+  await assert.rejects(module.verifyGoogleIdToken('synthetic.jwt.credential', CLIENT), rejected('google_unavailable'));
+  assert.equal(requests, 1);
+});
+
+test('explicit cleanup removes expired pending profile without needing a new browser', t => {
+  const { auth, advanceTime, db } = fixture(t);
+  const { snapshot, flow } = fixtureIssue(auth, contextKey());
+  auth.claim(snapshot, flow.id, flow.cookieToken, binding);
+  auth.markRegistration(snapshot, flow.id, binding, { sub: 'cleanup-sub', email: 'cleanup@example.test', name: 'Cleanup' });
+  advanceTime(600001);
+  assert.equal(typeof auth.prune, 'function');
+  auth.prune();
+  assert.equal(db.prepare('SELECT count(*) AS n FROM google_auth_flows').get().n, 0);
+});
