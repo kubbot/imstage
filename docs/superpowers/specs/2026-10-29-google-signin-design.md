@@ -44,22 +44,35 @@ References: [GIS](https://developers.google.com/identity/gsi/web/guides/overview
 
 1. The public config endpoint reports availability; an unconfigured provider has
    no active login button and does not load Google's SDK.
-2. A same-origin JSON POST issues a random nonce plus an independent HttpOnly
-   flow cookie. SQLite stores their hashes, purpose, initial session binding,
-   stage and a ten-minute deadline. The cookie is scoped to `/api/auth` so other
-   authentication mutations can invalidate this browser's flow.
-3. GIS receives the nonce and returns a credential to JavaScript. Send it only
+2. A singleton IndexedDB readwrite transaction creates a random browser auth
+   context shared by tabs, resolving only after transaction completion. All
+   first-party auth mutations obtain it before fetch and send it in
+   X-IMStage-Auth-Context. Reuse a resolved in-memory context after storage errors.
+   A client that never obtained one can retain legacy password login, but cannot
+   start Google login or claim equivalent cross-tab race protection.
+3. Capture the durable context epoch before any await, including body reads and
+   password verification. A challenge CAS-advances it and issues a random nonce
+   plus an independent HttpOnly cookie named for that flow. SQLite stores their
+   hashes, context/epoch, purpose, initial session binding and ten-minute deadline.
+4. GIS receives the nonce and returns a credential to JavaScript. Send it only
    in a same-origin JSON POST with the existing mutation guard. Do not put it in
    URLs, browser storage or logs. Do not enable One Tap/automatic account choice.
-4. Claim a flow once before asynchronous verification, retain it while verifying,
+5. Claim a flow once before asynchronous verification, retain it while verifying,
    then recheck its stage, deadline and session binding inside the commit
-   transaction. Successful password login/registration, logout, password change
-   and a replacement Google flow invalidate the earlier browser flow.
-5. Keep a completed flow's issued-session reference until expiry. Logout racing
-   a late Google response can revoke the newly issued session even before its
-   session cookie reaches the browser. A stale response cannot authenticate the
-   wrong account after a newer authentication mutation.
-6. User creation, preferences, identity binding and session issuance commit in
+   transaction. Password login/registration also capture/CAS their epoch. A newer
+   challenge or successful auth mutation invalidates older flows. Logout is
+   cancellation and revokes its context even if a concurrent login completed
+   while the logout body was being read.
+6. Associate sessions from both login methods with their browser context until
+   session expiry/revocation, independently of flow TTL. An additive nullable
+   sessions column is sufficient; do not rebuild users. Epoch advancement revokes
+   old context sessions, so late cookies can reference only revoked sessions.
+   Link challenges keep the caller's currently proved session; legacy sessions
+   can acquire context ownership when seen on a first-party auth mutation.
+7. Cancel carries the original flow ID and affects only that flow. Flow-specific
+   cookie names prevent late cleanup from clearing a newer flow's cookie. GIS
+   has one active page owner; old popup callbacks cannot enter a newer nonce.
+8. User creation, preferences, identity binding and session issuance commit in
    one transaction. A uniqueness race never merges accounts. React ignores
    callbacks/responses after unmount or identity changes and offers an explicit
    retry after an expired flow or SDK failure.

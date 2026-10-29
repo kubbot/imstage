@@ -30,7 +30,7 @@ Playwright. No authentication-host migration or paid provider calls.
 - An unavailable SDK/provider must preserve password login and honest errors.
 - Unmount, locale changes and retries must not reuse stale nonce callbacks.
 
-## Task 1: Google identity and flow store
+### Task 1: Google identity and flow store
 
 **Files:** create `services/auth/google.mjs`, `tests/google-auth.test.mjs`;
 modify `package.json` and `package-lock.json`.
@@ -38,21 +38,22 @@ modify `package.json` and `package-lock.json`.
 **Interfaces:** export `GOOGLE_ONLY_PASSWORD_HASH`, `GoogleAuthError`,
 `createGoogleAuth(db, {clientId, nowMs, verifyToken})` and
 `verifyGoogleIdToken(credential, clientId, {client}?)`. The service exposes
-config, issue/claim/recheck/complete/invalidate flow operations, pending
-registration, identity lookup/link, and sign-in-method queries. The server owns
+config, browser-context capture/CAS/invalidation, issue/claim/recheck/cancel flow
+operations, pending registration, identity lookup/link, and sign-in-method queries. The server owns
 the surrounding account/session transaction.
 
 - [ ] Write and run failing tests for configuration, issuer/audience/email,
   nonce expiry, replay, flow binding, pending consent and identity uniqueness.
 - [ ] Install the pinned official library in independent worktree dependencies;
   lazy-load it so Google adds no remote work to API startup.
-- [ ] Implement additive schema and bounded flow cleanup. Retain completed flow
-  session references until expiry so logout can revoke a late-issued session.
+- [ ] Implement additive schema and bounded flow cleanup. Store context ownership
+  on sessions from both login methods until the session itself expires/revokes,
+  so logout can revoke late-issued cookies independently of flow retention.
 - [ ] Verify real RSA signatures with locally generated keys and the real Google
   verification library; mock only its certificate transport in this test.
 - [ ] Run `node --test tests/google-auth.test.mjs` and commit the passing module.
 
-## Task 2: Same-origin API and existing-auth integration
+### Task 2: Same-origin API and existing-auth integration
 
 **Files:** modify `services/api/server.mjs`; create
 `tests/google-auth-api.test.mjs`; extend existing auth tests where needed.
@@ -69,15 +70,17 @@ profile. Registration takes a name and explicit consent, never a client email.
   real persistent sessions, registration consent and protected scene ownership.
 - [ ] Add Google routing using existing hash/session/transaction helpers. Mark
   Google-only hashes unusable while retaining ordinary password timing cost.
-- [ ] Invalidate browser Google flows on successful existing-auth mutations and
-  test deferred verification versus login/logout/password change.
+- [ ] Capture context epochs before body/password awaits; invalidate browser
+  flows and sessions on existing-auth mutations. Test delayed challenge bodies,
+  password responses and verification versus login/logout/password change.
 - [ ] Test explicit link, duplicate email/subject, last-method unlink refusal,
   session revocation and a late-response logout race.
 - [ ] Run Google plus existing auth API tests, then commit passing integration.
 
-## Task 3: Login, registration and account settings
+### Task 3: Login, registration and account settings
 
-**Files:** create `apps/web/src/account/GoogleSignIn.tsx` and shared consent UI;
+**Files:** create `apps/web/src/account/GoogleSignIn.tsx`,
+`apps/web/src/account/authContext.ts` and shared consent UI;
 modify `AuthPage.tsx`, `AccountPage.tsx`, account styles/i18n/API helpers,
 privacy copy and only required response headers. Create
 `tests/ui/google-auth.spec.ts`.
@@ -85,6 +88,8 @@ privacy copy and only required response headers. Create
 - [ ] Add browser fixtures for the official SDK callback and API responses:
   configured/unconfigured, consent, existing-email conflict, link proof, failed
   SDK load, cancellation/retry and stale callback after navigation.
+- [ ] Atomically persist the shared browser context in IndexedDB before auth
+  requests, and test first-time concurrent tabs plus logout before Cookie delivery.
 - [ ] Load the SDK once when configured, initialize a fresh nonce-bound button,
   and guard callback generation/unmount. Keep credentials out of storage/logs.
 - [ ] Reuse existing auth acceptance/onboarding and shared legal consent; show
@@ -92,7 +97,7 @@ privacy copy and only required response headers. Create
 - [ ] Verify Chinese/English, keyboard access and narrow layout. Run targeted
   Google and existing account browser tests and production build; commit.
 
-## Task 4: Review, Google setup and deployment
+### Task 4: Review, Google setup and deployment
 
 **Files:** update `services/api/README.md`, `docs/core-web-auth.md` and deployment
 guidance; keep machine/provider configuration in ignored private files.
