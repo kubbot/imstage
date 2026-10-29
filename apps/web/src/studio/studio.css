@@ -44,6 +44,11 @@
   gap: 4px;
 }
 
+.scene-wifi {
+  display: block;
+  flex: none;
+}
+
 .scene-header {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) 26px;

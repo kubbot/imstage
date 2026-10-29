@@ -20,7 +20,7 @@
  * mutates the scene it is given.
  */
 
-import { validateScene } from '../studio/model.ts';
+import { currentDeviceTime, validateScene } from '../studio/model.ts';
 import type { Message, Participant, Platform, Scene } from '../studio/model.ts';
 
 /* ------------------------------------------------------------------ */
@@ -287,10 +287,6 @@ function localDateString(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-function localTimeString(date: Date): string {
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
-
 function chunkText(text: string, size = 3): string[] {
   const codePoints = Array.from(text);
   const chunks: string[] = [];
@@ -349,7 +345,7 @@ export async function* streamDemo(
     id: DEMO_SCENE_ID,
     title: '明天，火星见',
     platform: options.platform,
-    deviceTime: localTimeString(now),
+    deviceTime: currentDeviceTime(now),
     date: localDateString(tomorrow),
     selfId: 'me',
     participants,
