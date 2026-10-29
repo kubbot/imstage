@@ -86,7 +86,9 @@ Only a passing public smoke commits `active.json`. Failures restore the previous
 LaunchAgent and retain backups; failed revisions retry with exponential backoff
 from five minutes to six hours. After fixing the cause, `--retry-failed` requests
 an immediate retry. An interrupted updater copy is repaired on the next unchanged
-poll. Unchanged and non-actionable polls stay quiet.
+poll. Service and timer reloads retry launchd's transient bootstrap error 5 for
+at most 20 attempts, including rollback; other errors fail immediately.
+Unchanged and non-actionable polls stay quiet.
 
 Rollback restores code and launch settings, not database contents. Incompatible
 schema changes require a separate recovery plan. SIGKILL, power loss or failed

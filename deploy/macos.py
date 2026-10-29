@@ -65,9 +65,21 @@ def wait_ready(cfg, revision=None):
 
 
 def restart(cfg):
+    restart_agent(cfg['label'], cfg['servicePlist'])
+
+
+def restart_agent(label, plist):
     domain = f'gui/{os.getuid()}'
-    subprocess.run(['launchctl', 'bootout', domain + '/' + cfg['label']], capture_output=True, check=False)
-    subprocess.run(['launchctl', 'bootstrap', domain, cfg['servicePlist']], capture_output=True, check=True)
+    subprocess.run(['launchctl', 'bootout', domain + '/' + label], capture_output=True, check=False)
+    # bootout can return before launchd releases the job. macOS then rejects an
+    # immediate bootstrap with code 5, including when restoring the old plist.
+    for attempt in range(20):
+        result = subprocess.run(['launchctl', 'bootstrap', domain, str(plist)], capture_output=True, check=False)
+        if result.returncode == 0:
+            return
+        if result.returncode != 5 or attempt == 19:
+            result.check_returncode()
+        time.sleep(0.5)
 
 
 def sync_updater(cfg, release):
@@ -252,9 +264,7 @@ def install_timer(cfg, config_path):
     path = pathlib.Path.home() / 'Library/LaunchAgents' / (label + '.plist')
     data = {'Label': label, 'ProgramArguments': [sys.executable, str(script), '--config', str(pathlib.Path(config_path).resolve())], 'EnvironmentVariables': {'PATH': os.environ.get('PATH', '/usr/bin:/bin')}, 'StartInterval': 120, 'RunAtLoad': True, 'ProcessType': 'Background', 'StandardOutPath': str(state / 'update.log'), 'StandardErrorPath': str(state / 'update-error.log')}
     atomic_write(path, plistlib.dumps(data))
-    domain = f'gui/{os.getuid()}'
-    subprocess.run(['launchctl', 'bootout', domain + '/' + label], capture_output=True, check=False)
-    subprocess.run(['launchctl', 'bootstrap', domain, str(path)], capture_output=True, check=True)
+    restart_agent(label, path)
 
 
 if __name__ == '__main__':
