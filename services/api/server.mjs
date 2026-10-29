@@ -2490,6 +2490,7 @@ async function route(ctx, req, res) {
 
   if (pathname === '/api/health') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    if (ctx.config.releaseRevision) res.setHeader('X-IMStage-Revision', ctx.config.releaseRevision);
     sendJson(req, res, 200, { status: 'ready' });
     return;
   }
@@ -2956,6 +2957,7 @@ function resolveConfig(options) {
 
   return {
     dbPath,
+    releaseRevision: /^[0-9a-f]{40}$/.test(env.IMSTAGE_RELEASE_REVISION ?? '') ? env.IMSTAGE_RELEASE_REVISION : null,
     dataDir,
     appOrigin,
     host,

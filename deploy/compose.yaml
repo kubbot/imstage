@@ -23,6 +23,7 @@ services:
       IMSTAGE_API_PORT: "4419"
       IMSTAGE_DATA_DIR: /data
       IMSTAGE_DIST_DIR: /app/dist
+      IMSTAGE_RELEASE_REVISION: ${IMAGE_TAG}
     volumes: [/var/lib/imstage/api:/data:Z]
     mem_limit: 2g
     cpus: 1.5

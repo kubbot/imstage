@@ -1,6 +1,8 @@
 # 前后端发布与验证
 
-当前部署由两部分组成：Vercel 托管 React 官网和编辑器，海外服务器运行持续驻留的 Node API、SQLite 与独立 MCP。账号、作品保存、DeepSeek 编辑和带认证的 MCP 已实现；计费、商业 API key 申请和密码找回未实现。
+部署由两部分组成：Vercel 托管 React 官网和编辑器，持久后端运行 Node API 与 SQLite；MCP 使用独立服务和数据库。账号、作品保存、DeepSeek 编辑和带认证的 MCP 已实现；计费、商业 API key 申请和密码找回未实现。
+
+2026-10-29 的部署目标已改为当前 Mac 常驻后端，通过独立 Cloudflare Tunnel 提供 API；Vercel 继续托管官网。沿用本机既有数据库与供应商配置，MCP 独立服务不随 Web 迁移。`deploy/macos.py` 只拉取通过 Frontend CI 的 main，发布前备份数据库，验证公网版本、登录、会话与退出，失败恢复原 LaunchAgent。启用和生产验收记录以 GET-310 为准，不以脚本存在作为已上线证明。具体配置见 [Mac 部署流程](../deploy/README.md#macos-host-and-cloudflare-tunnel)。
 
 服务器安装、HTTPS、持久化、备份与回滚步骤见 [部署手册](../deploy/README.md)。只部署静态前端可使用本地编辑和导出，账号与 AI 功能需要 `/api/*` 的 HTTPS 同源代理。
 
