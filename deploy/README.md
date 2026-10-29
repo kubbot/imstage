@@ -64,6 +64,9 @@ The private configuration records `sourceRoot`, `releaseRoot`, `stateDir`,
 optionally `chromiumExecutable`, `npmCache`, `pauseFile`. Keep configuration,
 provider env files and smoke credentials outside Git with private permissions.
 `smokeFile` contains the dedicated test account's `email` and `password`.
+For an explicitly authorized first setup only, `--bootstrap-test-account` creates
+that account through the new local API if its email is absent. It never resets
+an existing account, and this flag is never added to the automatic timer.
 
 Releases contain a Git archive and built output, never local setup or databases.
 The first install and lockfile changes use `npm ci` with the existing npm cache.

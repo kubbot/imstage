@@ -881,15 +881,15 @@ function validateRegistration(body) {
     throw new HttpError(400, 'invalid_email', '邮箱格式不正确');
   }
   // Password is intentionally not trimmed and accepts any character set.
-  if (password.length < 12 || password.length > 128) {
-    throw new HttpError(400, 'invalid_password', '密码长度需为 12-128 个字符');
+  if (password.length < 6 || password.length > 128) {
+    throw new HttpError(400, 'invalid_password', '密码长度需为 6-128 个字符');
   }
   return { name: trimmedName, email: normalizedEmail, password };
 }
 
 function validateNewPassword(password) {
-  if (typeof password !== 'string' || password.length < 12 || password.length > 128) {
-    throw new HttpError(400, 'invalid_password', '新密码长度需为 12-128 个字符');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
+    throw new HttpError(400, 'invalid_password', '新密码长度需为 6-128 个字符');
   }
 }
 

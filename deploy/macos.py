@@ -90,7 +90,30 @@ def snapshot_dependencies(source, destination):
     shutil.copytree(source, destination, symlinks=True)
 
 
-def activate(cfg, release, revision):
+def bootstrap_account(cfg):
+    """One-time, explicitly requested test account setup; never reset an account."""
+    private = json.loads(pathlib.Path(cfg['smokeFile']).read_text())
+    email = private['email'].strip().lower()
+    database = pathlib.Path(cfg['dataDir']) / 'imstage.db'
+    with sqlite3.connect('file:' + str(database) + '?mode=ro', uri=True) as db:
+        if db.execute('SELECT 1 FROM users WHERE email = ?', (email,)).fetchone():
+            return False
+    headers = {'Origin': cfg['appOrigin'], 'Content-Type': 'application/json', 'X-Imstage-Request': '1', 'User-Agent': 'IMStage/0.2 deployment-bootstrap'}
+    base = f"http://127.0.0.1:{int(cfg['webPort'])}"
+    payload = json.dumps({'name': 'Deployment verification', 'email': email, 'password': private['password'], 'termsAccepted': True}).encode()
+    request = urllib.request.Request(base + '/api/auth/register', data=payload, headers=headers, method='POST')
+    with urllib.request.urlopen(request, timeout=20) as response:
+        cookie = response.headers.get('Set-Cookie', '').split(';')[0]
+        result = json.loads(response.read(65536))
+    if result.get('user', {}).get('email') != email or not cookie.startswith('imstage_session='):
+        raise RuntimeError('Test account setup could not be verified')
+    logout = urllib.request.Request(base + '/api/auth/logout', data=b'{}', headers={**headers, 'Cookie': cookie}, method='POST')
+    with urllib.request.urlopen(logout, timeout=20) as response:
+        response.read(65536)
+    return True
+
+
+def activate(cfg, release, revision, bootstrap_test_account=False):
     release = pathlib.Path(release).resolve()
     if not re.fullmatch(r'[0-9a-f]{40}', revision) or release != pathlib.Path(cfg['releaseRoot']).resolve() / revision or cfg['label'] != 'com.imstage.web':
         raise ValueError('Unexpected release or service')
@@ -125,6 +148,8 @@ def activate(cfg, release, revision):
         atomic_write(plist_path, plistlib.dumps(new_plist))
         restart(cfg)
         wait_ready(cfg, revision)
+        if bootstrap_test_account:
+            bootstrap_account(cfg)
         subprocess.run([cfg['node'], str(release / 'deploy/smoke.mjs')], input=private_input, text=True, check=True, capture_output=True)
         atomic_write(active_path, json.dumps({'revision': revision, 'release': str(release), 'verifiedAt': stamp}).encode())
         changed = False
@@ -175,7 +200,7 @@ def prepare(cfg, revision):
     return release
 
 
-def update(cfg, retry_failed=False):
+def update(cfg, retry_failed=False, bootstrap_test_account=False):
     if pathlib.Path(cfg.get('pauseFile', str(pathlib.Path.home() / '.agent-pause'))).exists():
         return {'status': 'paused'}
     state = pathlib.Path(cfg['stateDir'])
@@ -203,7 +228,7 @@ def update(cfg, retry_failed=False):
             # A newer main must pass its own CI; never publish an obsolete build.
             if checked_revision(cfg) != revision:
                 return {'status': 'superseded'}
-            activate(cfg, release, revision)
+            activate(cfg, release, revision, bootstrap_test_account=bootstrap_test_account)
         except BaseException as error:
             committed = active_path.is_file() and json.loads(active_path.read_text()).get('revision') == revision
             if not committed:
@@ -238,6 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', required=True)
     parser.add_argument('--install-timer', action='store_true')
     parser.add_argument('--retry-failed', action='store_true')
+    parser.add_argument('--bootstrap-test-account', action='store_true')
     args = parser.parse_args()
 
     def interrupted(signum, _frame):
@@ -247,7 +273,7 @@ if __name__ == '__main__':
         signal.signal(sig, interrupted)
     try:
         config = json.loads(pathlib.Path(args.config).read_text())
-        result = update(config, retry_failed=args.retry_failed)
+        result = update(config, retry_failed=args.retry_failed, bootstrap_test_account=args.bootstrap_test_account)
         if args.install_timer and result['status'] in ['updated', 'unchanged']:
             install_timer(config, args.config)
         if result['status'] not in ['unchanged', 'waiting-for-ci', 'busy', 'paused', 'backoff']:

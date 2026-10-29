@@ -211,7 +211,7 @@ test('registration validates name, email and password bounds', async () => {
     [{ name: '', email: uniqueEmail('n'), password: 'password-123456' }, 'invalid_name'],
     [{ name: 'x'.repeat(61), email: uniqueEmail('n'), password: 'password-123456' }, 'invalid_name'],
     [{ name: 'ok', email: 'not-an-email', password: 'password-123456' }, 'invalid_email'],
-    [{ name: 'ok', email: uniqueEmail('p'), password: 'short-pass' }, 'invalid_password'],
+    [{ name: 'ok', email: uniqueEmail('p'), password: 'short' }, 'invalid_password'],
     [{ name: 'ok', email: uniqueEmail('p'), password: 'x'.repeat(129) }, 'invalid_password'],
   ]) {
     const res = await post(shared.base, '/api/auth/register', payload);
@@ -244,6 +244,23 @@ test('passwords are not trimmed', async () => {
 
   const exact = await login(shared.base, { email, password });
   assert.equal(exact.res.status, 200);
+});
+
+test('registration and password changes accept six characters and reject five', async () => {
+  const { base } = await makeApp();
+  const tooShort = await register(base, { email: uniqueEmail('five'), password: 'five1' });
+  assert.equal(tooShort.res.status, 400);
+  assert.equal(tooShort.body.error.code, 'invalid_password');
+  const email = uniqueEmail('six');
+  const created = await register(base, { email, password: 'six123' });
+  assert.equal(created.res.status, 200);
+  assert.equal((await login(base, { email, password: 'six123' })).res.status, 200);
+  const shortChange = await post(base, '/api/auth/password', { currentPassword: 'six123', newPassword: 'five1' }, { cookie: created.cookie });
+  assert.equal(shortChange.status, 400);
+  const changed = await post(base, '/api/auth/password', { currentPassword: 'six123', newPassword: 'new123' }, { cookie: created.cookie });
+  assert.equal(changed.status, 200);
+  assert.equal((await session(base, created.cookie)).body.user, null);
+  assert.equal((await login(base, { email, password: 'new123' })).res.status, 200);
 });
 
 /* ------------------------------------------------------------------ */
@@ -342,7 +359,7 @@ test('password change validates the new password length', async () => {
   const res = await post(
     shared.base,
     '/api/auth/password',
-    { currentPassword: 'password-123456', newPassword: 'too-short' },
+    { currentPassword: 'password-123456', newPassword: 'short' },
     { cookie },
   );
   assert.equal(res.status, 400);

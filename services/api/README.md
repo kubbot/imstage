@@ -116,7 +116,7 @@ Validation rules:
 
 - `email`: trimmed, lower-cased, unique; stored as the normalized value.
 - `name`: trimmed, 1–60 characters.
-- `password`: 12–128 characters, any character set, **never trimmed**
+- `password`: 6–128 characters, any character set, **never trimmed**
   (leading/trailing spaces are significant).
 - Wrong password and unknown email both return the same
   `401 {error:{code:"invalid_credentials"}}` and both pay one scrypt

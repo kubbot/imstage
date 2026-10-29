@@ -140,6 +140,14 @@ class MacReleaseTest(unittest.TestCase):
             self.assertEqual(len(self.commands), count)
         self.assertEqual(json.loads((self.root / 'state/last-failure.json').read_text())['attempts'], 1)
 
+    def test_explicit_bootstrap_never_resets_an_existing_test_account(self):
+        with sqlite3.connect(self.root / 'data/imstage.db') as db:
+            db.execute('CREATE TABLE users(email TEXT)')
+            db.execute("INSERT INTO users VALUES ('fixture@example.com')")
+        with patch.object(macos.urllib.request, 'urlopen') as request:
+            self.assertFalse(macos.bootstrap_account(self.cfg))
+            request.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
