@@ -141,12 +141,30 @@ test('verified registration can wait for consent without persisting a raw creden
   setClaims(identity(flow.nonce));
   const profile = await auth.verifyCredential('synthetic-google-id-token', claimed);
   auth.markRegistration(snapshot, flow.id, binding, profile);
-  assert.deepEqual(auth.pending(snapshot, flow.id, flow.cookieToken, binding), { sub: 'google-sub-1', email: 'google@example.test', name: 'Google User' });
+  assert.deepEqual(auth.pending(snapshot, flow.id, flow.cookieToken, binding), { sub: 'google-sub-1', email: 'google@example.test', name: 'Google User', emailAuthoritative: false });
   const stored = JSON.stringify(db.prepare('SELECT * FROM google_auth_flows').all());
   assert.equal(stored.includes('synthetic-google-id-token'), false);
   assert.equal(stored.includes(flow.cookieToken), false);
   assert.equal(stored.includes(flow.nonce), false);
   assert.equal(db.prepare('SELECT count(*) AS n FROM users').get().n, 2);
+});
+
+test('legacy pending Google flows remain untrusted after adding email authority', async t => {
+  const { auth, db, setClaims, identity } = fixture(t);
+  const { flow, snapshot } = fixtureIssue(auth);
+  const claimed = auth.claim(snapshot, flow.id, flow.cookieToken, binding);
+  setClaims(identity(flow.nonce, { hd: 'example.test' }));
+  auth.markRegistration(snapshot, flow.id, binding, await auth.verifyCredential('synthetic-google-id-token', claimed));
+  if (db.prepare('PRAGMA table_info(google_auth_flows)').all().some(row => row.name === 'email_authoritative')) {
+    db.exec('ALTER TABLE google_auth_flows DROP COLUMN email_authoritative');
+  }
+  const reopened = module.createGoogleAuth(db, { clientId: CLIENT });
+  const pending = reopened.pending(snapshot, flow.id, flow.cookieToken, binding);
+  assert.equal(pending.email, 'google@example.test');
+  assert.equal(pending.emailAuthoritative, false);
+  assert.deepEqual(reopened.pendingForBrowser(snapshot, () => flow.cookieToken, binding).profile, {
+    email: 'google@example.test', name: 'Google User',
+  });
 });
 
 test('Google subject uniqueness never replaces another account or rewrites its email', t => {

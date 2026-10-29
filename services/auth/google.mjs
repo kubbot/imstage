@@ -104,11 +104,17 @@ function initialize(db) {
       expires_at_ms INTEGER NOT NULL,
       subject TEXT,
       email TEXT,
-      name TEXT
+      name TEXT,
+      email_authoritative INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_google_flows_expiry ON google_auth_flows(expires_at_ms);
     CREATE INDEX IF NOT EXISTS idx_google_flows_browser ON google_auth_flows(browser_hash);
   `);
+  // Existing ten-minute flows have no proof of hosted-domain authority.
+  const flowColumns = db.prepare('PRAGMA table_info(google_auth_flows)').all();
+  if (!flowColumns.some(column => column.name === 'email_authoritative')) {
+    db.exec('ALTER TABLE google_auth_flows ADD COLUMN email_authoritative INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyToken = verifyGoogleIdToken } = {}) {
@@ -227,7 +233,12 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
       || typeof payload.nonce !== 'string' || hash(payload.nonce) !== claimed.nonceHash) fail('google_invalid_identity');
     const email = payload.email.trim().toLowerCase();
     const name = (typeof payload.name === 'string' ? payload.name : email.split('@')[0]).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60) || 'Google user';
-    return { sub: payload.sub, email, name };
+    // A verified third-party address can outlive its original owner. Google is
+    // authoritative for Gmail and for a matching, signed Workspace hd claim.
+    // https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+    const emailAuthoritative = email.endsWith('@gmail.com')
+      || (typeof payload.hd === 'string' && payload.hd.toLowerCase() === email.split('@')[1]);
+    return { sub: payload.sub, email, name, emailAuthoritative };
   }
 
   const recheck = (snapshot, id, binding, stage = 'verifying') => flow(snapshot, id, binding, stage);
@@ -235,14 +246,15 @@ export function createGoogleAuth(db, { clientId = '', nowMs = Date.now, verifyTo
   function markRegistration(snapshot, id, binding, profile) {
     return transaction(db, () => {
       flow(snapshot, id, binding, 'verifying');
-      db.prepare("UPDATE google_auth_flows SET stage='registration',subject=?,email=?,name=? WHERE id=?").run(profile.sub, profile.email, profile.name, id);
+      db.prepare("UPDATE google_auth_flows SET stage='registration',subject=?,email=?,name=?,email_authoritative=? WHERE id=?")
+        .run(profile.sub, profile.email, profile.name, profile.emailAuthoritative === true ? 1 : 0, id);
     });
   }
 
   function pending(snapshot, id, token, binding) {
     try {
       const row = flow(snapshot, id, binding, 'registration');
-      return cookieMatches(row, token) ? { sub: row.subject, email: row.email, name: row.name } : null;
+      return cookieMatches(row, token) ? { sub: row.subject, email: row.email, name: row.name, emailAuthoritative: row.email_authoritative === 1 } : null;
     } catch (error) {
       if (error instanceof GoogleAuthError) return null;
       throw error;
