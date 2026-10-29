@@ -8,7 +8,7 @@
  *   - owned scene persistence with optimistic revisions
  *   - optional static serving of the built web app from `distDir`
  *
- * It intentionally implements no OAuth, no email verification, no password
+ * Google sign-in is optional. It implements no email verification, no password
  * reset, no billing and no CORS. It is not a Vercel/edge backend: it uses
  * `node:sqlite`, `node:crypto` and the native `node:http` server only.
  *
@@ -72,6 +72,7 @@ import {
   validateTokenScopes,
 } from '../integrations/connections.mjs';
 import { createOAuthIntegration } from '../integrations/oauth.mjs';
+import { createGoogleAuth, GoogleAuthError, GOOGLE_ONLY_PASSWORD_HASH } from '../auth/google.mjs';
 import { createAccountMcpServer } from '../integrations/account-mcp.mjs';
 import { REQUIRED_SCOPE, RECENT_SESSION_MS, SUPPORTED_SCOPES } from '../integrations/scopes.mjs';
 import { createRenderService, resolveChromiumExecutable } from '../mcp/render.mjs';
@@ -135,6 +136,7 @@ const API_SECURITY_HEADERS = Object.freeze({
 });
 
 const STATIC_SECURITY_HEADERS = Object.freeze({
+  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
@@ -163,6 +165,8 @@ const MIME_TYPES = Object.freeze({
 });
 
 const DEFAULT_RATE_LIMITS = Object.freeze({
+  authBrowser: { windowMs: 10 * 60 * 1000, max: 1000, maxKeys: 10_000 },
+  google: { windowMs: 10 * 60 * 1000, max: 120, maxKeys: 10_000 },
   ip: { windowMs: 10 * 60 * 1000, max: 300, maxKeys: 10_000 },
   email: { windowMs: 10 * 60 * 1000, max: 10, maxKeys: 20_000 },
   user: { windowMs: 10 * 60 * 1000, max: 20, maxKeys: 10_000 },
@@ -513,7 +517,7 @@ function withTransaction(db, fn) {
   }
 }
 
-function createSessionRow(db, userId, nowMs) {
+function createSessionRow(db, userId, nowMs, contextHash = null, flowId = null) {
   db.prepare('DELETE FROM sessions WHERE expires_at_ms <= ?').run(nowMs);
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND id NOT IN (SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 19)').run(userId, userId);
   const token = crypto.randomBytes(32).toString('base64url');
@@ -521,8 +525,8 @@ function createSessionRow(db, userId, nowMs) {
   const id = crypto.randomUUID();
   const expiresAtMs = nowMs + SESSION_TTL_MS;
   db.prepare(
-    'INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at_ms) VALUES (?, ?, ?, ?, ?)',
-  ).run(id, userId, tokenHash, dateISO(nowMs), expiresAtMs);
+    'INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at_ms, auth_context_hash, auth_flow_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, userId, tokenHash, dateISO(nowMs), expiresAtMs, contextHash, flowId);
   return { token, expiresAtMs };
 }
 
@@ -561,7 +565,7 @@ function sessionCookieAttributes(config, expiresAtMs) {
 }
 
 function setSessionCookie(res, config, token, expiresAtMs) {
-  res.setHeader(
+  res.appendHeader(
     'Set-Cookie',
     [`${SESSION_COOKIE}=${token}`, ...sessionCookieAttributes(config, expiresAtMs)].join('; '),
   );
@@ -576,7 +580,7 @@ function clearSessionCookie(res, config) {
     'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
   ];
   if (config.secureCookie) attributes.push('Secure');
-  res.setHeader('Set-Cookie', [`${SESSION_COOKIE}=`, ...attributes].join('; '));
+  res.appendHeader('Set-Cookie', [`${SESSION_COOKIE}=`, ...attributes].join('; '));
 }
 
 function loadSession(ctx, req) {
@@ -584,7 +588,7 @@ function loadSession(ctx, req) {
   if (!token) return null;
   const row = ctx.db
     .prepare(
-      `SELECT s.id AS session_id, s.user_id, s.expires_at_ms, s.created_at, u.email, u.name
+      `SELECT s.id AS session_id, s.user_id, s.expires_at_ms, s.created_at, s.auth_context_hash, u.email, u.name
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -596,6 +600,7 @@ function loadSession(ctx, req) {
   }
   return {
     sessionId: row.session_id,
+    authContextHash: row.auth_context_hash,
     user: { id: row.user_id, email: row.email, name: row.name },
     createdAtMs: Date.parse(row.created_at),
   };
@@ -724,7 +729,7 @@ async function sendError(req, res, ctx, err) {
     }
   }
   if (res.headersSent) return;
-  if (err instanceof HttpError || err instanceof IntegrationError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof preferences.PreferencesError || err instanceof TemplateError) {
+  if (err instanceof HttpError || err instanceof GoogleAuthError || err instanceof IntegrationError || err instanceof projects.ProjectsError || err instanceof contacts.ContactsError || err instanceof preferences.PreferencesError || err instanceof TemplateError) {
     sendJson(req, res, err.status, { error: { code: err.code, message: err.message } }, err.headers);
     return;
   }
@@ -901,9 +906,183 @@ function uniformCredentialError() {
 /* Auth routes                                                         */
 /* ------------------------------------------------------------------ */
 
+const GOOGLE_COOKIE_RE = /^imstage_g_([0-9a-f]{32})$/;
+const googleCookieName = id => `imstage_g_${String(id).replaceAll('-', '')}`;
+function googleCookies(req) {
+  const cookies = new Map();
+  for (const part of String(req.headers.cookie ?? '').split(';')) {
+    const at = part.indexOf('=');
+    const name = part.slice(0, at).trim();
+    if (at > 0 && GOOGLE_COOKIE_RE.test(name)) cookies.set(name, part.slice(at + 1).trim());
+  }
+  return cookies;
+}
+function writeGoogleCookie(res, config, id, token, expiresAtMs) {
+  const attributes = ['Path=/api/auth', 'HttpOnly', 'SameSite=Strict', `Max-Age=${token ? Math.max(0, Math.floor((expiresAtMs - config.nowMs()) / 1000)) : 0}`];
+  if (config.secureCookie) attributes.push('Secure');
+  res.appendHeader('Set-Cookie', [`${googleCookieName(id)}=${token ?? ''}`, ...attributes].join('; '));
+}
+function clearGoogleCookies(req, res, config) {
+  for (const name of googleCookies(req).keys()) writeGoogleCookie(res, config, name.slice(10), null, 0);
+}
+function authBinding(ctx, req) {
+  const session = loadSession(ctx, req);
+  return session ? { userId: session.user.id, sessionId: session.sessionId } : null;
+}
+function throttleGoogle(ctx, req, kind = 'google') {
+  const result = ctx.limiters[kind].consume(remoteIp(req, ctx.config.trustLoopbackProxy), ctx.nowMs());
+  if (!result.allowed) throw rateLimitedError(result.retryAfterMs);
+}
+// Capture synchronously before reading request bodies or verifying passwords.
+// Legacy clients without the header still use passwords; known session/nonce
+// ownership lets logout cancel their already-started browser operations.
+function captureAuthBrowser(ctx, req) {
+  const key = req.headers['x-imstage-auth-context'];
+  if (key !== undefined) {
+    throttleGoogle(ctx, req, 'authBrowser');
+    return ctx.google.captureBrowser(key);
+  }
+  const known = ctx.google.peekHash(loadSession(ctx, req)?.authContextHash);
+  if (known) return known;
+  for (const [name, token] of googleCookies(req)) {
+    const hex = name.slice(10);
+    const id = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    const snapshot = ctx.google.peekFlow(id, token);
+    if (snapshot) return snapshot;
+  }
+  return null;
+}
+function handleGoogleConfig(ctx, req, res) {
+  const snapshot = ctx.google.peekBrowser(req.headers['x-imstage-auth-context']);
+  const cookies = googleCookies(req);
+  const pending = ctx.google.pendingForBrowser(snapshot, id => cookies.get(googleCookieName(id)), authBinding(ctx, req));
+  sendJson(req, res, 200, { enabled: ctx.google.enabled, clientId: ctx.google.clientId, pending });
+}
+function googleAccountResult(ctx, req, browser, flowId, profile, termsAccepted, name) {
+  const linked = ctx.google.identity(profile.sub);
+  let row;
+  if (linked) {
+    row = ctx.db.prepare('SELECT id,email,name FROM users WHERE id=?').get(linked.userId);
+  } else {
+    if (ctx.db.prepare('SELECT id FROM users WHERE email=?').get(profile.email)) {
+      throw new HttpError(409, 'google_account_link_required', '该邮箱已有账号，请先用密码登录，再到账号设置关联 Google');
+    }
+    if (termsAccepted !== true) return null;
+    const displayName = name === undefined ? profile.name : name;
+    if (typeof displayName !== 'string' || !displayName.trim() || displayName.trim().length > 60) throw new HttpError(400, 'invalid_name', '名称长度需为 1-60 个字符');
+    row = { id: crypto.randomUUID(), email: profile.email, name: displayName.trim() };
+    ctx.db.prepare('INSERT INTO users(id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)').run(row.id, row.email, row.name, GOOGLE_ONLY_PASSWORD_HASH, dateISO(ctx.nowMs()));
+    preferences.createDefaultPreferences(ctx.db, row.id, ctx.nowMs());
+  }
+  ctx.google.link(row.id, profile);
+  ctx.google.advanceBrowser(browser);
+  const session = createSessionRow(ctx.db, row.id, ctx.nowMs(), browser.hash, flowId);
+  return { user: toPublicUser(row), session };
+}
+function sendGoogleAccount(ctx, req, res, flowId, result) {
+  setSessionCookie(res, ctx.config, result.session.token, result.session.expiresAtMs);
+  writeGoogleCookie(res, ctx.config, flowId, null, 0);
+  sendJson(req, res, 200, { user: result.user });
+}
+async function handleGoogleMutation(ctx, req, res, action) {
+  guardMutation(req, ctx.config);
+  requireJsonContentType(req);
+  throttleGoogle(ctx, req);
+  const browser = captureAuthBrowser(ctx, req);
+  const binding = authBinding(ctx, req);
+  const session = binding ? requireSession(ctx, req) : null;
+  const body = await readJsonBody(req, AUTH_BODY_LIMIT + 2048, AUTH_DEADLINE_MS);
+  const flowId = body.flowId;
+  const cookie = googleCookies(req).get(googleCookieName(flowId));
+  if (action === 'cancel') {
+    ctx.google.cancel(browser, flowId);
+    if (UUID_RE.test(flowId ?? '')) writeGoogleCookie(res, ctx.config, flowId, null, 0);
+    sendJson(req, res, 200, { ok: true });
+    return;
+  }
+  if (action === 'unlink') {
+    if (!session) throw new HttpError(401, 'unauthorized', '请先登录');
+    if (!ctx.google.methods(session.user.id).password) throw new GoogleAuthError('google_last_signin_method');
+    await proveGooglePassword(ctx, req, session, body.password);
+    withTransaction(ctx.db, () => {
+      recheckSession(ctx, req, session);
+      ctx.google.advanceBrowser(browser);
+      ctx.google.unlink(session.user.id);
+      ctx.db.prepare('DELETE FROM sessions WHERE user_id=?').run(session.user.id);
+    });
+    clearSessionCookie(res, ctx.config);
+    clearGoogleCookies(req, res, ctx.config);
+    sendJson(req, res, 200, { ok: true });
+    return;
+  }
+  if (!ctx.google.enabled) throw new GoogleAuthError('google_not_configured');
+  if (action === 'challenge') {
+    if (body.intent === 'link') {
+      if (!session) throw new HttpError(401, 'unauthorized', '请先登录');
+      await proveGooglePassword(ctx, req, session, body.password);
+      recheckSession(ctx, req, session);
+    }
+    const flow = ctx.google.issue(browser, binding, body.intent);
+    clearGoogleCookies(req, res, ctx.config);
+    writeGoogleCookie(res, ctx.config, flow.id, flow.cookieToken, flow.expiresAtMs);
+    sendJson(req, res, 200, { flowId: flow.id, nonce: flow.nonce, expiresAtMs: flow.expiresAtMs, clientId: ctx.google.clientId });
+    return;
+  }
+  if (action === 'register') {
+    const profile = ctx.google.pending(browser, flowId, cookie, binding);
+    if (!profile) throw new GoogleAuthError('google_flow_expired');
+    if (body.termsAccepted !== true) throw new HttpError(400, 'terms_required', '请先同意服务条款和隐私政策');
+    const result = withTransaction(ctx.db, () => {
+      ctx.google.recheck(browser, flowId, authBinding(ctx, req), 'registration');
+      return googleAccountResult(ctx, req, browser, flowId, profile, true, body.name);
+    });
+    sendGoogleAccount(ctx, req, res, flowId, result);
+    return;
+  }
+  if (action !== 'credential') throw new HttpError(404, 'not_found', '接口不存在');
+  // Claim outside the catch: a rejected replay must not cancel the valid
+  // session that the original credential request already committed.
+  const claimed = ctx.google.claim(browser, flowId, cookie, binding);
+  try {
+    const profile = await ctx.google.verifyCredential(body.credential, claimed);
+    const result = withTransaction(ctx.db, () => {
+      ctx.google.recheck(browser, flowId, authBinding(ctx, req));
+      if (claimed.intent === 'link') {
+        recheckSession(ctx, req, session);
+        ctx.google.link(session.user.id, profile);
+        ctx.google.advanceBrowser(browser, { keepSessionId: session.sessionId });
+        return { linked: true, user: session.user };
+      }
+      const result = googleAccountResult(ctx, req, browser, flowId, profile, body.termsAccepted);
+      if (!result) ctx.google.markRegistration(browser, flowId, binding, profile);
+      return result;
+    });
+    if (!result) {
+      sendJson(req, res, 200, { registrationRequired: true, flowId, profile: { email: profile.email, name: profile.name } });
+    } else if (result.linked) {
+      writeGoogleCookie(res, ctx.config, flowId, null, 0);
+      sendJson(req, res, 200, { user: result.user, linked: true });
+    } else sendGoogleAccount(ctx, req, res, flowId, result);
+  } catch (error) {
+    ctx.google.cancel(browser, flowId);
+    writeGoogleCookie(res, ctx.config, flowId, null, 0);
+    throw error;
+  }
+}
+async function proveGooglePassword(ctx, req, session, password) {
+  throttleUser(ctx, session.user.id);
+  const row = ctx.db.prepare('SELECT password_hash FROM users WHERE id=?').get(session.user.id);
+  const usable = row && row.password_hash !== GOOGLE_ONLY_PASSWORD_HASH;
+  const ok = await verifyPassword(typeof password === 'string' ? password : '', usable ? row.password_hash : DUMMY_PASSWORD_HASH, ctx.semaphore);
+  if (!usable || !ok) throw uniformCredentialError();
+  recheckSession(ctx, req, session);
+  if (ctx.db.prepare('SELECT password_hash FROM users WHERE id=?').get(session.user.id)?.password_hash !== row.password_hash) throw uniformCredentialError();
+}
+
 async function handleRegister(ctx, req, res) {
   guardMutation(req, ctx.config);
   requireJsonContentType(req);
+  const browser = captureAuthBrowser(ctx, req);
   const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
   const { name, email, password } = validateRegistration(body);
 
@@ -931,7 +1110,8 @@ async function handleRegister(ctx, req, res) {
       // New registrations get an explicit pending onboarding row. Existing
       // accounts have no row and are treated as legacy (never auto-prompted).
       preferences.createDefaultPreferences(ctx.db, userId, nowMs);
-      const session = createSessionRow(ctx.db, userId, nowMs);
+      ctx.google.advanceBrowser(browser);
+      const session = createSessionRow(ctx.db, userId, nowMs, browser?.hash);
       return { user: { id: userId, email, name }, session };
     });
     user = result.user;
@@ -952,6 +1132,7 @@ async function handleRegister(ctx, req, res) {
 async function handleLogin(ctx, req, res) {
   guardMutation(req, ctx.config);
   requireJsonContentType(req);
+  const browser = captureAuthBrowser(ctx, req);
   const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
   if (typeof body.email !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_request', '请输入邮箱和密码');
@@ -965,14 +1146,17 @@ async function handleLogin(ctx, req, res) {
     .prepare('SELECT id, email, name, password_hash FROM users WHERE email = ?')
     .get(email);
   // Always pay one scrypt verification, even for unknown accounts.
-  const ok = await verifyPassword(password, row ? row.password_hash : DUMMY_PASSWORD_HASH, ctx.semaphore);
-  if (!row || !ok) throw uniformCredentialError();
+  const ok = await verifyPassword(password, row && row.password_hash !== GOOGLE_ONLY_PASSWORD_HASH ? row.password_hash : DUMMY_PASSWORD_HASH, ctx.semaphore);
+  if (!row || row.password_hash === GOOGLE_ONLY_PASSWORD_HASH || !ok) throw uniformCredentialError();
 
   // A concurrent password change must not allow the old credential to create a new session.
   const current = ctx.db.prepare('SELECT password_hash FROM users WHERE id = ?').get(row.id);
   if (current?.password_hash !== row.password_hash) throw uniformCredentialError();
   const nowMs = ctx.nowMs();
-  const { token, expiresAtMs } = createSessionRow(ctx.db, row.id, nowMs);
+  const { token, expiresAtMs } = withTransaction(ctx.db, () => {
+    ctx.google.advanceBrowser(browser);
+    return createSessionRow(ctx.db, row.id, nowMs, browser?.hash);
+  });
   setSessionCookie(res, ctx.config, token, expiresAtMs);
   sendJson(req, res, 200, { user: toPublicUser(row) });
 }
@@ -980,9 +1164,12 @@ async function handleLogin(ctx, req, res) {
 async function handleLogout(ctx, req, res) {
   guardMutation(req, ctx.config);
   requireJsonContentType(req);
+  const browser = captureAuthBrowser(ctx, req);
   await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
 
   if (loadSession(ctx, req)) requireSession(ctx, req);
+  ctx.google.advanceBrowser(browser, { force: true });
+  clearGoogleCookies(req, res, ctx.config);
   const token = readSessionToken(req);
   if (token) {
     ctx.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
@@ -995,6 +1182,7 @@ async function handlePasswordChange(ctx, req, res) {
   guardMutation(req, ctx.config);
   const session = requireSession(ctx, req);
   requireJsonContentType(req);
+  const browser = captureAuthBrowser(ctx, req);
   const body = await readJsonBody(req, AUTH_BODY_LIMIT, AUTH_DEADLINE_MS);
 
   if (typeof body.currentPassword !== 'string') {
@@ -1007,14 +1195,15 @@ async function handlePasswordChange(ctx, req, res) {
   const row = ctx.db
     .prepare('SELECT password_hash FROM users WHERE id = ?')
     .get(session.user.id);
-  const ok = await verifyPassword(body.currentPassword, row?.password_hash, ctx.semaphore);
-  if (!row || !ok) {
+  const ok = await verifyPassword(body.currentPassword, row?.password_hash === GOOGLE_ONLY_PASSWORD_HASH ? DUMMY_PASSWORD_HASH : row?.password_hash, ctx.semaphore);
+  if (!row || row.password_hash === GOOGLE_ONLY_PASSWORD_HASH || !ok) {
     throw new HttpError(401, 'invalid_credentials', '当前密码不正确');
   }
 
   const newHash = await hashPassword(body.newPassword, ctx.semaphore);
   withTransaction(ctx.db, () => {
     recheckSession(ctx, req, session);
+    ctx.google.advanceBrowser(browser);
     const result = ctx.db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?').run(newHash, session.user.id, row.password_hash);
     if (result.changes !== 1) throw new HttpError(409, 'password_changed', '密码已经改变，请重新登录');
     // Revoke every session, including the caller's: re-login is required.
@@ -1025,6 +1214,7 @@ async function handlePasswordChange(ctx, req, res) {
   });
 
   clearSessionCookie(res, ctx.config);
+  clearGoogleCookies(req, res, ctx.config);
   sendJson(req, res, 200, { ok: true });
 }
 
@@ -2495,6 +2685,22 @@ async function route(ctx, req, res) {
     return;
   }
 
+  if (pathname === '/api/auth/google/config') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    handleGoogleConfig(ctx, req, res);
+    return;
+  }
+  if (pathname === '/api/auth/methods') {
+    if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    sendJson(req, res, 200, ctx.google.methods(requireSession(ctx, req).user.id));
+    return;
+  }
+  const googleAction = /^\/api\/auth\/google\/(challenge|credential|register|cancel|unlink)$/.exec(pathname);
+  if (googleAction) {
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
+    await handleGoogleMutation(ctx, req, res, googleAction[1]);
+    return;
+  }
   if (pathname === '/api/auth/session') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed', '方法不被允许');
     const session = loadSession(ctx, req);
@@ -2935,6 +3141,8 @@ function resolveConfig(options) {
   };
 
   const rateLimit = {
+    authBrowser: { ...DEFAULT_RATE_LIMITS.authBrowser, ...(options.rateLimit?.authBrowser ?? {}) },
+    google: { ...DEFAULT_RATE_LIMITS.google, ...(options.rateLimit?.google ?? {}) },
     ip: { ...DEFAULT_RATE_LIMITS.ip, ...(options.rateLimit?.ip ?? {}) },
     email: { ...DEFAULT_RATE_LIMITS.email, ...(options.rateLimit?.email ?? {}) },
     user: { ...DEFAULT_RATE_LIMITS.user, ...(options.rateLimit?.user ?? {}) },
@@ -2957,6 +3165,7 @@ function resolveConfig(options) {
 
   return {
     dbPath,
+    googleClientId: options.googleClientId ?? env.IMSTAGE_GOOGLE_CLIENT_ID ?? '',
     releaseRevision: /^[0-9a-f]{40}$/.test(env.IMSTAGE_RELEASE_REVISION ?? '') ? env.IMSTAGE_RELEASE_REVISION : null,
     dataDir,
     appOrigin,
@@ -3008,8 +3217,12 @@ function resolveConfig(options) {
 export function createApp(options = {}) {
   const config = resolveConfig(options);
   const db = openDatabase(config.dbPath);
+  const google = createGoogleAuth(db, { clientId: config.googleClientId, nowMs: config.nowMs, verifyToken: options.googleVerifyToken });
+  google.prune();
   const semaphore = new Semaphore(config.hashConcurrency);
   const limiters = {
+    authBrowser: new FixedWindowLimiter(config.rateLimit.authBrowser),
+    google: new FixedWindowLimiter(config.rateLimit.google),
     ip: new FixedWindowLimiter(config.rateLimit.ip),
     email: new FixedWindowLimiter(config.rateLimit.email),
     user: new FixedWindowLimiter(config.rateLimit.user),
@@ -3173,6 +3386,7 @@ export function createApp(options = {}) {
     logger: config.logger,
   });
   const ctx = {
+    google,
     config,
     db,
     semaphore,
@@ -3215,6 +3429,11 @@ export function createApp(options = {}) {
     },
   };
 
+  const googleCleanupTimer = setInterval(() => {
+    try { google.prune(); }
+    catch { config.logger.error('[imstage-api] Google authentication cleanup failed'); }
+  }, 60_000);
+  googleCleanupTimer.unref();
   const server = http.createServer((req, res) => {
     route(ctx, req, res).catch((err) => {
       sendError(req, res, ctx, err).catch(() => {
@@ -3234,6 +3453,7 @@ export function createApp(options = {}) {
   const close = async () => {
     if (closed) return;
     closed = true;
+    clearInterval(googleCleanupTimer);
     await projectExports.stop();
     await batchQueue.stop();
     await new Promise((resolve) => {
