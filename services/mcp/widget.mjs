@@ -16,7 +16,12 @@ import { WIDGET_MIME_TYPE } from './limits.mjs';
 // Resource URIs are host cache keys; keep the old address readable for saved chats.
 export const LEGACY_WIDGET_RESOURCE_URI = 'ui://imstage/render-scene.html';
 export const PREVIOUS_WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v2.html';
-export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v3.html';
+export const WIDGET_RESOURCE_ALIASES = Object.freeze([
+  LEGACY_WIDGET_RESOURCE_URI,
+  PREVIOUS_WIDGET_RESOURCE_URI,
+  'ui://imstage/render-scene-v3.html',
+]);
+export const WIDGET_RESOURCE_URI = 'ui://imstage/render-scene-v4.html';
 export const WIDGET_TITLE = 'IMStage 渲染预览';
 
 /** CSP for the widget: it connects to and loads from nowhere. */
