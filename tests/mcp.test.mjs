@@ -627,6 +627,10 @@ test('IMStage MCP protocol (real SDK client over HTTP)', async (t) => {
     });
 
     await t.test('widget resource is self-contained and mutation tools have no widget', async () => {
+      assert.equal(WIDGET_RESOURCE_URI, 'ui://imstage/render-scene-v4.html', 'the refined card needs a fresh host cache key');
+      const cachedCard = await client.readResource({ uri: 'ui://imstage/render-scene-v3.html' });
+      assert.equal(cachedCard.contents[0].uri, 'ui://imstage/render-scene-v3.html');
+      assert.match(cachedCard.contents[0].text, /查看尺寸/);
       const legacy = await client.readResource({ uri: LEGACY_WIDGET_RESOURCE_URI });
       assert.equal(legacy.contents[0].uri, LEGACY_WIDGET_RESOURCE_URI);
       const previous = await client.readResource({ uri: PREVIOUS_WIDGET_RESOURCE_URI });
